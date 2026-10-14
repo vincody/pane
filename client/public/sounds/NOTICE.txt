@@ -1,0 +1,4 @@
+Notification sounds: done.mp3 and request.mp3
+Source: https://github.com/herdrdev/herdr/tree/master/assets/sounds
+Copied unchanged from Herdr, licensed under Apache License 2.0.
+See HERDR-LICENSE.txt in this directory for the license text.

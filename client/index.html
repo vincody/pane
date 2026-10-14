@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="ai-web-token" content="__AI_WEB_TOKEN__" />
+    <meta name="color-scheme" content="dark" />
+    <title>Pane · Agent workspace</title>
+    <link rel="icon" type="image/svg+xml" href="/pane.svg">
+    <link rel="preload" href="/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
+</head>
+  <body>
+    <div id="app">
+      <aside id="projects-sidebar" class="sidebar">
+        <header class="brand"><span class="brand-mark app-mark"><img src="/pane.svg" alt="" width="26" height="26"></span><div>Pane</div><button id="collapse" class="icon-button" title="Toggle sidebar" aria-label="Toggle sidebar"></button></header>
+        <div class="workspace-actions"><button id="open-folder" class="open-workspace-button" title="Open folder" aria-label="Open folder">Folder</button></div>
+        <div class="section-head"><span>Workspaces</span></div>
+        <div class="host-row" hidden><span id="host-icon"></span><span>This computer</span><small>Host</small><i class="host-status"></i></div>
+        <nav id="projects" aria-label="Workspaces"></nav>
+        <footer class="sidebar-footer"><button id="settings" class="sidebar-settings"><span id="settings-icon"></span>Settings</button></footer>
+      </aside>
+      <main>
+        <header class="topbar"><button id="show-sidebar" class="icon-button" title="Toggle workspaces sidebar (Ctrl+B)" aria-label="Toggle workspaces sidebar" aria-controls="projects-sidebar" aria-expanded="true"></button><div class="toolbar-actions"><div class="view-switch" aria-label="View mode"><button data-view="editor" class="active" aria-pressed="true">Editor</button><button data-view="preview" aria-pressed="false">Preview</button></div><button id="terminal-toggle" type="button" class="terminal-toggle" aria-pressed="false"><span id="terminal-toggle-icon"></span><span class="terminal-toggle-label">Terminal</span></button><button id="save" class="save-button" disabled>Save <kbd>Ctrl S</kbd></button></div><div class="topbar-right"><button id="toggle-files" class="files-toggle" title="Toggle files (Ctrl+Shift+E)" aria-label="Toggle files" aria-controls="files-sidebar" aria-expanded="true"><span id="files-toggle-icon"></span><span class="files-toggle-label">Files</span></button><button id="help" class="icon-button" aria-label="Keyboard shortcuts">?</button></div></header>
+        <nav id="tabs" class="tabs" aria-label="Open files"></nav>
+        <div id="workspace" class="workspace" data-view="editor">
+          <div id="empty" class="empty-state"><div class="empty-symbol">⌘</div><span class="eyebrow">YOUR LOCAL WORKSPACE</span><h1>Choose a workspace</h1><p>Select a workspace or open a folder to get started.<br>Your agents and files stay on this computer.</p><button id="empty-open" class="primary-button">Open a folder <span>↗</span></button><div class="empty-tips"><span><kbd>Ctrl S</kbd> Save file</span><span><kbd>Ctrl Shift V</kbd> Preview</span></div></div>
+          <section id="editor-pane" aria-label="Code editor"><div id="editor"></div><div id="image-editor" hidden></div></section>
+          <section id="preview-pane" aria-label="File preview"><header class="preview-heading"><span>PREVIEW</span><span id="preview-kind">From your current edits</span></header><div id="preview-content" class="preview-content"></div></section>
+        </div>
+      </main>
+      <aside id="files-sidebar" class="files-sidebar" aria-label="File explorer">
+        <div class="section-head files-head"><span>FILES</span><div class="file-head-actions"><button id="refresh-files" class="icon-button" title="Refresh files" aria-label="Refresh files">↻</button><button id="close-files" class="icon-button" title="Hide files" aria-label="Hide files">×</button></div></div>
+        <label class="file-filter"><span id="search-icon"></span><input id="filter" placeholder="Filter files…" aria-label="Filter files" /></label>
+        <div id="tree" class="tree" role="tree" aria-label="Workspace files"></div>
+        <footer class="files-footer">Select a file to open in the editor</footer>
+      </aside>
+    </div>
+    <dialog id="folder-dialog"><form id="folder-form"><div class="dialog-heading"><span>Open a workspace</span><button type="button" class="icon-button close-dialog" aria-label="Close dialog">×</button></div><p>Enter the folder path on this computer.</p><label for="folder-path">Folder path</label><input id="folder-path" placeholder="C:\Workspaces\my-project" autocomplete="off" required /><div id="folder-error" class="form-error" role="alert"></div><div class="dialog-actions"><button type="button" class="secondary-button close-dialog">Cancel</button><button type="submit" class="primary-button">Open folder</button></div></form></dialog>
+    <dialog id="help-dialog"><div class="dialog-heading"><span>Keyboard shortcuts</span><button class="icon-button close-dialog" aria-label="Close dialog">×</button></div><div class="shortcut-list"><span>Save current file</span><kbd>Ctrl S</kbd><span>Toggle preview</span><kbd>Ctrl Shift V</kbd><span>Find in editor</span><kbd>Ctrl F</kbd><span>Open folder</span><kbd>Ctrl O</kbd><span>Toggle workspace sidebar</span><kbd>Ctrl B</kbd><span>Toggle file explorer</span><kbd>Ctrl Shift E</kbd></div></dialog>
+    <dialog id="settings-dialog"><div class="dialog-heading"><span>Settings</span><button class="icon-button close-dialog" aria-label="Close settings">×</button></div><p class="settings-description">Make this workspace comfortable for you.</p><div class="setting-row"><div><strong>Compact sidebar</strong><small>Fit more workspaces and agents</small></div><input id="compact-setting" type="checkbox" aria-label="Compact sidebar" /></div><div class="setting-row"><div><strong>Editor font size</strong><small>Code editor and line numbers</small></div><select id="font-setting" aria-label="Editor font size"><option value="12">12 px</option><option value="13" selected>13 px</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option></select></div><div class="setting-row"><div><strong>Wrap long lines</strong><small>Keep code inside the editor width</small></div><input id="wrap-setting" type="checkbox" aria-label="Wrap long lines" /></div><div class="settings-footnote">Preferences are saved in this browser.</div></dialog>
+    <div id="workspace-menu" class="context-menu" role="menu" aria-label="Workspace actions" hidden></div>
+    <dialog id="rename-dialog"><form id="rename-form"><div class="dialog-heading"><span>Rename workspace</span><button type="button" class="icon-button close-dialog" aria-label="Close rename dialog">×</button></div><p>This changes the name in Pane only.</p><label for="workspace-name">Workspace name</label><input id="workspace-name" maxlength="80" required autocomplete="off" /><div id="rename-error" class="form-error" role="alert"></div><div class="dialog-actions"><button type="button" class="secondary-button close-dialog">Cancel</button><button type="submit" class="primary-button">Rename</button></div></form></dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
