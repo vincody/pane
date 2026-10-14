@@ -1,10 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {repositoryName} from '../git/repository-name.ts';
 
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 export const imageTypes: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
-export interface Workspace { id: string; name: string; root: string }
+export interface Workspace { id: string; name: string; root: string; parentId?: string; nameSource?:'automatic'|'custom' }
 export interface FileTreeEntry { name: string; path: string; type: 'link' | 'directory' | 'file'; image: boolean }
 export interface FileReference { name: string; path: string }
 export interface FileReferenceResult { files: FileReference[]; truncated: boolean }
@@ -37,7 +38,7 @@ export class Files {
     const id = hash(Buffer.from(process.platform === 'win32' ? root.toLowerCase() : root)).slice(0, 16);
     const existing = this.projects.get(id);
     if (existing) return existing;
-    const project = { id, name: path.basename(root) || root, root };
+    const project:Workspace = { id, name: await repositoryName(root)||path.basename(root)||root, root,nameSource:'automatic' };
     this.projects.set(id, project);
     return project;
   }

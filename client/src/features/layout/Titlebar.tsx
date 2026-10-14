@@ -1,11 +1,11 @@
 import {createRoot} from 'react-dom/client';
 import {createPortal,flushSync} from 'react-dom';
 import type {Workspace} from '../../components/contracts';
-interface Attention {status:string;open:()=>void}
+interface Attention {status:string;unread?:boolean;open:()=>void}
 interface Props {attention:Attention[];right:Element}
 function Titlebar({attention,right}:Props){
- const blocked=attention.filter(item=>item.status==='blocked');
- return createPortal(<button type="button" className="titlebar-attention" hidden={!blocked.length} aria-label={blocked.length?`${blocked.length} sessions need your input`:'No sessions need input'} onClick={()=>blocked[0]?.open()}>{blocked.length?`${blocked.length} needs attention`:''}</button>,right);
+ const blocked=attention.filter(item=>item.status==='blocked'||item.status==='error'||item.status==='failed'||item.unread);
+ return createPortal(<button type="button" className="titlebar-attention" hidden={!blocked.length} aria-label={blocked.length?`${blocked.length} sessions need your attention`:'No sessions need attention'} onClick={()=>blocked[0]?.open()}>{blocked.length?`${blocked.length} needs attention`:''}</button>,right);
 }
 export function setupTitlebar({getAttention}:{getProject:()=>Workspace|null;getAttention:()=>Attention[]}){
  const bar=document.querySelector('.topbar')!,tabs=document.querySelector<HTMLElement>('#unified-tabs')!,right=document.createElement('span');right.className='react-icon';document.querySelector('.topbar-right')!.prepend(right);

@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import type {DevServer,Workspace} from '../../shared/contracts.ts';
 const first:Workspace={id:'servers-one',name:'First workspace',root:'C:\\work\\one'},second:Workspace={id:'servers-two',name:'Second workspace',root:'C:\\work\\two',branch:'main'};
 function server(projectId:string,port:number,protocol:DevServer['protocol']):DevServer{return {id:`${projectId}:${port}`,projectId,pid:42,port,host:'127.0.0.1',name:'node',status:'running',protocol,url:protocol==='unknown'?null:`${protocol}://127.0.0.1:${port}`,observedAt:new Date().toISOString()};}
-test('dev servers stays compact and scopes scan results and actions to the current workspace',async({page,context})=>{
+test('local servers stays compact and scopes scan results and actions to the current workspace',async({page,context})=>{
  await context.grantPermissions(['clipboard-read','clipboard-write']);
  await page.route('**/api/projects',route=>route.fulfill({json:{projects:[first,second],defaultProject:first.id}}));
  await page.route('**/api/tree?**',route=>route.fulfill({json:{entries:[]}}));
@@ -24,7 +24,7 @@ test('dev servers stays compact and scopes scan results and actions to the curre
  await expect(panel).toContainText('Protocol unknown');await expect(panel.getByRole('link',{name:'Open',exact:true})).toHaveCount(1);
  const link=panel.getByRole('link',{name:'Open',exact:true});await expect(link).toHaveAttribute('href','http://127.0.0.1:5173');await expect(link).toHaveAttribute('target','_blank');await expect(link).toHaveAttribute('rel','noopener noreferrer');
  await panel.getByRole('button',{name:'Copy URL',exact:true}).click();await expect(panel.getByRole('button',{name:'Copied',exact:true})).toBeVisible();expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe('http://127.0.0.1:5173');
- await expect(panel).not.toContainText(':3000');scanFailed=true;await panel.getByRole('button',{name:'Refresh dev servers',exact:true}).click();await expect(panel).toContainText('Scan unavailable');await expect(panel.locator('.dev-server-row')).toHaveCount(2);await expect(panel.getByRole('link',{name:'Open',exact:true})).toHaveCount(0);await expect(panel.getByRole('button',{name:'Copy URL',exact:true})).toHaveCount(1);await expect(page.locator('.dev-server-count')).toHaveText('0');
+ await expect(panel).not.toContainText(':3000');scanFailed=true;await panel.getByRole('button',{name:'Refresh local servers',exact:true}).click();await expect(panel).toContainText('Scan unavailable');await expect(panel.locator('.dev-server-row')).toHaveCount(2);await expect(panel.getByRole('link',{name:'Open',exact:true})).toHaveCount(0);await expect(panel.getByRole('button',{name:'Copy URL',exact:true})).toHaveCount(1);await expect(page.locator('.dev-server-count')).toHaveText('0');
  await page.keyboard.press('Escape');await expect(panel).toBeHidden();await expect(page.locator('#dev-servers-open')).toBeFocused();
 });
 
@@ -64,5 +64,5 @@ test('stopped rows disappear after five seconds without requiring another port s
  await page.clock.fastForward(4900);await expect(page.locator('.dev-server-row')).toHaveCount(1);
  await page.clock.fastForward(100);await expect(page.locator('.dev-server-row')).toHaveCount(0);expect(scans).toBe(1);
  await page.locator('#dev-servers-open').click();await expect.poll(()=>scans).toBe(2);
- await expect(page.locator('.dev-server-row')).toHaveCount(0);await expect(page.locator('#dev-servers-popover')).toContainText('No dev servers detected');
+ await expect(page.locator('.dev-server-row')).toHaveCount(0);await expect(page.locator('#dev-servers-popover')).toContainText('No local servers detected');
 });

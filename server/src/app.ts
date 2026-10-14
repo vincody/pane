@@ -1,7 +1,9 @@
 import {createAccountUsage} from './features/usage/account-usage.ts';
+import {createTokenUsage} from './features/usage/token-usage.ts';
 import {createLocalSessions} from './features/sessions/local-sessions.ts';
 import {createLocalRunner} from './features/sessions/local-runner.ts';
 import {attachTerminalPty} from './features/terminal/terminal-pty.ts';
+import {selectSshKey} from './features/terminal/ssh-key-picker.ts';
 import {createDevServers,type DevServerOptions} from './features/dev-servers/dev-servers.ts';
 import http from 'node:http';
 import fs from 'node:fs/promises';
@@ -10,6 +12,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Files, FileError, isWithin } from './features/files/files.ts';
 import { gitBranch } from './features/git/git.ts';
+import {worktreeBranches,createWorktree,unregisterNewWorktree,existingWorktree} from './features/git/worktrees.ts';
 import {changes,fileDiff} from './features/git/git-changes.ts';
 import type { SessionRecord } from '../../shared/contracts.ts';
 
@@ -42,16 +45,18 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
   const registeredSession=(record: SessionRecord)=>[...files.projects.values()].some(project=>record.cwd&&isWithin(path.resolve(project.root),path.resolve(record.cwd)));
   const localRunner=createLocalRunner({local,launch:localLaunch,allowRecord:registeredSession,codexEngineFactory});
   const usage=accountUsage || createAccountUsage({home:agentHome,requestCodex:(method,params)=>localRunner.accountRequest(method,params)});
+  const tokenUsage=createTokenUsage({home:agentHome});
   const token = crypto.randomBytes(32).toString('hex');
   await fs.mkdir(stateDir, { recursive: true });
   const projectFile = path.join(stateDir, 'projects.json');
   let saved: unknown = null;
   try { saved = JSON.parse(await fs.readFile(projectFile, 'utf8')); } catch {}
   const candidates: unknown[] = Array.isArray(saved) ? saved.map((root: unknown) => ({ root })) : saved && typeof saved === 'object' && 'projects' in saved && Array.isArray(saved.projects) ? saved.projects : [];
-  const entries = candidates.filter((entry): entry is { root: unknown; name?: unknown } => Boolean(entry && typeof entry === 'object' && 'root' in entry));
+  const entries = candidates.filter((entry): entry is { root: unknown; name?: unknown; parentId?:unknown;nameSource?:unknown } => Boolean(entry && typeof entry === 'object' && 'root' in entry));
   for (const entry of entries) {
-    try { const project = await files.addProject(entry.root); if (typeof entry.name === 'string' && entry.name.trim()) project.name = entry.name.trim().slice(0, 80); } catch {}
+    try { const project = await files.addProject(entry.root); if(typeof entry.parentId==='string')project.parentId=entry.parentId; if(typeof entry.name==='string'&&entry.name.trim()){const name=entry.name.trim();const custom=entry.nameSource==='custom'||(entry.nameSource===undefined&&name!==path.basename(project.root)&&name!==project.name);if(project.parentId||custom){project.name=name.slice(0,200);project.nameSource='custom';}} } catch {}
   }
+  for(const [id,project] of files.projects)if(project.parentId&&(!files.projects.has(project.parentId)||files.projects.get(project.parentId)?.parentId||project.parentId===id))files.projects.delete(id);
   // A persisted empty list is intentional: never resurrect a removed workspace.
   if (saved === null) await files.addProject(initialRoot);
   const preferredRoot = path.resolve(initialRoot);
@@ -63,7 +68,7 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
       try {
         const result = await operation();
         const temporary = projectFile + '.tmp';
-        await fs.writeFile(temporary, JSON.stringify({ projects: [...files.projects.values()].map(({ root, name }) => ({ root, name })) }, null, 2));
+        await fs.writeFile(temporary, JSON.stringify({ projects: [...files.projects.values()].map(({ root, name,parentId,nameSource }) => ({ root, name,nameSource,...(parentId?{parentId}:{}) })) }, null, 2));
         await fs.rename(temporary, projectFile);
         return result;
       } catch (error) { files.projects = before; throw error; }
@@ -93,13 +98,41 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
             files.projects=new Map(ids.map(id=>{const project=files.projects.get(id);if(!project)throw new FileError(409,'The project list changed. Refresh and try again.');return [id,project];}));
           });return json(200,{projects:await listProjects()});
         }
+        if(url.pathname==='/api/sub-workspaces'){
+          const parent=files.projects.get(url.searchParams.get('project')||'');
+          if(!parent)throw new FileError(404,'Workspace not found.');
+          if(parent.parentId)throw new FileError(400,'Choose a parent workspace.');
+          if(req.method==='GET')return json(200,await worktreeBranches(parent));
+          if(req.method==='POST'){
+            const data=await body(req);let created:{root:string;name:string;parentId:string}|undefined;
+            try{
+              const child=await changeProjects(async()=>{
+                if(!files.projects.has(parent.id))throw new FileError(404,'Workspace was removed.');
+                if(data.mode==='open'){
+                  const root=await existingWorktree(parent,data.branch);
+                  if(isWithin(root,parent.root))return parent;
+                  const prior=[...files.projects.values()].find(project=>project.root===root);
+                  if(prior)return prior;
+                  const opened=await files.addProject(root);opened.name=typeof data.branch==='string'?data.branch:opened.name;opened.parentId=parent.id;opened.nameSource='custom';return opened;
+                }
+                created=await createWorktree(parent,stateDir,data);
+                const child=await files.addProject(created.root);child.name=created.name;child.parentId=parent.id;child.nameSource='custom';return child;
+              });
+              return json(201,{...child,branch:await gitBranch(child.root)});
+            }catch(error){if(created)await unregisterNewWorktree(parent,created.root).catch(()=>{});throw error;}
+          }
+          throw new FileError(405,'Method not allowed.');
+        }
         if (req.method === 'GET' && url.pathname === '/api/health') return json(200, { app: 'ai-web', version: '0.1.0' });
         if (req.method === 'POST' && url.pathname === '/api/projects') {
           const data = await body(req);
           const project = await changeProjects(() => files.addProject(data.path));
           return json(201, { ...project, branch: await gitBranch(project.root) });
         }
+        if(req.method==='POST'&&url.pathname==='/api/ssh/select-key')return json(200,{path:await selectSshKey()});
         if(req.method==='GET'&&url.pathname==='/api/account-usage')return json(200,await usage.read((url.searchParams.get('providers') || '').split(',').filter(Boolean)));
+        if(req.method==='GET'&&url.pathname==='/api/token-usage')return json(200,await tokenUsage.read(Number(url.searchParams.get('since')||0)));
+        if(req.method==='POST'&&url.pathname==='/api/close-terminal'){const data=await body(req);if(typeof data.sessionId!=='string')throw new FileError(400,'Provide a terminal session ID.');return json(200,{closed:closeTerminalPty.stop(data.sessionId)});}
         if(req.method==='GET'&&url.pathname==='/api/dev-servers'){
           const project=url.searchParams.get('project')||'';if(!files.projects.has(project))throw new FileError(404,'Workspace not found.');
           return json(200,await devServers.read(project));
@@ -126,16 +159,18 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
           const project = await changeProjects(() => {
             const project = files.projects.get(id);
             if (!project) throw new FileError(404, 'Workspace not found.');
-            project.name = name; return project;
+            project.name = name;project.nameSource='custom'; return project;
           });
           return json(200, project);
         }
         if (req.method === 'DELETE' && url.pathname === '/api/projects') {
-          await changeProjects(() => {
-            if (!files.projects.delete(id)) throw new FileError(404, 'Workspace not found.');
+          const removed=await changeProjects(() => {
+            if (!files.projects.has(id)) throw new FileError(404, 'Workspace not found.');
+            const removed=[id,...[...files.projects.values()].filter(project=>project.parentId===id).map(project=>project.id)];
+            for(const key of removed)files.projects.delete(key);return removed;
           });
           // Only the web registry changes. No filesystem deletion or agent process control.
-          return json(200, { removed: id });
+          return json(200, { removed: id,removedIds:removed });
         }
         if (req.method === 'GET' && url.pathname === '/api/tree') return json(200, { entries: await files.tree(id, relative) });
         if (req.method === 'GET' && url.pathname === '/api/file') return json(200, await files.read(id, relative));

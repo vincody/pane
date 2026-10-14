@@ -7,10 +7,10 @@ const iconPaths={server:'M4 3h16v8H4z M4 13h16v8H4z M8 7h.01 M8 17h.01 M12 7h5 M
 function DevIcon({kind}:{kind:keyof typeof iconPaths}){return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[kind]}/></svg>;}
 export function setupDevServers({api,getProject,onError}:Options){
  const footer=document.querySelector('.sidebar-footer')!;
- const trigger=document.createElement('button');trigger.id='dev-servers-open';trigger.type='button';trigger.className='sidebar-tool dev-server-trigger';trigger.title='Dev servers';trigger.setAttribute('aria-label','Dev servers');trigger.setAttribute('aria-expanded','false');trigger.setAttribute('aria-controls','dev-servers-popover');
+ const trigger=document.createElement('button');trigger.id='dev-servers-open';trigger.type='button';trigger.className='sidebar-tool dev-server-trigger';trigger.title='Local servers';trigger.setAttribute('aria-label','Local servers');trigger.setAttribute('aria-expanded','false');trigger.setAttribute('aria-controls','dev-servers-popover');
  trigger.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="3" width="16" height="8" rx="2"/><rect x="4" y="13" width="16" height="8" rx="2"/><path d="M8 7h.01M8 17h.01M12 7h5M12 17h5"/></svg><span class="dev-server-count">0</span>';
  footer.insertBefore(trigger,document.querySelector('#settings'));
- const panel=document.createElement('section');panel.id='dev-servers-popover';panel.className='dev-server-popover';panel.setAttribute('role','region');panel.setAttribute('aria-label','Workspace dev servers');panel.hidden=true;document.body.append(panel);
+ const panel=document.createElement('section');panel.id='dev-servers-popover';panel.className='dev-server-popover';panel.setAttribute('role','region');panel.setAttribute('aria-label','Workspace local servers');panel.hidden=true;document.body.append(panel);
  const root=createRoot(panel);let disposed=false,opened=false,generation=0,controller:AbortController|undefined,loading=false,snapshot:DevServerSnapshot={available:false,scannedAt:null,rows:[]},copied:string|null=null;
  let timer:ReturnType<typeof setTimeout>|undefined;
  let expiryTimer:ReturnType<typeof setTimeout>|undefined;
@@ -26,13 +26,13 @@ export function setupDevServers({api,getProject,onError}:Options){
   const elapsed=snapshot.scannedAt?Math.max(0,Math.floor((Date.now()-Date.parse(snapshot.scannedAt))/1000)):0;
   const scanned=loading?'Scanning…':snapshot.scannedAt?elapsed<10?'Scanned just now':`Scanned ${elapsed<60?`${elapsed}s`:`${Math.floor(elapsed/60)}m`} ago`:'Not scanned';
   flushSync(()=>root.render(<>
-   <header className="dev-server-heading"><DevIcon kind="server"/><strong>Dev servers</strong><button type="button" className="icon-button dev-server-refresh" aria-label="Refresh dev servers" title="Refresh" disabled={loading||!project} onClick={()=>void refresh(true)}><DevIcon kind="refresh"/></button><button type="button" className="icon-button" aria-label="Close dev servers" title="Close" onClick={()=>close()}><DevIcon kind="close"/></button></header>
-   <div className="dev-server-context"><DevIcon kind="folder"/><span className="dev-server-workspace" title={project?.root}>{project?.name||'No workspace selected'}</span>{project?.branch&&<span className="dev-server-branch" title={project.branch}><DevIcon kind="branch"/>{project.branch}</span>}{project&&<span className="dev-server-scope">This workspace</span>}</div>
+   <header className="dev-server-heading"><DevIcon kind="server"/><strong>Local servers</strong><button type="button" className="icon-button dev-server-refresh" aria-label="Refresh local servers" title="Refresh" disabled={loading||!project} onClick={()=>void refresh(true)}><DevIcon kind="refresh"/></button><button type="button" className="icon-button" aria-label="Close local servers" title="Close" onClick={()=>close()}><DevIcon kind="close"/></button></header>
+   <p className="dev-server-description">Servers running in this workspace.</p><div className="dev-server-context"><DevIcon kind="folder"/><span className="dev-server-workspace" title={project?.root}>{project?.name||'No workspace selected'}</span>{project?.branch&&<span className="dev-server-branch" title={project.branch}><DevIcon kind="branch"/>{project.branch}</span>}{project&&<span className="dev-server-scope">This workspace</span>}</div>
    <div className="dev-server-caption">{scanned}<span aria-hidden="true"> · </span>{running} running</div>
    {!project&&<p className="dev-server-empty">Select a workspace to view its servers.</p>}
    {project&&<>
     {!snapshot.available&&<p className="dev-server-empty">{snapshot.error||(loading?'Checking local listeners…':'Scan unavailable')}</p>}
-    {snapshot.available&&rows.length===0&&<p className="dev-server-empty">No dev servers detected</p>}
+    {snapshot.available&&rows.length===0&&<p className="dev-server-empty">No local servers detected</p>}
     {rows.length>0&&<ul className="dev-server-list">{rows.map(row=>{
      const address=row.url?new URL(row.url).host:`${row.host.includes(':')?`[${row.host}]`:row.host}:${row.port}`;
      return <li key={row.id} className="dev-server-row" data-status={row.status}>

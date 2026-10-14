@@ -23,7 +23,7 @@ function Settings({categories,close,footnote,icon}: {categories:Category[]; clos
 export function setupSettings({icon}: {icon:NativeIcon}) {
   const dialog=document.querySelector<HTMLDialogElement>('#settings-dialog')!,close=dialog.querySelector('.close-dialog')!,footnote=dialog.querySelector('.settings-footnote')!;
   const categories:Category[]=[
-    {id:'appearance',name:'Appearance',description:'Make your workspace comfortable.',icon:'settings',controls:['#compact-setting'],nodes:[]},
+    {id:'appearance',name:'Appearance',description:'Make your workspace comfortable.',icon:'settings',controls:['[aria-label="Color theme"]','#compact-setting'],nodes:[]},
     {id:'editor',name:'Editor',description:'Choose how files open and how code is displayed.',icon:'code',controls:['#font-setting','#wrap-setting','[aria-label="Opening files"]','[aria-label="Default file view"]'],nodes:[]},
     {id:'terminal',name:'Terminal',description:'Choose how new terminal sessions are arranged.',icon:'monitor',controls:['#terminal-setting','#auto-split-terminal-setting'],nodes:[]},
     {id:'usage',name:'Usage',description:'Keep account limits within reach.',icon:'refresh',controls:['[aria-label="Show usage"]','[aria-label="Show Codex usage"]','[aria-label="Show Claude usage"]','[aria-label="Usage quota window"]'],nodes:[]},

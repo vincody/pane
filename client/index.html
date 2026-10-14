@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="ai-web-token" content="__AI_WEB_TOKEN__" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light" />
+    <script src="/theme-init.js"></script>
     <title>Pane · Agent workspace</title>
     <link rel="icon" type="image/svg+xml" href="/pane.svg">
     <link rel="preload" href="/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
@@ -13,8 +14,8 @@
     <div id="app">
       <aside id="projects-sidebar" class="sidebar">
         <header class="brand"><span class="brand-mark app-mark"><img src="/pane.svg" alt="" width="26" height="26"></span><div>Pane</div><button id="collapse" class="icon-button" title="Toggle sidebar" aria-label="Toggle sidebar"></button></header>
-        <div class="workspace-actions"><button id="open-folder" class="open-workspace-button" title="Open folder" aria-label="Open folder">Folder</button></div>
-        <div class="section-head"><span>Workspaces</span></div>
+        <div class="workspace-actions"></div>
+        <div class="section-head workspace-heading"><span>Workspaces</span><button id="open-folder" class="icon-button open-workspace-button" title="Open folder" aria-label="Open folder"></button></div>
         <div class="host-row" hidden><span id="host-icon"></span><span>This computer</span><small>Host</small><i class="host-status"></i></div>
         <nav id="projects" aria-label="Workspaces"></nav>
         <footer class="sidebar-footer"><button id="settings" class="sidebar-settings"><span id="settings-icon"></span>Settings</button></footer>
@@ -36,7 +37,7 @@
       </aside>
     </div>
     <dialog id="folder-dialog"><form id="folder-form"><div class="dialog-heading"><span>Open a workspace</span><button type="button" class="icon-button close-dialog" aria-label="Close dialog">×</button></div><p>Enter the folder path on this computer.</p><label for="folder-path">Folder path</label><input id="folder-path" placeholder="C:\Workspaces\my-project" autocomplete="off" required /><div id="folder-error" class="form-error" role="alert"></div><div class="dialog-actions"><button type="button" class="secondary-button close-dialog">Cancel</button><button type="submit" class="primary-button">Open folder</button></div></form></dialog>
-    <dialog id="help-dialog"><div class="dialog-heading"><span>Keyboard shortcuts</span><button class="icon-button close-dialog" aria-label="Close dialog">×</button></div><div class="shortcut-list"><span>Save current file</span><kbd>Ctrl S</kbd><span>Toggle preview</span><kbd>Ctrl Shift V</kbd><span>Find in editor</span><kbd>Ctrl F</kbd><span>Open folder</span><kbd>Ctrl O</kbd><span>Toggle workspace sidebar</span><kbd>Ctrl B</kbd><span>Toggle file explorer</span><kbd>Ctrl Shift E</kbd></div></dialog>
+    <dialog id="help-dialog"><div class="dialog-heading"><span>Keyboard shortcuts</span><button class="icon-button close-dialog" aria-label="Close dialog">×</button></div><div class="shortcut-list"><span>Save current file</span><kbd>Ctrl S</kbd><span>Toggle preview</span><kbd>Ctrl Shift V</kbd><span>Find in editor</span><kbd>Ctrl F</kbd><span>Open folder</span><kbd>Ctrl O</kbd><span>Toggle workspace sidebar</span><kbd>Ctrl B</kbd><span>Toggle file explorer</span><kbd>Ctrl Shift E</kbd><span>Next session needing attention</span><kbd>Ctrl Shift J</kbd></div></dialog>
     <dialog id="settings-dialog"><div class="dialog-heading"><span>Settings</span><button class="icon-button close-dialog" aria-label="Close settings">×</button></div><p class="settings-description">Make this workspace comfortable for you.</p><div class="setting-row"><div><strong>Compact sidebar</strong><small>Fit more workspaces and agents</small></div><input id="compact-setting" type="checkbox" aria-label="Compact sidebar" /></div><div class="setting-row"><div><strong>Editor font size</strong><small>Code editor and line numbers</small></div><select id="font-setting" aria-label="Editor font size"><option value="12">12 px</option><option value="13" selected>13 px</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option></select></div><div class="setting-row"><div><strong>Wrap long lines</strong><small>Keep code inside the editor width</small></div><input id="wrap-setting" type="checkbox" aria-label="Wrap long lines" /></div><div class="settings-footnote">Preferences are saved in this browser.</div></dialog>
     <div id="workspace-menu" class="context-menu" role="menu" aria-label="Workspace actions" hidden></div>
     <dialog id="rename-dialog"><form id="rename-form"><div class="dialog-heading"><span>Rename workspace</span><button type="button" class="icon-button close-dialog" aria-label="Close rename dialog">×</button></div><p>This changes the name in Pane only.</p><label for="workspace-name">Workspace name</label><input id="workspace-name" maxlength="80" required autocomplete="off" /><div id="rename-error" class="form-error" role="alert"></div><div class="dialog-actions"><button type="button" class="secondary-button close-dialog">Cancel</button><button type="submit" class="primary-button">Rename</button></div></form></dialog>

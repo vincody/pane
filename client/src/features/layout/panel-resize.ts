@@ -1,13 +1,14 @@
 import {required} from '../../lib/dom.ts';
 export function setupPanelResize() {
   const app = required('#app');
+  const geometry=document.documentElement;
   const panels = [['.sidebar', 'left'], ['#files-sidebar', 'right']];
   for (const [selector, side] of panels) {
     const panel = required(selector);
     const variable = `--${side}-panel-width`;
     const key = `ai-web.${side}-panel-width`;
     let saved=0; try { saved = Number(localStorage.getItem(key)); } catch {}
-    if (saved >= 220 && saved <= 420) app.style.setProperty(variable, `${saved}px`);
+    if (saved >= 220 && saved <= 420) geometry.style.setProperty(variable, `${saved}px`);
     const handle = document.createElement('div'); handle.className = `panel-resizer ${side}`;
     handle.tabIndex = 0; handle.setAttribute('role', 'separator'); handle.setAttribute('aria-orientation', 'vertical');
     handle.setAttribute('aria-label', side === 'left' ? 'Resize workspace sidebar' : 'Resize Files sidebar');
@@ -15,9 +16,9 @@ export function setupPanelResize() {
     handle.title = 'Drag to resize · Arrow keys to adjust · Double-click to reset'; panel.append(handle);
     const value = () => Math.round(panel.getBoundingClientRect().width);
     const updateAria = () => handle.setAttribute('aria-valuenow', String(value()));
-    const set = (width:number) => { width = Math.max(220, Math.min(420, width)); app.style.setProperty(variable, `${width}px`); handle.setAttribute('aria-valuenow', String(Math.round(width))); };
+    const set = (width:number) => { width = Math.max(220, Math.min(420, width)); geometry.style.setProperty(variable, `${width}px`); handle.setAttribute('aria-valuenow', String(Math.round(width))); };
     const persist = () => { try { localStorage.setItem(key, String(value())); } catch {} };
-    const reset = () => { app.style.removeProperty(variable); try { localStorage.removeItem(key); } catch {} };
+    const reset = () => { geometry.style.removeProperty(variable); try { localStorage.removeItem(key); } catch {} };
     let drag:{start:number;x:number;width:number;pointer:number}|null=null, frame:number|null=null;
     const flush = () => { frame = null; if (drag) set(drag.width + (drag.x - drag.start) * (side === 'left' ? 1 : -1)); };
     handle.addEventListener('pointerdown', event => {

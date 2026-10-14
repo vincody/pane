@@ -5,11 +5,14 @@ import {setupChanges} from '../features/files/changes.ts';
 import {setupDevServers} from '../features/dev-servers/DevServers.tsx';
 import {createFileGitDecorations} from '../features/files/file-git-status.ts';
 import {createWorkspaceSidebar} from '../features/workspaces/WorkspaceSidebar.tsx';
+import {createSubWorkspaceDialog} from '../features/workspaces/sub-workspaces.ts';
+import {createSessionAttention,nextAttention} from '../features/workspaces/session-attention.ts';
 import {showImage} from '../features/files/image-viewer.ts';
 import {addCodeCopyButtons} from '../features/files/markdown-copy.ts';
 import {positionTab, setupUnifiedTabOrder,forgetTabPosition} from '../features/layout/tab-position.ts';
 import {createNotifications} from '../features/notifications/notifications.ts';
 import {setupSettings} from '../features/settings/Settings.tsx';
+import {setupColorTheme} from '../features/settings/color-theme.ts';
 import {setupTabDrag} from '../features/layout/tab-drag.ts';
 import {fileIcon} from '../features/files/file-icons.ts';
 import {createUsagePanel} from '../features/usage/Usage.tsx';
@@ -25,6 +28,7 @@ import CssWorker from 'monaco-editor/language/css/css.worker?worker';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import '../styles/styles.css';
+import '../styles/design-theme.css';
 
 self.MonacoEnvironment = { getWorker(_, label) {
   if (label === 'json') return new JsonWorker();
@@ -45,6 +49,8 @@ import type {ExternalFilePane} from '../features/terminal/terminal-view.ts';
 type FilePane=ExternalFilePane&{preview:HTMLElement;editor:monaco.editor.IStandaloneCodeEditor|monaco.editor.IStandaloneDiffEditor|null};
 const token = $('meta[name="ai-web-token"]').content;
 const api=createApi(token);
+$('#app').classList.toggle('sidebar-hidden',document.documentElement.dataset.workspacesHidden==='true');
+$('#app').classList.toggle('files-hidden',document.documentElement.dataset.filesHidden==='true');
 const fileGit=createFileGitDecorations($('#tree'));
 const documents = new Map<string,OpenDocument>();
 let notifications:ReturnType<typeof createNotifications>|undefined;
@@ -53,6 +59,15 @@ let workspaceSidebar:ReturnType<typeof createWorkspaceSidebar>|undefined;
 let changesView:ReturnType<typeof setupChanges>|undefined;
 let devServers:ReturnType<typeof setupDevServers>|undefined;
 let terminalAgents:TerminalAgent[] = [];
+const sessionAttention=createSessionAttention();
+let lastAttentionId:string|undefined;
+function openTerminalAgent(id:string){
+ const agent=terminalAgents.find(item=>item.id===id);if(!agent)return;
+ const project=projects.find(item=>item.id===agent.project);if(project&&currentProject?.id!==project.id)void selectProject(project);
+ if($('#app').classList.contains('sidebar-hidden'))toggleSidebar();
+ agentView.close();terminalView.select(id);lastAttentionId=id;
+}
+function jumpToAttention(){const next=nextAttention(terminalAgents,lastAttentionId||terminalAgents.find(agent=>agent.selected)?.id);if(next)openTerminalAgent(next.id);else toast('No sessions need attention.');}
 let sessionData:SessionSnapshot = {agents:[],sessions:[]};
 let tabOrder:string[]=[],tabDrag:ReturnType<typeof setupTabDrag>|undefined,secondaryDocument:OpenDocument|null=null,secondaryEditor:monaco.editor.IStandaloneCodeEditor|undefined,secondarySaveBound=false;
 let defaultFileView:FileView='editor',secondaryMode:FileView='editor';
@@ -155,7 +170,7 @@ async function reorderProjects(id:string,target:string,after=false){
 }
 function setupProjectDrag(project:Workspace,button:HTMLButtonElement,group:HTMLElement){
  button.draggable=true;button.title=project.root+' · Drag to reorder · Alt+↑/↓';
- button.addEventListener('keydown',event=>{if(event.altKey&&['ArrowUp','ArrowDown'].includes(event.key)){event.preventDefault();const index=projects.findIndex(item=>item.id===project.id),next=projects[index+(event.key==='ArrowUp'?-1:1)];if(next)void reorderProjects(project.id,next.id,event.key==='ArrowDown');}});
+ button.addEventListener('keydown',event=>{if(event.altKey&&['ArrowUp','ArrowDown'].includes(event.key)){event.preventDefault();const index=projects.filter(item=>!item.parentId).findIndex(item=>item.id===project.id),next=projects.filter(item=>!item.parentId)[index+(event.key==='ArrowUp'?-1:1)];if(next)void reorderProjects(project.id,next.id,event.key==='ArrowDown');}});
  button.ondragstart=event=>{if(reorderingProjects){event.preventDefault();return;}draggedProject=project.id;event.dataTransfer!.effectAllowed='move';event.dataTransfer!.setData('text/plain',project.id);group.classList.add('project-dragging');};
  button.ondragend=()=>{draggedProject=null;lastProjectDrag=Date.now();group.classList.remove('project-dragging');clearProjectDrop();};
  group.ondragover=event=>{if(!draggedProject||draggedProject===project.id)return;event.preventDefault();event.dataTransfer!.dropEffect='move';clearProjectDrop();const bounds=group.getBoundingClientRect();group.classList.add(event.clientY>bounds.top+bounds.height/2?'drop-after':'drop-before');};
@@ -170,10 +185,15 @@ async function selectProject(project:Workspace|null) {
   if (terminalView?.visible) terminalView.toggle();
   agentView?.close();
   closeWorkspaceMenu(false);
-  if (!project) { currentProject = null;changesView?.projectChanged();devServers?.projectChanged(); $('#empty').hidden = false; renderProjects(); $('#tree').replaceChildren(); return; }
-  currentProject = project; changesView?.projectChanged();devServers?.projectChanged();titlebar?.refresh();$('#empty').hidden = true; expanded.clear(); $('#filter').value = '';
+  if (!project) { currentProject = null;terminalView?.setProject(null);try{localStorage.removeItem('ai-web.selected-workspace');}catch{}changesView?.projectChanged();devServers?.projectChanged(); $('#empty').hidden = false; renderProjects(); $('#tree').replaceChildren(); return; }
+  if(currentDocument?.model)currentDocument.viewState=editor.saveViewState();
+  endFileSplit();
+  currentProject = project;try{localStorage.setItem('ai-web.selected-workspace',project.id);}catch{}
+  changesView?.projectChanged();devServers?.projectChanged();titlebar?.refresh();$('#empty').hidden = true; expanded.clear(); $('#filter').value = '';
   terminalView?.setProject(project);
-  renderProjects(); await refreshTree();
+  if(currentDocument?.project!==project.id){currentDocument=null;activeFileKey=null;editor.setModel(null);$('#preview-content').replaceChildren();$('#image-editor').hidden=true;$('#empty').hidden=false;}
+  if(!terminalView.visible){const doc=[...documents.values()].filter(doc=>doc.project===project.id).at(-1);if(doc)selectDocument(doc);}
+  renderTabs();renderProjects(); await refreshTree();
   if (!currentDocument) status(project.root);
 }
 let menuOrigin:HTMLElement|null=null,renameProject:Workspace|null=null;
@@ -187,15 +207,16 @@ function showWorkspaceMenu(project:Workspace,x:number,y:number,origin:HTMLElemen
   const menu = $('#workspace-menu'); menuOrigin = origin; menu.replaceChildren();
   const title = document.createElement('div'); title.className = 'context-title'; title.textContent = project.name; menu.append(title);
   const actions: [string,()=>void|Promise<void>][] = [
+    ...(!project.parentId?[["New worktree",()=>{void subWorkspaceDialog.open(project);}]] as [string,()=>void][]:[]),
     ['Open workspace', async () => { await selectProject(project); setFilesOpen(true); }],
     ['Rename in web', () => { renameProject = project; $('#workspace-name').value = project.name; $('#rename-error').textContent = ''; $('#rename-dialog').showModal(); $('#workspace-name').select(); }],
     ['Copy folder path', async () => { await navigator.clipboard.writeText(project.root); toast('Folder path copied'); }],
     ['Refresh files', async () => { await selectProject(project); setFilesOpen(true); }],
-    ['Move up',()=>{const index=projects.findIndex(item=>item.id===project.id);if(index>0)return reorderProjects(project.id,projects[index-1].id);}],
-    ['Move down',()=>{const index=projects.findIndex(item=>item.id===project.id);if(index>=0&&index<projects.length-1)return reorderProjects(project.id,projects[index+1].id,true);}],
+    ['Move up',()=>{const roots=projects.filter(item=>!item.parentId),index=roots.findIndex(item=>item.id===project.id);if(index>0)return reorderProjects(project.id,roots[index-1].id);}],
+    ['Move down',()=>{const roots=projects.filter(item=>!item.parentId),index=roots.findIndex(item=>item.id===project.id);if(index>=0&&index<roots.length-1)return reorderProjects(project.id,roots[index+1].id,true);}],
     ['Remove from web', () => removeProject(project)],
   ];
-  for (const [label, action] of actions) {
+  for (const [label, action] of actions.filter(([label])=>!project.parentId||!['Move up','Move down'].includes(label))) {
     const item = document.createElement('button'); item.type = 'button'; item.setAttribute('role', 'menuitem'); item.textContent = label;
     if (label === 'Remove from web') item.className = 'danger-action';
     item.onclick = async () => { closeWorkspaceMenu(false); try { await action(); } catch (error) { toast(errorMessage(error,'Operation failed.')); } };
@@ -209,13 +230,14 @@ function showWorkspaceMenu(project:Workspace,x:number,y:number,origin:HTMLElemen
   menu.querySelector<HTMLButtonElement>('button')!.focus();
 }
 async function removeProject(project:Workspace) {
-  const tabs = [...documents.values()].filter(doc => doc.project === project.id);
+  const removedIds=new Set([project.id,...projects.filter(item=>item.parentId===project.id).map(item=>item.id)]);
+  const tabs = [...documents.values()].filter(doc => removedIds.has(doc.project));
   if (tabs.some(doc => doc.saving)) { toast('A file is still saving. Try again when it finishes.'); return; }
   if (tabs.some(doc => doc.dirty) && !confirm(`Remove ${project.name} from Pane and discard its unsaved edits? Files on disk will not be deleted.`)) return;
   await api(`/api/projects?${new URLSearchParams({ project: project.id })}`, { method: 'DELETE' });
   for (const doc of tabs) { doc.dirty = false; closeDocument(doc); }
-  projects = projects.filter(item => item.id !== project.id);
-  if (currentProject?.id === project.id) await selectProject(projects.find(item => item.id === currentDocument?.project) || projects[0] || null); else renderProjects();
+  projects = projects.filter(item => !removedIds.has(item.id));
+  if (currentProject&&removedIds.has(currentProject.id)) await selectProject(projects.find(item => item.id === currentDocument?.project) || projects[0] || null); else renderProjects();
   await refreshSessions();
   status('Workspace removed from web'); toast('Removed from Pane. Your folder and sessions remain on disk. Use Open folder to add it again.');
 }
@@ -344,6 +366,7 @@ function renderTabs() {
   const selectedAgent=agentView?.selected,split=$('#app').classList.contains('chat-file-split'),chatActive=agentView?.visible&&!split;
   if(selectedAgent){const tab=document.createElement('div');tab.dataset.tabKey='ai';tab.className=`file-tab ai-session-tab${chatActive?' active':''}`;tab.tabIndex=0;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(chatActive));const title=selectedAgent.display_agent || selectedAgent.name || selectedAgent.terminal_title_stripped || 'AI';tab.setAttribute('aria-label',`AI · ${title}`);const mark=document.createElement('span');mark.className='ai-tab-mark';if(['codex','claude','opencode'].includes(selectedAgent.agent)){const image=document.createElement('img');image.src=`/agents/${selectedAgent.agent}.svg`;image.alt='';mark.append(image);}else mark.append(icon('code'));const indicator=document.createElement('span');indicator.className='ai-tab-indicator';mark.append(indicator);tab.append(mark);const label=document.createElement('span');label.className='ai-tab-name';label.textContent=title;tab.append(label);const close=document.createElement('button');close.className='tab-close';close.setAttribute('aria-label','Close AI tab');close.append(icon('close'));close.onclick=event=>{event.stopPropagation();agentView.close();};tab.append(close);tab.onclick=()=>{endFileSplit();if(!agentView.visible||split){$('#app').classList.remove('chat-file-split');agentView.resume();}};tab.onkeydown=event=>{if(event.target===tab&&['Enter',' '].includes(event.key)){event.preventDefault();tab.click();}};$('#tabs').append(tab);}
   for (const doc of documents.values()) {
+    if(doc.project!==currentProject?.id)continue;
     const tab = document.createElement('div'); tab.dataset.tabKey=doc.key;tab.dataset.project=doc.project;tab.dataset.path=doc.path;tab.className = `file-tab${activeFileKey===doc.key&&!chatActive ? ' active' : ''}`; tab.title = `${projects.find(p => p.id === doc.project)?.name}/${doc.path}`; tab.tabIndex = 0; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(activeFileKey===doc.key&&!chatActive));
     tab.append(fileIcon(doc.path,icon)); const name = document.createElement('span'); name.className = 'tab-name'; name.textContent = doc.name; tab.append(name);
     if (doc.dirty) { const dot = document.createElement('span'); dot.className = 'tab-dirty'; dot.setAttribute('aria-label', 'Unsaved changes'); tab.append(dot); }
@@ -377,7 +400,7 @@ function closeDocument(doc:OpenDocument) {
     terminalView.removeFilePane(`file:${doc.key}`);pane.editor?.dispose();for(const model of doc.diffModels||[])model.dispose();
     previewRequests.set(pane.preview,(previewRequests.get(pane.preview)||0)+1);
     doc.subscription?.dispose();doc.model?.dispose();if(doc.imageUrl)URL.revokeObjectURL(doc.imageUrl);
-    if(!terminalView.visible){const next=[...documents.values()].at(-1);if(next)selectDocument(next);}
+    if(!terminalView.visible){const next=[...documents.values()].filter(doc=>doc.project===currentProject?.id).at(-1);if(next)selectDocument(next);}
     updateToolbar();renderTabs();return;
   }
   const closingSecondary=secondaryDocument===doc,keepTerminal=closingSecondary&&terminalView.visible;
@@ -386,7 +409,7 @@ function closeDocument(doc:OpenDocument) {
   documents.delete(doc.key); doc.subscription?.dispose(); doc.model?.dispose(); if (doc.imageUrl) URL.revokeObjectURL(doc.imageUrl);
   if(keepTerminal){if(currentDocument===doc){currentDocument=null;editor.setModel(null);}activeFileKey=null;$('#app').dataset.fileFocused='false';terminalView.showMostRecent();updateToolbar();renderTabs();return;}
   if (currentDocument === doc) {
-    currentDocument = null; const next = [...documents.values()].filter(doc=>doc!==secondaryDocument).at(-1);if(!next&&secondaryDocument){const remaining=secondaryDocument;endFileSplit();selectDocument(remaining);renderTabs();return;}
+    currentDocument = null; const next = [...documents.values()].filter(doc=>doc!==secondaryDocument&&doc.project===currentProject?.id).at(-1);if(!next&&secondaryDocument){const remaining=secondaryDocument;endFileSplit();selectDocument(remaining);renderTabs();return;}
     if(terminalView.showMostRecent()){agentView?.close();$('#app').classList.remove('chat-file-split','split-ai-last');editor.setModel(null);$('#empty').hidden=false;$('#preview-content').replaceChildren();$('#image-editor').hidden=true;updateToolbar();renderTabs();return;}
     if (next) selectDocument(next,{keepChat});
     else { if(agentView.selected){if(!agentView.visible)agentView.resume();else $('#app').classList.remove('chat-file-split');}editor.setModel(null); $('#empty').hidden = false; $('#preview-content').replaceChildren(); $('#image-editor').hidden = true; updateToolbar(); }
@@ -500,7 +523,11 @@ async function refreshSessions() {
 }
 function openFolderDialog() { $('#folder-error').textContent = ''; $('#folder-dialog').showModal(); $('#folder-path').focus(); }
 
-$('#open-folder').replaceChildren(icon('folder'), document.createTextNode('Folder'));
+const addFolderIcon=icon('folder');
+const addFolderMark=document.createElementNS('http://www.w3.org/2000/svg','path');
+addFolderMark.setAttribute('d','M12 11v6m-3-3h6');addFolderIcon.append(addFolderMark);
+$('#open-folder').replaceChildren(addFolderIcon);
+$('#open-folder').title='Add workspace';
 $('#open-folder').onclick = openFolderDialog; $('#empty-open').onclick = openFolderDialog;
 $('#folder-form').onsubmit = async event => {
   event.preventDefault(); const button = event.submitter instanceof HTMLButtonElement?event.submitter:$('#folder-form').querySelector<HTMLButtonElement>('[type=submit]')!;button.disabled = true;$('#folder-error').textContent = '';
@@ -529,9 +556,10 @@ for (const control of [$('#compact-setting'), $('#wrap-setting'), $('#font-setti
   try { localStorage.setItem('ai-web.appearance', JSON.stringify(appearance)); } catch {}
   applyAppearance();
 };
-const toggleSidebar = () => {const hidden=$('#app').classList.toggle('sidebar-hidden');$('#show-sidebar').setAttribute('aria-expanded',String(!hidden));editor.layout();};
+const toggleSidebar = () => {const hidden=$('#app').classList.toggle('sidebar-hidden');document.documentElement.dataset.workspacesHidden=String(hidden);$('#show-sidebar').setAttribute('aria-expanded',String(!hidden));editor.layout();};
 function setFilesOpen(open:boolean, persist = true) {
   $('#app').classList.toggle('files-hidden', !open);
+  document.documentElement.dataset.filesHidden=String(!open);
   $('#toggle-files').setAttribute('aria-expanded', String(open));
   if (persist) { try { localStorage.setItem('ai-web.files-open', String(open)); } catch {} }
   editor.layout();
@@ -547,6 +575,7 @@ const narrowLayout = matchMedia('(max-width: 900px)');
 narrowLayout.addEventListener('change', event => { if (event.matches) setFilesOpen(false, false); });
 $('#collapse').append(icon('panel')); $('#show-sidebar').append(icon('panel')); $('#search-icon').append(icon('search'));
 $('#collapse').onclick = toggleSidebar; $('#show-sidebar').onclick = toggleSidebar;
+document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.shiftKey&&!event.altKey&&event.key.toLowerCase()==='j'&&!event.isComposing&&!document.querySelector('dialog[open]')){event.preventDefault();event.stopPropagation();jumpToAttention();}},true);
 document.addEventListener('keydown', event => {
   if (eventElement(event)?.closest<HTMLElement>('#agent-panel')) return;
   if(eventElement(event)?.closest<HTMLElement>('#secondary-file')&&(event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveFile(secondaryDocument);return;}
@@ -565,11 +594,14 @@ async function start() {
   let rememberedFiles; try { rememberedFiles = localStorage.getItem('ai-web.files-open'); } catch {}
   setFilesOpen(!narrowLayout.matches && rememberedFiles !== 'false', false);
   const data = await api<{projects:Workspace[];defaultProject:string}>('/api/projects'); projects = data.projects;
-  const requested = new URLSearchParams(location.search).get('project');
-  await selectProject(projects.find(p => p.id === requested) || projects.find(p => p.id === data.defaultProject) || projects[0]);
+  let remembered:string|null=null;try{remembered=localStorage.getItem('ai-web.selected-workspace');}catch{}
+  const requested = new URLSearchParams(location.search).get('project')||remembered;
+  const selected=projects.find(p => p.id === requested) || projects.find(p => p.id === data.defaultProject) || projects[0];
+  currentProject=selected||null;terminalView.setProject(currentProject);
+  terminalView.restore(projects);
+  await selectProject(selected);
   updateToolbar(); refreshSessions();
   setInterval(() => { refreshSessions(); }, 8000);
-  if (matchMedia('(max-width: 700px)').matches) $('#app').classList.add('sidebar-hidden');
   $('#show-sidebar').setAttribute('aria-expanded',String(!$('#app').classList.contains('sidebar-hidden')));
 }
 const usagePanel=createUsagePanel({api});
@@ -578,7 +610,7 @@ $('.topbar').insertBefore($('#tabs'),$('.toolbar-actions'));
 $('.topbar .toolbar-actions').append($('.view-switch'), $('#save'), $('#terminal-toggle'));
 $('#terminal-toggle-icon').append(icon('terminal'));
 const contentViews=document.createElement('div');contentViews.id='content-views';const editorStack=document.createElement('section');editorStack.id='editor-stack';editorStack.setAttribute('aria-label','File editor');contentViews.append($('#agent-panel'),editorStack);editorStack.append($('#workspace'));document.querySelector<HTMLElement>('main')!.append(contentViews);
-const terminalView=createTerminalView({token,icon,onSelect:()=>{activeFileKey=null;document.querySelector<HTMLElement>("#app")!.dataset.fileFocused="false";agentView.close();},onSessionsChange:agents=>{for(const old of terminalAgents)if(!agents.some(agent=>agent.id===old.id))notifications?.remove(old.id);terminalAgents=agents;for(const agent of agents)notifications?.observe({...agent,terminalSession:true});usagePanel.setAgents([...sessionData.agents,...terminalAgents]);if(!draggedProject&&!reorderingProjects)renderProjects();},onClose:visible=>{ $('#terminal-toggle').setAttribute('aria-pressed',String(visible)); $('.topbar').classList.toggle('terminal-active',visible); }});editorStack.append(terminalView.element);$('#terminal-toggle').title='New terminal';$('#terminal-toggle').setAttribute('aria-label','New terminal');$('#terminal-toggle').onclick=()=>{agentView.close();endFileSplit();terminalView.newSession(currentProject);};
+const terminalView=createTerminalView({token,icon,onSelect:()=>{const context=projects.find(project=>project.id===terminalView.focusedProjectId);if(context&&context.id!==currentProject?.id)void selectProject(context);activeFileKey=null;document.querySelector<HTMLElement>("#app")!.dataset.fileFocused="false";agentView.close();},onSessionsChange:agents=>{for(const old of terminalAgents)if(!agents.some(agent=>agent.id===old.id))notifications?.remove(old.id);terminalAgents=sessionAttention.update(agents,!document.hidden&&document.hasFocus());for(const agent of agents)notifications?.observe({...agent,terminalSession:true});usagePanel.setAgents([...sessionData.agents,...terminalAgents]);if(!draggedProject&&!reorderingProjects)renderProjects();},onClose:visible=>{ $('#terminal-toggle').setAttribute('aria-pressed',String(visible)); $('.topbar').classList.toggle('terminal-active',visible); }});editorStack.append(terminalView.element);$('#terminal-toggle').title='New terminal';$('#terminal-toggle').setAttribute('aria-label','New terminal');$('#terminal-toggle').onclick=()=>{agentView.close();endFileSplit();terminalView.newSession(currentProject);};
 new ResizeObserver(()=>editor.layout()).observe(editorStack);
 const secondaryPane=document.createElement('section');secondaryPane.id='secondary-file';secondaryPane.hidden=true;secondaryPane.setAttribute('aria-label','Second file editor');secondaryPane.innerHTML='<header><span class="secondary-file-title"></span><button type="button" class="icon-button" aria-label="Merge split panes" title="Merge split panes"></button></header><div class="secondary-code"></div><div class="secondary-image" hidden></div>';contentViews.append(secondaryPane);secondaryPane.querySelector<HTMLButtonElement>('button')!.append(icon('close'));secondaryPane.querySelector<HTMLButtonElement>('button')!.onclick=()=>{if(secondaryDocument)closeDocument(secondaryDocument);};
 const secondarySwitch=document.createElement('div');secondarySwitch.className='pane-file-view';secondarySwitch.innerHTML='<button type="button" data-secondary-view="editor">Editor</button><button type="button" data-secondary-view="preview">Preview</button>';secondaryPane.querySelector<HTMLElement>('header')!.insertBefore(secondarySwitch,secondaryPane.querySelector<HTMLButtonElement>('header button')!);
@@ -658,13 +690,14 @@ function mountFilePane(doc:OpenDocument,target:string|null|undefined,direction:'
 setupUnifiedTabOrder($('#unified-tabs'),order=>{tabOrder=order;});
 tabDrag=setupTabDrag({tabs:$('#tabs'),content:contentViews,onReorder:()=>{},canDrop:(key,zone)=>{if(!key||!zone)return false;if(typeof zone==='object')return documents.has(key);const split=$('#app').classList.contains('chat-file-split')||$('#app').classList.contains('file-file-split');if(zone!=='right'&&zone!=='bottom')return split;if(key==='ai')return Boolean(agentView.selected&&currentDocument);return Boolean(documents.has(key)&&(terminalView.visible||agentView.visible||agentView.selected&&split||currentDocument&&currentDocument.key!==key));},onDrop:dropTab,onFileDrop:dropFile});
 
-notifications=createNotifications({icon,isViewing:agent=>!document.hidden&&document.hasFocus()&&(agent.terminalSession?Boolean(terminalAgents.find(item=>item.id===agent.id)?.selected):agentView.visible&&Boolean(agent.agent_session?.value?agentView.selected?.agent_session?.value===agent.agent_session.value:agent.pane_id&&agentView.selected?.pane_id===agent.pane_id)),onOpen:agent=>{if(agent.terminalSession){agentView.close();if(agent.id)terminalView.select(agent.id);}else{agentView.open(agent);agentView.focusLatest();}}});
-setupSettings({icon});
-workspaceSidebar=createWorkspaceSidebar({icon,onSelect:project=>{if(Date.now()-lastProjectDrag>300)void selectProject(project);},onAgentSelect:id=>{agentView.close();terminalView.select(id);},onMenu:showWorkspaceMenu,setupDrag:setupProjectDrag});
+notifications=createNotifications({icon,isViewing:agent=>!document.hidden&&document.hasFocus()&&(agent.terminalSession?Boolean(terminalAgents.find(item=>item.id===agent.id)?.selected):agentView.visible&&Boolean(agent.agent_session?.value?agentView.selected?.agent_session?.value===agent.agent_session.value:agent.pane_id&&agentView.selected?.pane_id===agent.pane_id)),onOpen:agent=>{if(agent.terminalSession){agentView.close();if(agent.id)openTerminalAgent(agent.id);}else{agentView.open(agent);agentView.focusLatest();}}});
+setupColorTheme();setupSettings({icon});
+const subWorkspaceDialog=createSubWorkspaceDialog({api,getProjects:()=>projects,onCreated:async project=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);toast(`Opened ${project.branch||project.name}`);}});
+workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{void subWorkspaceDialog.open(project);},onSelect:project=>{if(Date.now()-lastProjectDrag>300)void selectProject(project);},onAgentSelect:openTerminalAgent,onMenu:showWorkspaceMenu,setupDrag:setupProjectDrag});
 changesView=setupChanges({api,icon,getProject:()=>currentProject,onOpenDiff:openDiff,onError:message=>toast(message),onStatuses:(id,data)=>fileGit.update(id,data)});
 devServers=setupDevServers({api,getProject:()=>currentProject,onError:message=>toast(message)});
 setupHistory({api,getProjects:()=>projects,getCurrentProject:()=>currentProject,onResume:(record,project)=>{agentView.close();terminalView.resumeSession(record,project);}});
-titlebar=setupTitlebar({getProject:()=>projects.find(project=>project.id===(activeFileKey?documents.get(activeFileKey)?.project:terminalView.visible?terminalView.focusedProjectId:null))||currentProject,getAttention:()=>terminalAgents.map(agent=>({...agent,open:()=>terminalView.select(agent.id)}))});
+titlebar=setupTitlebar({getProject:()=>projects.find(project=>project.id===(activeFileKey?documents.get(activeFileKey)?.project:terminalView.visible?terminalView.focusedProjectId:null))||currentProject,getAttention:()=>terminalAgents.map(agent=>({...agent,open:()=>openTerminalAgent(agent.id)}))});
 startWorkingAnimation();
 start().catch(error => { status(errorMessage(error,'Operation failed.'), true); toast(errorMessage(error,'Operation failed.')); });
 
@@ -677,3 +710,7 @@ const refreshGit = document.createElement('button'); refreshGit.className = 'ico
 window.addEventListener('focus', () => { void refreshSessions(); });
 
 setupPanelResize();
+requestAnimationFrame(()=>requestAnimationFrame(()=>{document.documentElement.dataset.layoutReady='true';}));
+
+function acknowledgeViewedSession(){terminalAgents=sessionAttention.update(terminalAgents,!document.hidden&&document.hasFocus());renderProjects();}
+window.addEventListener('focus',acknowledgeViewedSession);document.addEventListener('visibilitychange',acknowledgeViewedSession);

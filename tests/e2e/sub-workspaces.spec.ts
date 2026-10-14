@@ -1,0 +1,53 @@
+import {test,expect} from '@playwright/test';
+import type {Workspace} from '../../shared/contracts.ts';
+
+test('Local and worktrees own their sessions and remember the selected working folder',async({page})=>{
+ const parent:Workspace={id:'task-parent',name:'ai-web',root:'C:\\work\\ai-web',branch:'dev'};
+ const child:Workspace={id:'task-ssh',name:'SSH support',root:'C:\\worktrees\\ssh',branch:'feat/ssh',parentId:parent.id};
+ const projects=[parent],starts:Record<string,unknown>[]=[],attaches:string[]=[],creations:Record<string,unknown>[]=[],inputs:{project:string;data:string}[]=[],errors:string[]=[];
+ const owners=new Map<string,string>();page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/api/projects',route=>route.fulfill({json:{projects,defaultProject:parent.id}}));
+ await page.route('**/api/sub-workspaces?**',async route=>{
+  if(route.request().method()==='POST'&&route.request().postDataJSON().mode==='open'){await route.fulfill({json:parent});}
+  else if(route.request().method()==='POST'){creations.push(route.request().postDataJSON());projects.push(child);await route.fulfill({status:201,json:child});}
+  else await route.fulfill({json:{current:'dev',local:['dev','fix/available'],bases:['dev','fix/available'],checkedOut:['dev']}});
+ });
+ await page.route('**/api/tree?**',route=>route.fulfill({json:{entries:[{name:new URL(route.request().url()).searchParams.get('project')===child.id?'child.txt':'local.txt',path:'source.txt',type:'file',image:false}]}}));
+ await page.route('**/api/changes?**',route=>route.fulfill({json:{available:true,files:[]}}));
+ await page.route('**/api/dev-servers?**',route=>route.fulfill({json:{available:true,rows:[]}}));
+ await page.route('**/api/account-usage?**',route=>route.fulfill({json:{providers:[]}}));
+ await page.route('**/api/local-sessions',route=>route.fulfill({json:{agents:[],sessions:[]}}));
+ await page.routeWebSocket('**/api/terminal',socket=>{
+  let owner='';socket.onMessage(raw=>{
+   const message=JSON.parse(raw.toString());
+   if(message.type==='start'){starts.push(message);owner=message.project;owners.set(message.sessionId,owner);socket.send(JSON.stringify({type:'ready',shell:'powershell.exe',sessionId:message.sessionId}));socket.send(JSON.stringify({type:'data',data:`${owner}> `}));}
+   if(message.type==='attach'){attaches.push(message.sessionId);owner=owners.get(message.sessionId)||'';socket.send(JSON.stringify({type:'ready',shell:'powershell.exe',sessionId:message.sessionId,attached:true}));socket.send(JSON.stringify({type:'data',data:`${owner}> `,replay:true}));}
+   if(message.type==='input')inputs.push({project:owner,data:message.data});
+  });
+ });
+ await page.goto('/');
+ const local=page.locator(`[data-context=${parent.id}]`),task=page.locator(`[data-context=${child.id}]`);
+ await expect(local.locator('.workspace-context-name')).toHaveText('Local');await expect(local.locator('.workspace-branch')).toHaveText('dev');
+ await page.getByRole('button',{name:'New session',exact:true}).click();await page.locator('[data-launch=shell]').click();await expect(local.locator('.terminal-agent-card')).toHaveCount(1);
+ await expect.poll(()=>starts.length).toBe(1);await page.locator('.terminal-screen:visible').evaluate(node=>(node as HTMLElement).dataset.sessionMarker='local-session');
+ await page.getByRole('button',{name:'New worktree in ai-web',exact:true}).click();await expect(page.getByLabel('Worktree repository')).toHaveValue(parent.id);await expect(page.getByLabel('Starting branch')).toHaveValue('dev');
+ await page.getByLabel('Worktree branch').fill('dev');await expect(page.getByRole('button',{name:'Open branch',exact:true})).toBeEnabled();await expect(page.getByLabel('Worktree location')).toHaveAttribute('readonly','');await page.getByRole('button',{name:'Open branch',exact:true}).click();await expect(local.locator('.workspace-context-button')).toHaveAttribute('aria-current','page');expect(starts).toHaveLength(1);await page.getByRole('button',{name:'New worktree in ai-web',exact:true}).click();
+ await page.getByLabel('Worktree branch').fill('fix/available');await expect(page.getByRole('button',{name:'Create worktree',exact:true})).toBeEnabled();await expect(page.getByLabel('Starting branch')).not.toBeVisible();
+ await page.getByLabel('Worktree branch').fill('feat/first');await expect(page.getByLabel('Worktree location')).toHaveValue('C:\\work\\ai-web-worktrees\\feat/first');
+ await page.getByLabel('Worktree location').fill('C:\\custom folder\\my-tree');await page.getByLabel('Worktree branch').fill('feat/second');await expect(page.getByLabel('Worktree location')).toHaveValue('C:\\custom folder\\my-tree');
+ await page.getByLabel('Worktree location').fill('C:\\work\\ai-web-worktrees\\feat/ssh');
+ await page.getByLabel('Worktree name').fill('SSH support');await page.getByLabel('Worktree branch').fill('feat/ssh');await expect(page.getByLabel('Worktree location')).toHaveValue('C:\\work\\ai-web-worktrees\\feat/ssh');await page.getByRole('button',{name:'Create worktree',exact:true}).click();
+ await expect(task.locator('.workspace-context-button')).toHaveAttribute('aria-current','page');await expect(task.locator('.workspace-branch')).toHaveText('feat/ssh');await expect(local.locator('.workspace-branch')).toHaveText('dev');
+ expect(creations).toEqual([{name:'SSH support',mode:'new',branch:'feat/ssh',base:'dev',destination:'C:\\work\\ai-web-worktrees\\feat/ssh'}]);await expect(page.locator('#tree')).toContainText('child.txt');
+ await expect(page.locator('.terminal-tab:visible')).toHaveCount(0);
+ await page.getByRole('button',{name:'New session',exact:true}).click();await page.locator('[data-launch=shell]').click();await expect(task.locator('.terminal-agent-card')).toHaveCount(1);await expect.poll(()=>starts.length).toBe(2);expect(starts[1].project).toBe(child.id);
+ await page.locator('.terminal-screen:visible').evaluate(node=>(node as HTMLElement).dataset.sessionMarker='task-session');
+ await page.getByRole('button',{name:'Open Local in ai-web',exact:true}).click();await expect(page.locator('.terminal-screen:visible')).toHaveAttribute('data-session-marker','local-session');await expect(page.locator('#tree')).toContainText('local.txt');await expect(page.locator('.terminal-tab:visible')).toHaveCount(1);
+ await page.keyboard.type('local command');await expect.poll(()=>inputs.some(input=>input.project===parent.id&&input.data.includes('l'))).toBe(true);
+ await page.getByRole('button',{name:'Open SSH support in ai-web',exact:true}).click();await expect(page.locator('.terminal-screen:visible')).toHaveAttribute('data-session-marker','task-session');expect(starts).toHaveLength(2);
+ await page.screenshot({path:'test-results/sub-workspaces-light.png'});
+ await page.locator('#settings').click();await page.getByLabel('Color theme',{exact:true}).selectOption('dark');await page.locator('.close-dialog[aria-label="Close settings"]').click();await page.screenshot({path:'test-results/sub-workspaces-dark.png'});
+ await page.reload();await expect(task.locator('.workspace-context-button')).toHaveAttribute('aria-current','page');await expect.poll(()=>attaches.length).toBe(2);expect(starts).toHaveLength(2);await expect(page.locator('.terminal-tab:visible')).toHaveCount(1);await expect(local.locator('.terminal-agent-card')).toHaveCount(1);await expect(task.locator('.terminal-agent-card')).toHaveCount(1);
+ await page.getByRole('button',{name:'Close terminal pane',exact:true}).click();await expect(task.locator('.workspace-context-button')).toHaveAttribute('aria-current','page');await expect(page.locator('.terminal-tab:visible')).toHaveCount(0);await expect(local.locator('.terminal-agent-card')).toHaveCount(1);
+ await page.getByRole('button',{name:'Open Local in ai-web',exact:true}).click();await expect(page.locator('.terminal-screen:visible')).toHaveCount(1);expect(starts).toHaveLength(2);expect(errors).toEqual([]);
+});

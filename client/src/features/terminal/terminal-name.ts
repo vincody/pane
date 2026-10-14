@@ -2,6 +2,7 @@ import type {Workspace} from '../../../../shared/contracts.ts';
 export interface TerminalNaming {customName?:boolean;name:string;agent?:string|null;launch?:string;state:string;shell:string;cliTitle?:string}
 export function terminalName(session:TerminalNaming) {
   if (session.customName) return session.name;
+  if (session.launch==='ssh'&&session.cliTitle)return session.cliTitle;
   const provider=session.agent || (session.launch!=='shell' && session.state!=='closed' ? session.launch : null);
   if (provider && session.cliTitle) return session.cliTitle;
   return provider ? provider.charAt(0).toUpperCase()+provider.slice(1) : session.shell==='Shell'?'Terminal':session.shell;

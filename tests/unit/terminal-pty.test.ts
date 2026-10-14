@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {EventEmitter, once} from 'node:events';
 import {WebSocket} from 'ws';
 import http from 'node:http';
+import {fileURLToPath} from 'node:url';
 import type {IPty, IPtyForkOptions, IWindowsPtyForkOptions} from 'node-pty';
 import type {TerminalServerMessage} from '../../shared/contracts.ts';
 import {attachTerminalPty} from '../../server/src/features/terminal/terminal-pty.ts';
@@ -10,6 +11,21 @@ import {attachTerminalPty} from '../../server/src/features/terminal/terminal-pty
 const nextMessage = (socket: WebSocket) => new Promise<TerminalServerMessage>((resolve, reject) => {
   socket.once('message', raw => resolve(JSON.parse(raw.toString())));
   socket.once('error', reject);
+});
+
+test('detachable SSH PTYs survive disconnect, replay output, attach without spawning, and close explicitly',async t=>{
+ const identityFile=fileURLToPath(import.meta.url);
+ const token='b'.repeat(64),project={id:'ssh-project',name:'Local workspace',root:process.cwd()};let spawned=0,killed=0;let binary='',argumentsUsed:string[]|string=[];const events=new EventEmitter(),writes:(string|Buffer)[]=[];
+ const ptyApi:Pick<typeof import('node-pty'),'spawn'>={spawn(shell,args,options={}){spawned++;binary=shell;argumentsUsed=args;return {pid:0,cols:options.cols||80,rows:options.rows||24,process:shell,handleFlowControl:false,onData(fn){events.on('data',fn);return {dispose:()=>events.off('data',fn)};},onExit(fn){events.on('exit',fn);return {dispose:()=>events.off('exit',fn)};},write(data){writes.push(data);},resize(){},kill(){killed++;events.emit('exit',{exitCode:0});},clear(){},pause(){},resume(){}};}};
+ const server=http.createServer(),close=attachTerminalPty(server,{token,getProject:id=>id===project.id?project:undefined,ptyApi});await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(async()=>{await close();await new Promise<void>(resolve=>server.close(()=>resolve()));});const address=server.address();assert.ok(address&&typeof address!=='string');const url=`ws://127.0.0.1:${address.port}/api/terminal`;
+ const first=new WebSocket(url,['ai-web-terminal',`token.${token}`]);await once(first,'open');const ready=nextMessage(first);first.send(JSON.stringify({type:'start',sessionId:'11111111-1111-1111-1111-111111111111',project:project.id,cols:80,rows:24,detachable:true,ssh:{name:'VPS',host:'server-alias',username:'dev',port:2222,identityFile}}));const message=await ready;assert.equal(message.type,'ready');if(message.type!=='ready')throw new Error();assert.equal(message.sessionId,'11111111-1111-1111-1111-111111111111');assert.match(binary,/(?:ssh|ssh\.exe)$/);assert.deepEqual(argumentsUsed,['-p','2222','-l','dev','-i',identityFile,'server-alias']);
+ first.close();await once(first,'close');assert.equal(killed,0);events.emit('data','output while disconnected');
+ const second=new WebSocket(url,['ai-web-terminal',`token.${token}`]);await once(second,'open');const replay:TerminalServerMessage[]=[];second.on('message',raw=>replay.push(JSON.parse(raw.toString())));second.send(JSON.stringify({type:'attach',sessionId:message.sessionId,cols:100,rows:30}));
+ await new Promise<void>(resolve=>{const timer=setInterval(()=>{if(replay.length>=3){clearInterval(timer);resolve();}},5);timer.unref();setTimeout(()=>{clearInterval(timer);resolve();},1000).unref();});
+ assert.equal(spawned,1);assert.ok(replay.some(value=>value.type==='ready'&&value.attached));assert.ok(replay.some(value=>value.type==='data'&&value.data==='output while disconnected'&&value.replay));
+ second.send(JSON.stringify({type:'input',data:'echo hello\r'}));await new Promise(resolve=>setTimeout(resolve,20));assert.deepEqual(writes,['echo hello\r']);
+ const closed=once(second,'close');second.send(JSON.stringify({type:'close'}));await closed;assert.equal(killed,1);
+ const missing=new WebSocket(url,['ai-web-terminal',`token.${token}`]);await once(missing,'open');const failure=nextMessage(missing);missing.send(JSON.stringify({type:'attach',sessionId:message.sessionId,cols:80,rows:24}));const response=await failure;assert.equal(response.type,'error');if(response.type==='error')assert.equal(response.code,'SESSION_NOT_FOUND');assert.equal(spawned,1);
 });
 
 test('terminal websocket authenticates, streams IO, resizes and closes its PTY', async t => {
