@@ -1,0 +1,58 @@
+import {test,expect} from '@playwright/test';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import {createApp} from '../../server/src/app.ts';
+import {serverPort} from '../helpers/http.ts';
+
+test('typed folder controller preserves edits, previews and stale-save protection',async({page})=>{
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'pane-typed-files-'));
+ const root=path.join(temp,'workspace');await fs.mkdir(root);
+ const original='# Original\n\nText.\n';
+ await fs.writeFile(path.join(root,'notes.md'),original);
+ await fs.writeFile(path.join(root,'unsafe.html'),'<h1>Static preview</h1><script>document.querySelector("h1").textContent="Executed"</script>');
+ await fs.writeFile(path.join(root,'unsafe.md'),'<img src=x onerror="window.bad=true"><script>window.bad=true</script>\n');
+ const app=await createApp({initialRoot:temp,stateDir:path.join(temp,'state'),agentHome:temp});
+ await new Promise<void>(resolve=>app.server.listen(0,'127.0.0.1',resolve));
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/api/account-usage?**',route=>route.fulfill({json:{providers:[]}}));
+ try{
+  await page.goto(`http://127.0.0.1:${serverPort(app.server)}`);
+  await page.getByRole('button',{name:'Open folder',exact:true}).click();
+  await page.getByLabel('Folder path',{exact:true}).fill(root);
+  await page.locator('#folder-form button[type=submit]').click();
+  await expect(page.locator('#folder-dialog')).not.toBeVisible();
+  await expect(page.locator('.project-button.active .project-text')).toHaveText('workspace');
+  await page.getByRole('treeitem',{name:'notes.md',exact:true}).click();
+  const input=page.locator('#editor .monaco-editor textarea');await expect(input).toBeVisible();
+  await input.focus();await page.keyboard.press('Control+a');
+  const edited='# Edited\n\n```ts\nconst value = 2;\n```\n';
+  await page.keyboard.insertText(edited);
+  await expect(page.locator('.tab-dirty')).toHaveCount(1);
+  await page.locator('.view-switch [data-view=preview]').click();
+  await expect(page.locator('#preview-content h1')).toHaveText('Edited');
+  await expect(page.locator('#preview-content code')).toHaveText('const value = 2;\n');
+  await expect(page.getByRole('button',{name:'Copy code',exact:true})).toBeVisible();
+  expect(await fs.readFile(path.join(root,'notes.md'),'utf8')).toBe(original);
+  await page.locator('#save').click();await expect(page.locator('.tab-dirty')).toHaveCount(0);
+  expect(await fs.readFile(path.join(root,'notes.md'),'utf8')).toBe(edited);
+  await fs.writeFile(path.join(root,'notes.md'),'# External edit\n');
+  await page.locator('.view-switch [data-view=editor]').click();
+  await input.focus();await page.keyboard.press('Control+End');await page.keyboard.insertText('Extra');
+  await page.locator('#save').click();
+  await expect(page.locator('#toast')).toContainText('changed on disk');
+  expect(await fs.readFile(path.join(root,'notes.md'),'utf8')).toBe('# External edit\n');
+  await expect(page.locator('.tab-dirty')).toHaveCount(1);
+  await page.getByRole('treeitem',{name:'unsafe.md',exact:true}).click();
+  await page.locator('.view-switch [data-view=preview]').click();
+  await expect(page.locator('#preview-content script')).toHaveCount(0);
+  expect(await page.evaluate(()=>window.bad)).toBeUndefined();
+  await page.getByRole('treeitem',{name:'unsafe.html',exact:true}).click();
+  await expect(page.frameLocator('#preview-content iframe').locator('h1')).toHaveText('Static preview');
+  expect(errors).toEqual([]);
+ }finally{
+  await page.close();await app.closeSessions();
+  await new Promise<void>(resolve=>app.server.close(()=>resolve()));
+  await fs.rm(temp,{recursive:true,force:true});
+ }
+});

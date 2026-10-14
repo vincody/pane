@@ -14,6 +14,6 @@ playwright-report/
 /*.png
 /*.jpg
 /*.jpeg
-/test/helpers/check-*.mjs
+/tests/helpers/check-*.mjs
 .DS_Store
 Thumbs.db

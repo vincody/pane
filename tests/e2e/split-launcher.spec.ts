@@ -1,0 +1,41 @@
+import {test,expect} from '@playwright/test';
+
+test('contextual split launcher stays near the clicked terminal and inside the viewport',async({page})=>{
+ await page.setViewportSize({width:1920,height:1080});
+ const project={id:'split-test',name:'Split test',root:'C:\\work\\split'};
+ await page.route('**/api/projects',route=>route.fulfill({json:{projects:[project],defaultProject:project.id}}));
+ await page.route('**/api/tree?**',route=>route.fulfill({json:{entries:[]}}));
+ await page.route('**/api/changes?**',route=>route.fulfill({json:{available:false,files:[]}}));
+ await page.route('**/api/account-usage?**',route=>route.fulfill({json:{providers:[]}}));
+ await page.route('**/api/local-sessions',route=>route.fulfill({json:{agents:[],sessions:[]}}));
+ await page.routeWebSocket('**/api/terminal',socket=>socket.onMessage(raw=>{if(JSON.parse(raw.toString()).type==='start')socket.send(JSON.stringify({type:'ready',shell:'Test shell'}));}));
+ await page.goto('/');
+ for(let i=0;i<2;i++){await page.locator('#terminal-new').click();await page.locator('[data-launch=shell]').click();}
+ const panes=page.locator('.terminal-screen:visible');await expect(panes).toHaveCount(2);
+ const target=panes.nth(1),box=await target.boundingBox();expect(box).not.toBeNull();
+ const point={clientX:box!.x+box!.width-12,clientY:box!.y+box!.height-12};
+ await page.mouse.click(point.clientX,point.clientY,{button:'right'});
+ const menu=page.locator('#terminal-menu');await expect(menu).toBeVisible();
+ const menuBox=await menu.boundingBox();expect(menuBox).not.toBeNull();
+ await menu.getByRole('menuitem',{name:'Split right',exact:true}).click();
+ const launcher=page.getByRole('dialog',{name:'Split right',exact:true});await expect(launcher).toBeVisible();
+ const bounds=await launcher.boundingBox();expect(bounds).not.toBeNull();
+ expect(bounds!.x).toBeGreaterThan(box!.x);
+ expect(Math.abs(bounds!.y-menuBox!.y)).toBeLessThan(80);
+ expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(1920-8);
+ expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(1080-8);
+ await page.keyboard.press('Escape');await expect(launcher).not.toBeVisible();
+ await expect(target.locator('.xterm-helper-textarea')).toBeFocused();
+ await page.mouse.click(point.clientX,point.clientY,{button:'right'});
+ await menu.getByRole('menuitem',{name:'Split down',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Split down',exact:true})).toBeVisible();
+ await page.locator('#terminal-launcher [data-launch=shell]').click();
+ await expect(panes).toHaveCount(3);
+ await expect(page.locator('.terminal-split-down')).toHaveCount(1);
+ await page.locator('#terminal-new').click();
+ const agentBox=await page.locator('#terminal-new').boundingBox(),newBox=await page.locator('#terminal-launcher').boundingBox();
+ expect(agentBox).not.toBeNull();expect(newBox).not.toBeNull();
+ expect(newBox!.x).toBeCloseTo(agentBox!.x,0);
+ expect(newBox!.y).toBeCloseTo(agentBox!.y+agentBox!.height+8,0);
+ await page.keyboard.press('Escape');
+});

@@ -8,10 +8,10 @@
   },
   "scripts": {
     "build": "vite build",
-    "start": "node --import tsx server/index.ts",
-    "test": "node --import tsx --test test/*.test.ts",
+    "start": "node --import tsx server/src/index.ts",
+    "test": "node --import tsx --test tests/unit/*.test.ts",
     "test:ui": "playwright test",
-    "dev": "npm run build && node --import tsx --watch server/index.ts",
+    "dev": "npm run build && node --import tsx --watch server/src/index.ts",
     "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.server.json && tsc -p tsconfig.tests.json"
   },
   "overrides": {

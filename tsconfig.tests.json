@@ -1,5 +1,5 @@
 {
  "extends":"./tsconfig.json",
  "compilerOptions":{"types":["node","react","react-dom","vite/client"]},
- "include":["test/**/*.ts","playwright.config.ts"]
+ "include":["tests/**/*.ts","playwright.config.ts"]
 }

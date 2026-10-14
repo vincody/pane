@@ -14,5 +14,7 @@ export interface FileDiff {path:string;original:string;modified:string;baseline:
 export interface TextFile {kind:'text';content:string;version:string;bom:boolean;size:number}
 export interface ImageFile {kind:'image';size:number;path:string}
 export interface TreeEntry {name:string;path:string;type:'file'|'directory'|'link';image:boolean}
+export interface DevServer {id:string;projectId:string;pid:number;port:number;host:string;name:string;status:'running'|'unknown'|'stopped';protocol:'http'|'https'|'unknown';url:string|null;observedAt:string;stoppedAt?:string}
+export interface DevServerSnapshot {available:boolean;scannedAt:string|null;rows:DevServer[];error?:string}
 export type TerminalClientMessage={type:'start';project:string;cols:number;rows:number}|{type:'input';data:string}|{type:'resize';cols:number;rows:number};
 export type TerminalServerMessage={type:'ready';shell:string;project:string}|{type:'data';data:string}|{type:'agent';agent:string|null}|{type:'error';message:string}|{type:'exit';exitCode:number;signal?:number};

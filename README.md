@@ -26,11 +26,11 @@ Open **http://127.0.0.1:7317**. Keep the server running while using the app.
 On Windows, the included scripts can start the server in the background or stop it:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Start-AIWeb.ps1
-powershell -ExecutionPolicy Bypass -File .\Stop-AIWeb.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\Start-AIWeb.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\Stop-AIWeb.ps1
 ```
 
-These filenames retain their original name for compatibility. On a fresh checkout, the start script installs dependencies and builds the frontend. After frontend changes, run `npm run build` and reload the browser; after backend changes, restart the server.
+On a fresh checkout, the start script installs dependencies and builds the frontend. After frontend changes, run `npm run build` and reload the browser; after backend changes, restart the server.
 
 ## Features
 
@@ -40,6 +40,7 @@ These filenames retain their original name for compatibility. On a fresh checkou
 - **Git Changes:** list staged, unstaged and untracked changes in a local Git repository. Open read-only diffs as tabs, split them with terminals, and use inline diff in narrow panes. Newly initialized repositories work before their first commit; binary and oversized files have no supported text diff.
 - **History:** read local Codex/Claude session logs, filter by workspace and search names, then resume the exact conversation in a terminal. History does not keep closed terminals running.
 - **Usage:** show account quota remaining for Codex/Claude. Select providers and 5-hour, weekly, both or closest-to-limit windows. The Usage dialog shows limits and reset times; token/cost accounting is not implemented yet.
+- **Dev servers:** a compact server count near Settings opens the current workspace's listening ports, process names and status, with Open/Copy URL actions for recognized web servers. Detection uses terminal descendants or process directory/command paths; HTTP/HTTPS is checked locally. Servers with insufficient workspace evidence are omitted. Scan failures show unknown status; two complete missed observations confirm a stop.
 - **Notifications:** optional popup and sound for completed work or input/approval requests, including an option to notify while focused. Detection depends on CLI terminal signals and may vary between CLI versions.
 - **Settings:** appearance, editor, terminal layout, usage, notifications and keybinds; preferences are stored in this browser.
 
@@ -61,12 +62,12 @@ npm run typecheck
 npm test
 ```
 
-Playwright tests are in `test/ui`; install Chromium with `npx playwright install chromium` before running `npm run test:ui`. Some older browser tests cover retired chat interfaces and need migration to the terminal-first UI.
+Playwright tests are in `tests/e2e`; install Chromium with `npx playwright install chromium` before running `npm run test:ui`. Some older browser tests cover retired chat interfaces and need migration to the terminal-first UI.
 
-Application source, build configuration and tests use TypeScript with strict checking. `tsconfig.client.json`, `tsconfig.server.json` and `tsconfig.tests.json` separate browser, Node and test environments. `shared/contracts.ts` defines API/session/terminal contracts; `client/api.ts` handles the HTTP boundary. Node runs the backend through `tsx`.
+Application source, build configuration and tests use TypeScript with strict checking. `tsconfig.client.json`, `tsconfig.server.json` and `tsconfig.tests.json` separate browser, Node and test environments. `shared/contracts.ts` defines API/session/terminal contracts; `client/src/lib/api.ts` handles the HTTP boundary. Node runs the backend through `tsx`.
 
-`client/ui/` contains React + TSX components for Settings, History, Usage, the workspace sidebar and titlebar. The terminal/editor controllers use `.ts` with a DOM bridge so xterm and Monaco retain their existing lifecycle. `demo/example.js` remains a JavaScript preview fixture.
+`client/src/features/` groups React components and controllers by function. Shared React bridges are in `client/src/components/`. Terminal/editor controllers use `.ts` with a DOM bridge so xterm and Monaco retain their existing lifecycle. `demo/example.js` remains a JavaScript preview fixture.
 
-For the current terminal interface, run `npx playwright test test/ui/react-components.spec.ts test/ui/typescript-files.spec.ts`. These cover saved preferences, History resume, terminal identity, folder opening, editing, previews and stale-save protection. The other browser tests include retired chat flows as noted above.
+For the current terminal interface, run `npx playwright test tests/e2e/compact-terminal-tabs.spec.ts tests/e2e/dev-servers.spec.ts tests/e2e/split-launcher.spec.ts tests/e2e/split-preview.spec.ts tests/e2e/file-git-status.spec.ts tests/e2e/react-components.spec.ts tests/e2e/typescript-files.spec.ts`. These cover workspace navigation, server tracking, split panes, preferences, History resume, terminal identity, Git decorations, editing, previews and stale-save protection. The other browser tests include retired chat flows as noted above.
 
-`client/` contains the frontend; `server/` handles local HTTP, files, Git, session logs and PTYs; `test/` contains tests; `demo/` contains preview examples. Generated builds, runtime data, logs and reference checkouts are excluded from commits.
+See [Repository structure](docs/repository-structure.md) for source ownership and entry points. Generated builds, runtime data, logs and reference checkouts are excluded from commits.
