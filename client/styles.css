@@ -365,14 +365,14 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 
 #terminal-toggle{border:1px solid var(--border);border-radius:5px;padding:5px 9px;font-size:10px;color:var(--muted);background:var(--surface)}#terminal-toggle:hover,#terminal-toggle[aria-pressed=true]{color:var(--accent);border-color:#d9775755;background:#d9775710}
 #terminal-panel{display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;background:#111}#terminal-panel[hidden]{display:none}#terminal-panel:fullscreen{width:100%;height:100%;border:0;border-radius:0}
-.terminal-titlebar{position:relative;height:39px;min-height:39px;display:flex;align-items:stretch;justify-content:space-between;gap:8px;padding:0 8px 0 10px;background:#151515;border:1px solid #383838;border-bottom-color:#272727;border-radius:9px 9px 0 0;flex-shrink:0}.terminal-titlebar:before{content:"";position:absolute;width:3px;height:18px;top:9px;left:-1px;background:#8da9ff;border-radius:2px}.terminal-titlebar:after{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:#8da9ff;border-radius:9px 9px 0 0;pointer-events:none}#terminal-tabs{display:flex;align-items:stretch;gap:2px;min-width:0;overflow:auto;scrollbar-width:none}#terminal-tabs::-webkit-scrollbar{display:none}.terminal-tab{position:relative;display:flex;align-items:center;gap:9px;min-width:96px;max-width:260px;padding:0 8px;border-radius:0;color:#aaa;background:transparent;text-align:left;font:11px/1 "JetBrains Mono",Consolas,monospace;white-space:nowrap}.terminal-tab[aria-selected=true]{color:#c7c7c7;background:#191919}.terminal-tab:hover{background:#202020}.terminal-tab-label{overflow:hidden;text-overflow:ellipsis}.terminal-tab-icon{width:14px;height:14px;flex:none;color:var(--accent);stroke-width:1.8}.terminal-tab-status{width:7px;height:7px;flex:none;border-radius:50%;background:#777}.terminal-tab-status[data-state=running]{background:#55d887;box-shadow:0 0 7px #55d88766}.terminal-tab-status[data-state=connecting]{background:#e5b65f;animation:terminal-pulse 1s ease-in-out infinite alternate}.terminal-tab-status[data-state=error]{background:#ed756d}@keyframes terminal-pulse{to{opacity:.4}}.terminal-title-actions{position:relative;display:flex;align-items:center;gap:3px;flex:none}.terminal-title-button{display:grid;place-items:center;width:27px;height:27px;border-radius:4px;color:#858585;background:transparent}.terminal-title-button svg{width:13px;height:13px}.terminal-title-button:hover,.terminal-title-button:focus-visible{color:#eee;background:#ffffff12;outline:none}#terminal-close:hover{color:#fff;background:#c9433a}#terminal-menu{position:absolute;z-index:20;top:34px;right:106px;min-width:155px;padding:4px;background:#202020;border:1px solid #3a3a3a;border-radius:6px;box-shadow:0 8px 24px #0009}#terminal-menu[hidden]{display:none}#terminal-menu button{display:block;width:100%;padding:8px 10px;border-radius:4px;color:#ddd;background:transparent;text-align:left;font-size:11px}#terminal-menu button:hover,#terminal-menu button:focus-visible{background:#ffffff12;outline:none}
+.terminal-titlebar{position:relative;height:39px;min-height:39px;display:flex;align-items:stretch;justify-content:space-between;gap:8px;padding:0 8px 0 10px;background:#151515;border:1px solid #383838;border-bottom-color:#272727;border-radius:9px 9px 0 0;flex-shrink:0}#terminal-tabs{display:flex;align-items:stretch;gap:2px;min-width:0;overflow:auto;scrollbar-width:none}#terminal-tabs::-webkit-scrollbar{display:none}.terminal-tab{position:relative;display:flex;align-items:center;gap:9px;min-width:96px;max-width:260px;padding:0 8px;border-radius:0;color:#aaa;background:transparent;text-align:left;font:11px/1 "JetBrains Mono",Consolas,monospace;white-space:nowrap}.terminal-tab[aria-selected=true]{color:#c7c7c7;background:#191919}.terminal-tab:hover{background:#202020}.terminal-tab-label{overflow:hidden;text-overflow:ellipsis}.terminal-tab-icon{width:14px;height:14px;flex:none;color:var(--accent);stroke-width:1.8}.terminal-tab-status{width:7px;height:7px;flex:none;border-radius:50%;background:#777}.terminal-tab-status[data-state=running]{background:#55d887;box-shadow:0 0 7px #55d88766}.terminal-tab-status[data-state=connecting]{background:#e5b65f;animation:terminal-pulse 1s ease-in-out infinite alternate}.terminal-tab-status[data-state=error]{background:#ed756d}@keyframes terminal-pulse{to{opacity:.4}}.terminal-title-actions{position:relative;display:flex;align-items:center;gap:3px;flex:none}.terminal-title-button{display:grid;place-items:center;width:27px;height:27px;border-radius:4px;color:#858585;background:transparent}.terminal-title-button svg{width:13px;height:13px}.terminal-title-button:hover,.terminal-title-button:focus-visible{color:#eee;background:#ffffff12;outline:none}#terminal-close:hover{color:#fff;background:#c9433a}#terminal-menu{position:absolute;z-index:20;top:34px;right:106px;min-width:155px;padding:4px;background:#202020;border:1px solid #3a3a3a;border-radius:6px;box-shadow:0 8px 24px #0009}#terminal-menu[hidden]{display:none}#terminal-menu button{display:block;width:100%;padding:8px 10px;border-radius:4px;color:#ddd;background:transparent;text-align:left;font-size:11px}#terminal-menu button:hover,#terminal-menu button:focus-visible{background:#ffffff12;outline:none}
 #terminal-screens{display:flex;flex:1;min-width:0;min-height:0;overflow:hidden;background:#111}#terminal-screens>.terminal-screen{flex:1;min-width:0;min-height:0;padding:12px 14px;overflow:hidden}#terminal-screens>.terminal-screen[hidden]{display:none}#terminal-screens>.terminal-screen .xterm{height:100%}#terminal-screens>.terminal-screen .xterm-viewport{scrollbar-width:thin}#terminal-error{flex-shrink:0;padding:9px 16px;border-top:1px solid #ff7b7022;background:#ff7b7009;color:#ff9a8c;font-size:11px}
 .terminal-tab[aria-pressed=true]{color:#c7c7c7;background:#191919}
 
 /* Keep the terminal chrome on the same palette as the editor and sidebars. */
 #terminal-panel,#terminal-screens{background:var(--bg)}
 .terminal-titlebar{background:var(--sidebar);border-color:var(--border)}
-.terminal-titlebar:before,.terminal-titlebar:after{background:var(--accent)}
+
 .terminal-tab{color:var(--muted)}
 .terminal-tab[aria-pressed=true]{color:var(--text);background:var(--bg)}
 .terminal-tab-rename{width:min(160px,20vw);min-width:48px;padding:3px 5px;border:1px solid var(--accent);border-radius:3px;background:var(--bg);color:var(--text);font:inherit;outline:none}
@@ -415,7 +415,7 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .workspace-children .terminal-agent-card.selected[data-status=blocked]{box-shadow:inset 0 0 0 1px #96620b}
 .terminal-agent-card:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .topbar .unified-terminal-tabs{position:static;display:flex;align-items:center;justify-content:flex-start;flex:1;min-width:0;height:100%;padding:0;gap:5px;border:0;border-radius:0;background:transparent}
-.topbar .unified-terminal-tabs:before,.topbar .unified-terminal-tabs:after{display:none}
+
 .topbar #terminal-tabs{min-width:0;gap:4px;max-width:calc(100% - 32px)}
 .topbar .terminal-tab{height:32px;min-width:110px;max-width:220px;gap:7px;padding:0 9px;border-radius:6px;font-size:11px;font-family:inherit;color:var(--muted)}
 .topbar .terminal-tab[aria-selected=true]{background:var(--surface);color:var(--text)}
@@ -505,6 +505,15 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .terminal-tab.tab-drop-after{box-shadow:inset -2px 0 var(--accent)}
 .file-pane-drag-handle{cursor:grab}
 .file-pane-drag-handle:active{cursor:grabbing}
+.tree{--git-modified:#d3b278;--git-untracked:#a3bd87;--git-conflict:#e49c86}
+.file-row .file-row-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis}
+.file-row .file-git-status{flex:none;width:14px;margin-left:auto;text-align:center;font-size:11px;font-weight:600;overflow:visible}
+.file-row[data-entry-type=directory] .file-git-status{font-size:8px}
+.file-row[data-git-status] .file-row-name,.file-row[data-git-status] .file-git-status{color:var(--git-modified)}
+.file-row[data-git-status=U] .file-row-name,.file-row[data-git-status=U] .file-git-status,
+.file-row[data-git-status=A] .file-row-name,.file-row[data-git-status=A] .file-git-status{color:var(--git-untracked)}
+.file-row[data-git-status="!"] .file-row-name,.file-row[data-git-status="!"] .file-git-status,
+.file-row[data-git-status=D] .file-row-name,.file-row[data-git-status=D] .file-git-status{color:var(--git-conflict)}
 .file-pane-drag-handle button{cursor:pointer}
 #app.file-pane-first #secondary-file{order:-1}
 #workspace>#editor-pane,#workspace>#preview-pane{border:1px solid var(--border);border-radius:7px;overflow:hidden}
@@ -574,6 +583,7 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 #app main>.topbar #show-sidebar:focus-visible,#app main>.topbar #toggle-files:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 #show-sidebar svg,#files-toggle-icon svg{width:16px;height:16px}
 #files-toggle-icon{display:flex;align-items:center;justify-content:center}
+.react-titlebar-host,.react-icon{display:contents}
 .sidebar-footer .sidebar-tool{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:6px;color:var(--muted);background:transparent}
 .sidebar-footer .sidebar-tool svg{width:18px;height:18px}
 .sidebar-footer .sidebar-tool:hover{background:var(--hover);color:var(--text)}
@@ -610,15 +620,29 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .files-section-tabs button:focus-visible,.changed-file:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .changes-count{padding:1px 4px;border-radius:4px;background:var(--surface);color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums}
 .files-sidebar .file-filter[hidden],.files-sidebar #tree[hidden],#changes-list[hidden],.changes-count[hidden],.pane-file-view[hidden]{display:none}
-.changes-list{flex:1;min-height:0;overflow:auto;padding:10px 6px}
+.changes-list{flex:1;min-height:0;overflow:auto;padding:8px 6px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;--git-modified:#d3b278;--git-untracked:#a3bd87;--git-conflict:#e49c86}
 .changes-message{padding:8px 6px;font-size:12px;line-height:1.6;color:var(--muted)}
-.changed-file{display:flex;align-items:center;gap:7px;width:100%;min-height:32px;padding:6px;border-radius:5px;text-align:left;color:var(--text);font-size:11px}
+.changes-group+.changes-group{margin-top:14px}
+.changes-group-heading{display:flex;align-items:center;gap:6px;min-height:30px;padding:5px 4px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:.35px;text-transform:uppercase;cursor:pointer;list-style:none;user-select:none;border-radius:4px}
+.changes-group-heading::-webkit-details-marker{display:none}
+.changes-group-heading:hover{background:var(--hover)}
+.changes-group-heading:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.changes-group-chevron{width:12px;height:12px;flex:none;transition:transform .15s ease}
+.changes-group[open]>.changes-group-heading .changes-group-chevron{transform:rotate(90deg)}
+.changes-group-count{font-size:10px;font-weight:500;font-variant-numeric:tabular-nums}
+.changed-file{display:grid;grid-template-columns:16px minmax(0,1fr) auto 12px;align-items:center;justify-content:start;gap:6px;width:100%;min-height:29px;padding:5px 6px;border-radius:4px;text-align:left;color:var(--text);font-size:11px}
 .changed-file:hover{background:var(--hover)}
-.changed-file-name{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.change-status{flex:none;font-size:10px;width:12px;color:var(--yellow)}
-.change-status[data-status=A],.change-status[data-status="?"]{color:var(--green)}
-.change-status[data-status=D]{color:var(--red)}
-.changed-file-stat{flex:none;font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}
+.changed-file-copy{display:flex;align-items:baseline;gap:6px;min-width:0;overflow:hidden;white-space:nowrap}
+.changed-file-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.changed-file-directory{flex:1 3 0;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:10px;color:var(--muted);opacity:.8}
+.changed-file>.shared-file-icon{width:16px;height:16px}
+.change-status{font-size:10px;font-weight:600;width:12px;text-align:center;color:var(--git-modified)}
+.change-status[data-status=A],.change-status[data-status=U],.change-status[data-status="?"]{color:var(--git-untracked)}
+.change-status[data-status=D],.change-status[data-status="!"]{color:var(--git-conflict)}
+.changed-file-stat{display:flex;gap:3px;font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.change-added{color:var(--git-untracked)}
+.change-removed{color:var(--git-conflict)}
+@media(prefers-reduced-motion:reduce){.changes-group-chevron{transition:none}}
 .diff-baseline{flex:none;font-size:10px;color:var(--muted);margin-right:8px}
 @media(max-width:560px){.history-filters{flex-wrap:wrap}.history-filters input{flex-basis:100%}}
 :root{--app-header-height:40px}

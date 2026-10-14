@@ -4,7 +4,7 @@ if (-not (Test-Path -LiteralPath $pidFile)) { Write-Host 'No AI Web process reco
 $serverProcessId = [int](Get-Content -LiteralPath $pidFile)
 $record = Get-CimInstance Win32_Process -Filter "ProcessId = $serverProcessId"
 if (-not $record) { Remove-Item -LiteralPath $pidFile; Write-Host 'AI Web is already stopped.'; exit 0 }
-$serverFile = Join-Path $PSScriptRoot 'server\index.js'
+$serverFile = Join-Path $PSScriptRoot 'server\index.ts'
 if ($record.Name -ne 'node.exe' -or -not $record.CommandLine.Contains($serverFile)) { throw 'The recorded PID belongs to another process. It was not stopped.' }
 & (Join-Path $env:SystemRoot 'System32\taskkill.exe') /PID $serverProcessId /T /F | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'AI Web could not be stopped. Its PID record was retained.' }

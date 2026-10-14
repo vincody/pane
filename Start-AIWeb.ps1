@@ -19,8 +19,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $appDirectory 'dist\index.html'))) {
     if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
   } finally { Pop-Location }
 }
-$serverFile = Join-Path $appDirectory 'server\index.js'
-$serverProcess = Start-Process -FilePath (Get-Command node.exe).Source -ArgumentList ('"' + $serverFile + '"') -WorkingDirectory $appDirectory -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $stateDirectory 'server.log') -RedirectStandardError (Join-Path $stateDirectory 'server-error.log')
+$serverFile = Join-Path $appDirectory 'server\index.ts'
+$serverProcess = Start-Process -FilePath (Get-Command node.exe).Source -ArgumentList '--import', 'tsx', ('"' + $serverFile + '"') -WorkingDirectory $appDirectory -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $stateDirectory 'server.log') -RedirectStandardError (Join-Path $stateDirectory 'server-error.log')
 $serverProcess.Id | Set-Content -LiteralPath (Join-Path $stateDirectory 'server.pid')
 for ($attempt = 0; $attempt -lt 40; $attempt++) {
   Start-Sleep -Milliseconds 250

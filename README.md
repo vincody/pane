@@ -57,9 +57,16 @@ Markdown previews are sanitized. HTML previews are static and sandboxed, with sc
 
 ```sh
 npm run build
+npm run typecheck
 npm test
 ```
 
 Playwright tests are in `test/ui`; install Chromium with `npx playwright install chromium` before running `npm run test:ui`. Some older browser tests cover retired chat interfaces and need migration to the terminal-first UI.
+
+Application source, build configuration and tests use TypeScript with strict checking. `tsconfig.client.json`, `tsconfig.server.json` and `tsconfig.tests.json` separate browser, Node and test environments. `shared/contracts.ts` defines API/session/terminal contracts; `client/api.ts` handles the HTTP boundary. Node runs the backend through `tsx`.
+
+`client/ui/` contains React + TSX components for Settings, History, Usage, the workspace sidebar and titlebar. The terminal/editor controllers use `.ts` with a DOM bridge so xterm and Monaco retain their existing lifecycle. `demo/example.js` remains a JavaScript preview fixture.
+
+For the current terminal interface, run `npx playwright test test/ui/react-components.spec.ts test/ui/typescript-files.spec.ts`. These cover saved preferences, History resume, terminal identity, folder opening, editing, previews and stale-save protection. The other browser tests include retired chat flows as noted above.
 
 `client/` contains the frontend; `server/` handles local HTTP, files, Git, session logs and PTYs; `test/` contains tests; `demo/` contains preview examples. Generated builds, runtime data, logs and reference checkouts are excluded from commits.
