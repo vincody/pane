@@ -6,6 +6,7 @@ import {setupDevServers} from '../features/dev-servers/DevServers.tsx';
 import {createFileGitDecorations} from '../features/files/file-git-status.ts';
 import {createWorkspaceSidebar} from '../features/workspaces/WorkspaceSidebar.tsx';
 import {createSubWorkspaceDialog} from '../features/workspaces/sub-workspaces.ts';
+import {createAddWorkspaceDialog} from '../features/workspaces/add-workspace.ts';
 import {createSessionAttention,nextAttention} from '../features/workspaces/session-attention.ts';
 import {showImage} from '../features/files/image-viewer.ts';
 import {addCodeCopyButtons} from '../features/files/markdown-copy.ts';
@@ -106,9 +107,11 @@ const paths:Record<string,string> = {
   'panel-right': 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z M15 3v18',
   monitor: 'M5 3h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z M12 17v4 M8 21h8',
   bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4',
-  settings: 'M4 7h16 M4 17h16 M8 4v6 M16 14v6',
+  settings: 'M10 2h4l.5 3 2 1 2.5-1.5 2 3.5-2.5 2v4l2.5 2-2 3.5-2.5-1.5-2 1-.5 3h-4l-.5-3-2-1L5 19.5 3 16l2.5-2v-4L3 8l2-3.5L7.5 6l2-1 .5-3Z M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
   refresh: 'M20 7v5h-5 M4 17v-5h5 M6 6a8 8 0 0 1 13 2l1 4 M4 12l1 4a8 8 0 0 0 13 2',
   plus: 'M12 5v14 M5 12h14',
+  globe: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M3 12h18 M12 3c5 5 5 13 0 18 M12 3c-5 5-5 13 0 18',
+  chart: 'M4 4v16h16 M8 16v-5 M13 16V7 M18 16v-8',
   pet: 'M5 13V5l5 3h4l5-3v8a7 7 0 0 1-14 0Z M9 12h.01 M15 12h.01 M10 16h4',
   stop: 'M7 7h10v10H7Z',
   close: 'm6 6 12 12 M18 6 6 18',
@@ -521,7 +524,9 @@ async function refreshSessions() {
     if(!draggedProject&&!reorderingProjects)renderProjects();const selected=agentView.selected;const fresh=sessionData.agents.find(agent=>agent.pane_id===selected?.pane_id);if(fresh)updateAITabStatus(fresh);
   } catch {}
 }
-function openFolderDialog() { $('#folder-error').textContent = ''; $('#folder-dialog').showModal(); $('#folder-path').focus(); }
+function openFolderPathDialog() { $('#folder-error').textContent = ''; $('#folder-dialog').showModal(); $('#folder-path').focus(); }
+const addWorkspaceDialog=createAddWorkspaceDialog({api,icon,onManual:openFolderPathDialog,onCreated:async project=>{if(!projects.some(item=>item.id===project.id))projects.push(project);await selectProject(project);void refreshSessions();}});
+function openFolderDialog(){addWorkspaceDialog.open();}
 
 const addFolderIcon=icon('folder');
 const addFolderMark=document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -529,6 +534,12 @@ addFolderMark.setAttribute('d','M12 11v6m-3-3h6');addFolderIcon.append(addFolder
 $('#open-folder').replaceChildren(addFolderIcon);
 $('#open-folder').title='Add workspace';
 $('#open-folder').onclick = openFolderDialog; $('#empty-open').onclick = openFolderDialog;
+$('#browse-folder').onclick=async()=>{
+ const button=$('#browse-folder');button.disabled=true;button.textContent='Choosing…';$('#folder-error').textContent='';
+ try{const selected=await api<{path:string|null}>('/api/select-workspace-folder',{method:'POST'});if(selected.path&&$('#folder-dialog').open){$('#folder-path').value=selected.path;$('#folder-path').focus();}}
+ catch(error){$('#folder-error').textContent=errorMessage(error,'Could not choose a folder.');}
+ finally{button.disabled=false;button.textContent='Browse…';}
+};
 $('#folder-form').onsubmit = async event => {
   event.preventDefault(); const button = event.submitter instanceof HTMLButtonElement?event.submitter:$('#folder-form').querySelector<HTMLButtonElement>('[type=submit]')!;button.disabled = true;$('#folder-error').textContent = '';
   try { const project = await api<Workspace>('/api/projects', { method: 'POST', body: JSON.stringify({ path: $('#folder-path').value.trim() }) }); if (!projects.some(p => p.id === project.id)) projects.push(project); $('#folder-dialog').close(); await selectProject(project); void refreshSessions(); }
@@ -692,7 +703,7 @@ tabDrag=setupTabDrag({tabs:$('#tabs'),content:contentViews,onReorder:()=>{},canD
 
 notifications=createNotifications({icon,isViewing:agent=>!document.hidden&&document.hasFocus()&&(agent.terminalSession?Boolean(terminalAgents.find(item=>item.id===agent.id)?.selected):agentView.visible&&Boolean(agent.agent_session?.value?agentView.selected?.agent_session?.value===agent.agent_session.value:agent.pane_id&&agentView.selected?.pane_id===agent.pane_id)),onOpen:agent=>{if(agent.terminalSession){agentView.close();if(agent.id)openTerminalAgent(agent.id);}else{agentView.open(agent);agentView.focusLatest();}}});
 setupColorTheme();setupSettings({icon});
-const subWorkspaceDialog=createSubWorkspaceDialog({api,getProjects:()=>projects,onCreated:async project=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);toast(`Opened ${project.branch||project.name}`);}});
+const subWorkspaceDialog=createSubWorkspaceDialog({api,getProjects:()=>projects,onCreated:async (project,launch)=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);if(launch)terminalView.startSession(existing||project,launch);toast(`Opened ${project.branch||project.name}`);}});
 workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{void subWorkspaceDialog.open(project);},onSelect:project=>{if(Date.now()-lastProjectDrag>300)void selectProject(project);},onAgentSelect:openTerminalAgent,onMenu:showWorkspaceMenu,setupDrag:setupProjectDrag});
 changesView=setupChanges({api,icon,getProject:()=>currentProject,onOpenDiff:openDiff,onError:message=>toast(message),onStatuses:(id,data)=>fileGit.update(id,data)});
 devServers=setupDevServers({api,getProject:()=>currentProject,onError:message=>toast(message)});

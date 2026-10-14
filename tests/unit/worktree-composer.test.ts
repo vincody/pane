@@ -1,0 +1,46 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {createComposerWorktree} from '../../server/src/features/git/worktrees.ts';
+import {gitBranch} from '../../server/src/features/git/git.ts';
+import {isWithin} from '../../server/src/features/files/files.ts';
+import {worktreeSlug} from '../../shared/worktree-composer.ts';
+test('Orca-style creation derives branches, generates names, reuses eligible branches and avoids collisions',async t=>{
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'pane-composer-')),root=path.join(temp,'repo');
+ t.after(async()=>{assert.ok(isWithin(path.resolve(os.tmpdir()),path.resolve(temp)));await fs.rm(temp,{recursive:true,force:true});});
+ await fs.mkdir(root);const execute=promisify(execFile),git=(args:string[])=>execute('git',['-C',root,...args],{windowsHide:true});
+ await git(['init','-b','dev']);await git(['config','user.name','Test']);await git(['config','user.email','test@example.invalid']);await git(['config','core.autocrlf','false']);await fs.writeFile(path.join(root,'code.txt'),'committed');await git(['add','.']);await git(['commit','-m','initial']);await git(['branch','existing']);await fs.writeFile(path.join(root,'code.txt'),'local edit');
+ const project={id:'repo',root,name:'Repo'},state=path.join(temp,'state');
+ const first=await createComposerWorktree(project,state,{name:'Fix usage',source:'dev',note:'Review usage'});
+ assert.equal(first.name,'Fix usage');assert.equal(first.note,'Review usage');assert.equal(await gitBranch(first.root),'fix-usage');assert.equal(path.basename(first.root),'fix-usage');
+ const second=await createComposerWorktree(project,state,{name:'Fix usage',source:'dev'});assert.equal(await gitBranch(second.root),'fix-usage-2');assert.notEqual(second.root,first.root);
+ const generated=await createComposerWorktree(project,state,{});assert.match(generated.name,/^[A-Za-z]+(?:-\d+)?$/);assert.equal(await gitBranch(generated.root),worktreeSlug(generated.name));
+ const reused=await createComposerWorktree(project,state,{name:'Existing task',source:'existing',reuseBranch:true});assert.equal(await gitBranch(reused.root),'existing');
+ await assert.rejects(createComposerWorktree(project,state,{name:'Cannot reuse',source:'dev',reuseBranch:true}),/cannot be reused/);
+ const override=await createComposerWorktree(project,state,{name:'SSH support',source:'dev',branchName:'feat/ssh'});assert.equal(await gitBranch(override.root),'feat/ssh');assert.equal(path.basename(override.root),'ssh-support');
+ assert.equal(await fs.readFile(path.join(root,'code.txt'),'utf8'),'local edit');assert.equal(await gitBranch(root),'dev');
+});
+
+test('remote worktree creation fetches fresh commits and stops on fetch failure',async t=>{
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'pane-fetch-'));
+ t.after(async()=>{assert.ok(isWithin(path.resolve(os.tmpdir()),path.resolve(temp)));await fs.rm(temp,{recursive:true,force:true});});
+ const upstream=path.join(temp,'upstream'),root=path.join(temp,'repo'),execute=promisify(execFile);
+ const git=(cwd:string,args:string[])=>execute('git',['-C',cwd,...args],{windowsHide:true});
+ await fs.mkdir(upstream);await git(upstream,['init','-b','main']);await git(upstream,['config','user.name','Test']);await git(upstream,['config','user.email','test@example.invalid']);
+ await fs.writeFile(path.join(upstream,'code.txt'),'old');await git(upstream,['add','.']);await git(upstream,['commit','-m','initial']);
+ await execute('git',['clone',upstream,root],{windowsHide:true});
+ await fs.writeFile(path.join(upstream,'code.txt'),'latest');await git(upstream,['add','.']);await git(upstream,['commit','-m','update']);
+ await fs.writeFile(path.join(root,'code.txt'),'local edit');
+ const project={id:'repo',root,name:'Repo'},state=path.join(temp,'state');
+ const local=await createComposerWorktree(project,state,{name:'Local copy',source:'main'});assert.equal(await fs.readFile(path.join(local.root,'code.txt'),'utf8'),'old');
+ const fresh=await createComposerWorktree(project,state,{name:'Fresh copy',source:'refs/remotes/origin/main'});assert.equal(await fs.readFile(path.join(fresh.root,'code.txt'),'utf8'),'latest');assert.equal(await fs.readFile(path.join(root,'code.txt'),'utf8'),'local edit');
+ await git(root,['remote','set-url','origin',path.join(temp,'missing')]);
+ await assert.rejects(createComposerWorktree(project,state,{name:'Failed copy',source:'refs/remotes/origin/main'}),/Could not fetch/);
+ await assert.rejects(fs.stat(path.join(temp,'repo-worktrees','failed-copy')),/ENOENT/);
+ assert.equal((await git(root,['branch','--list','failed-copy'])).stdout.trim(),'');
+ const offline=await createComposerWorktree(project,state,{name:'Offline local',source:'main'});assert.equal(await fs.readFile(path.join(offline.root,'code.txt'),'utf8'),'old');
+});

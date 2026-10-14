@@ -88,7 +88,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     for(const session of sessions) { stash.append(session.element); session.element.hidden=true; }
     $('#terminal-screens').replaceChildren();
     function draw(tree:PaneTree<PaneSession>):HTMLElement{
-      if('session' in tree){const session=tree.session;session.element.dataset.layoutId=session.id;session.element.style.flex='1 1 0';session.element.hidden=false;session.element.classList.toggle('pane-focused',session===activeSession);return session.element;}
+      if('session' in tree){const session=tree.session;session.element.dataset.layoutId=session.id;session.element.style.flex='1 1 0';session.element.hidden=false;session.element.classList.toggle('pane-focused',hasFocus&&session===activeSession);return session.element;}
       const branch=document.createElement('div');branch.className=`terminal-split terminal-split-${tree.direction}`;
       const first=draw(tree.first),second=draw(tree.second);first.style.flex=`${tree.ratio} 1 0`;second.style.flex=`${1-tree.ratio} 1 0`;
       const divider=document.createElement('div');divider.className='terminal-divider';divider.tabIndex=0;divider.setAttribute('role','separator');divider.setAttribute('aria-label','Resize terminal panes');divider.setAttribute('aria-orientation',tree.direction==='right'?'vertical':'horizontal');
@@ -175,6 +175,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     const activeIds = new Set(sessions.map(session => session.id));
     for (const node of tabs.querySelectorAll<HTMLElement>(':scope > *')) if (!activeIds.has(node.dataset.sessionId || '')) node.remove();
     for (const session of sessions) {
+      session.element.classList.toggle('pane-focused',hasFocus&&session===activeSession);
       if(session.external){const zoomed=maximizedSession===session;session.element.classList.toggle('pane-focused',hasFocus&&session===activeSession);session.paneZoom.disabled=!zoomed&&leaves(session.group.root).length<2;session.paneZoom.setAttribute('aria-label',zoomed?'Restore file pane':'Maximize file pane');session.paneZoom.setAttribute('aria-pressed',String(zoomed));continue;}
       if (!session.tab) {
         session.tab = document.createElement('div');
@@ -294,7 +295,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       cursorStyle: 'bar',
       fontFamily: '"JetBrains Mono", Consolas, monospace',
       fontSize: 13,
-      lineHeight: 1.35,
+      lineHeight: 1.1,
       scrollback: 5000,
       convertEol: true,
       macOptionIsMeta: false,
@@ -339,7 +340,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     });
     session.group={root:{session}};
     element.onpointerdown=()=>{if(activeSession!==session||!hasFocus){hasFocus=true;activeSession=session;onSelect?.();session.lastUsed=++useOrder;for(const item of sessions)item.element.classList.toggle('pane-focused',item===session);renderTabs();publish();}};
-    element.oncontextmenu=event=>{if(event.shiftKey)return;event.preventDefault();showMenu(session,event.clientX,event.clientY);};
+    paneHeader.oncontextmenu=event=>{if(event.shiftKey)return;event.preventDefault();event.stopPropagation();showMenu(session,event.clientX,event.clientY);};
     element.ondragover=event=>{if(!draggedSession||draggedSession===session)return;event.preventDefault();const rect=element.getBoundingClientRect();element.dataset.terminalDrop=event.clientY>rect.bottom-Math.min(80,rect.height*.2)?'down':event.clientX>rect.right-Math.min(80,rect.width*.2)?'right':'swap';};
     element.ondragleave=event=>{if(!element.contains(event.relatedTarget as Node|null))delete element.dataset.terminalDrop;};
     element.ondrop=event=>{if(!draggedSession||draggedSession===session)return;event.preventDefault();event.stopPropagation();const source=draggedSession,direction=element.dataset.terminalDrop || 'swap';delete element.dataset.terminalDrop;draggedSession=null;if(direction==='swap')swapPanePositions(session,source);else attachPane(session,source,direction as SplitDirection);};
@@ -622,5 +623,5 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     const existing=sessions.find(session=>session.resume?.id===record.id&&session.state!=='closed'&&session.state!=='error');
     lastProject=project;closeLauncher();closeMenu();if(existing)activate(existing);else createSession(project,record.agent,true,record);setVisible(true);
   }
-  return {element: panel,restore(projects:Workspace[]){for(const saved of savedTerminals){const project=projects.find(item=>item.id===saved.projectId);if(project)createSession(project,saved.launch,false,null,saved.ssh||null,saved);}if(savedTerminals.length&&sessions.length)setVisible(true);}, toggle, showMostRecent, inputMostRecent, resumeSession, placeFilePane, get focusedProjectId(){return activeSession?.project?.id;}, removeFilePane(id:string){const pane=sessions.find(item=>item.external&&item.id===id);if(pane)destroySession(pane);}, hasFilePane(id:string){return sessions.some(item=>item.external&&item.id===id);}, get activePaneId(){return activeSession?.id;}, refreshPaneControls:renderTabs, setFocused(next:boolean){hasFocus=next;renderTabs();publish();}, setProject(project:Workspace|null){lastProject=project;closeLauncher();closeMenu();const recent=sessions.filter(session=>session.project.id===project?.id&&!session.external).sort((a,b)=>b.lastUsed-a.lastUsed)[0];if(recent){activate(recent);setVisible(true);}else{activeSession=null;renderLayout();setVisible(false);}}, newSession(project:Workspace|null){if(project)lastProject=project;$('#terminal-new').click();}, select(id:string) { const session=sessions.find(item=>item.id===id); if(session){activate(session);setVisible(true);} }, close: () => { for (const session of [...sessions]) destroySession(session); setVisible(false); }, get visible() { return visible; }};
+  return {element: panel,startSession(project:Workspace,launch:'shell'|'claude'|'codex'){lastProject=project;closeLauncher();closeMenu();createSession(project,launch,false);setVisible(true);},restore(projects:Workspace[]){for(const saved of savedTerminals){const project=projects.find(item=>item.id===saved.projectId);if(project)createSession(project,saved.launch,false,null,saved.ssh||null,saved);}if(savedTerminals.length&&sessions.length)setVisible(true);}, toggle, showMostRecent, inputMostRecent, resumeSession, placeFilePane, get focusedProjectId(){return activeSession?.project?.id;}, removeFilePane(id:string){const pane=sessions.find(item=>item.external&&item.id===id);if(pane)destroySession(pane);}, hasFilePane(id:string){return sessions.some(item=>item.external&&item.id===id);}, get activePaneId(){return activeSession?.id;}, refreshPaneControls:renderTabs, setFocused(next:boolean){hasFocus=next;renderTabs();publish();}, setProject(project:Workspace|null){lastProject=project;closeLauncher();closeMenu();const recent=sessions.filter(session=>session.project.id===project?.id&&!session.external).sort((a,b)=>b.lastUsed-a.lastUsed)[0];if(recent){activate(recent);setVisible(true);}else{activeSession=null;renderLayout();setVisible(false);}}, newSession(project:Workspace|null){if(project)lastProject=project;$('#terminal-new').click();}, select(id:string) { const session=sessions.find(item=>item.id===id); if(session){activate(session);setVisible(true);} }, close: () => { for (const session of [...sessions]) destroySession(session); setVisible(false); }, get visible() { return visible; }};
 }

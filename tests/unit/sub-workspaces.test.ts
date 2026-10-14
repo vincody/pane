@@ -49,12 +49,13 @@ test('worktrees isolate Git branches, preserve Local changes and persist parent 
  const externalPath=path.join(root,'external checkout');await git(['worktree','add','-b','feat/external',externalPath]);await fs.writeFile(path.join(externalPath,'uncommitted.txt'),'keep external edits');
  const importedResponse=await request(endpoint,'POST',{mode:'open',branch:'feat/external'});assert.equal(importedResponse.status,201);const imported:Workspace=await importedResponse.json();assert.equal(imported.parentId,parent.id);assert.equal(imported.root,await fs.realpath(externalPath));assert.equal(await fs.readFile(path.join(externalPath,'uncommitted.txt'),'utf8'),'keep external edits');
  const reopened=await request(endpoint,'POST',{mode:'open',branch:'feat/external'});assert.equal((await reopened.json()).id,imported.id);
+ const composedResponse=await request(endpoint,'POST',{mode:'compose',name:'Review changes',source:'dev',note:'Keep changes isolated'});assert.equal(composedResponse.status,201);const composed:Workspace=await composedResponse.json();assert.equal(composed.name,'Review changes');assert.equal(composed.branch,'review-changes');assert.equal(composed.note,'Keep changes isolated');
  const opened=await request(endpoint,'POST',{mode:'open',branch:'feat/ssh'});assert.equal((await opened.json()).id,child.id);assert.equal((await request(endpoint,'POST',{mode:'open',branch:'missing'})).status,409);
  assert.equal((await request(`/api/tree?project=${child.id}`)).status,200);
  await fs.writeFile(path.join(child.root,'source.txt'),'isolated edit\n');assert.equal(await fs.readFile(path.join(repo,'source.txt'),'utf8'),'local edits\n');
  await stop();app=await createApp({initialRoot:repo,stateDir});await start();
- const restored:Workspace[]=(await(await request('/api/projects')).json()).projects;assert.equal(restored.find(project=>project.id===child.id)?.parentId,parent.id);assert.equal(restored.find(project=>project.id===child.id)?.name,'SSH support');
- const removal=await request(`/api/projects?project=${parent.id}`,'DELETE');assert.equal(removal.status,200);assert.deepEqual(new Set((await removal.json()).removedIds),new Set([parent.id,child.id,other.id,imported.id]));
+ const restored:Workspace[]=(await(await request('/api/projects')).json()).projects;assert.equal(restored.find(project=>project.id===child.id)?.parentId,parent.id);assert.equal(restored.find(project=>project.id===child.id)?.name,'SSH support');assert.equal(restored.find(project=>project.id===composed.id)?.note,'Keep changes isolated');
+ const removal=await request(`/api/projects?project=${parent.id}`,'DELETE');assert.equal(removal.status,200);assert.deepEqual(new Set((await removal.json()).removedIds),new Set([parent.id,child.id,other.id,imported.id,composed.id]));
  assert.deepEqual((await(await request('/api/projects')).json()).projects,[]);assert.equal(await fs.readFile(path.join(child.root,'source.txt'),'utf8'),'isolated edit\n');
  await stop();app=await createApp({initialRoot:repo,stateDir});await start();assert.deepEqual((await(await request('/api/projects')).json()).projects,[]);
 });

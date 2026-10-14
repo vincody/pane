@@ -1,6 +1,6 @@
 export type Provider='claude'|'codex'|'antigravity';
-export interface Workspace {id:string;name:string;root:string;branch?:string|null;parentId?:string}
-export interface WorktreeBranches {current:string;local:string[];bases:string[];checkedOut:string[];repositoryRoot?:string;worktrees?:{root:string;branch:string|null}[]}
+export interface Workspace {id:string;name:string;root:string;branch?:string|null;parentId?:string;note?:string}
+export interface WorktreeBranches {current:string;local:string[];bases:string[];checkedOut:string[];repositoryRoot?:string;defaultBase?:string;worktrees?:{root:string;branch:string|null}[]}
 export interface SessionRecord {id:string;agent:Provider;agent_session:{value:string};cwd:string;name:string;createdAt?:string;updatedAt:string;last_update?:string;local?:boolean;live?:boolean;archived?:boolean;file?:string;root?:string;newSession?:boolean}
 export interface AgentSnapshot {
  id?:string;agent:string;name?:string;display_agent?:string;terminal_title_stripped?:string;cwd?:string;foreground_cwd?:string;workspace_id?:string;agent_session?:{value:string};pane_id?:string;terminal_id?:string;saved_session_id?:string;archived?:boolean;local?:boolean;

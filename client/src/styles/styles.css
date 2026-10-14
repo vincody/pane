@@ -483,7 +483,8 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .terminal-pane-header:hover .terminal-pane-close,.terminal-pane-header:focus-within .terminal-pane-close{opacity:1}
 .terminal-pane-close:hover{color:var(--text);background:var(--hover)}
 .terminal-pane-close:focus-visible{outline:2px solid var(--accent);opacity:1}
-.terminal-pane-body{flex:1;min-height:0;min-width:0;padding:10px 12px;overflow:hidden}
+.terminal-pane-body{flex:1;min-height:0;min-width:0;padding:0;overflow:hidden}
+.terminal-pane-body>.xterm{padding:10px 12px}
 @media(hover:none){.terminal-pane-close{opacity:1}}
 .terminal-pane-zoom{display:grid;place-items:center;width:22px;height:22px;border-radius:4px;color:var(--muted);flex:none}
 .terminal-pane-zoom svg{width:13px;height:13px}

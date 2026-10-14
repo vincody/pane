@@ -26,13 +26,11 @@ export function setupSettings({icon}: {icon:NativeIcon}) {
     {id:'appearance',name:'Appearance',description:'Make your workspace comfortable.',icon:'settings',controls:['[aria-label="Color theme"]','#compact-setting'],nodes:[]},
     {id:'editor',name:'Editor',description:'Choose how files open and how code is displayed.',icon:'code',controls:['#font-setting','#wrap-setting','[aria-label="Opening files"]','[aria-label="Default file view"]'],nodes:[]},
     {id:'terminal',name:'Terminal',description:'Choose how new terminal sessions are arranged.',icon:'monitor',controls:['#terminal-setting','#auto-split-terminal-setting'],nodes:[]},
-    {id:'usage',name:'Usage',description:'Keep account limits within reach.',icon:'refresh',controls:['[aria-label="Show usage"]','[aria-label="Show Codex usage"]','[aria-label="Show Claude usage"]','[aria-label="Usage quota window"]'],nodes:[]},
+    {id:'usage',name:'Usage',description:'Keep account limits within reach.',icon:'chart',controls:['[aria-label="Show usage"]','[aria-label="Show Codex usage"]','[aria-label="Show Claude usage"]','[aria-label="Usage quota window"]'],nodes:[]},
     {id:'notifications',name:'Notifications',description:'Stay informed when agents need you.',icon:'bell',controls:['[aria-label="Popup notifications"]','[aria-label="Notification sounds"]','#test-notification','[aria-label="Notify while focused"]'],nodes:[]},
-    {id:'pet',name:'Chat pet',description:'Customize your companion in the chat area.',icon:'pet',controls:[],nodes:[]},
     {id:'keybinds',name:'Keybinds',description:'Keyboard shortcuts for navigating your workspace and editing files.',icon:'code',controls:[],nodes:[]}
   ];
   for(const category of categories)for(const selector of category.controls){const row=dialog.querySelector(selector)?.closest('.setting-row');if(row)category.nodes.push(row);}
-  const pet=dialog.querySelector('.pet-settings');if(pet){pet.querySelector('h3')?.remove();categories.find(item=>item.id==='pet')!.nodes.push(pet);}
   const shortcuts=document.querySelector('#help-dialog .shortcut-list');if(shortcuts)categories.find(item=>item.id==='keybinds')!.nodes.push(shortcuts);
   document.querySelector('#help-dialog')?.remove();document.querySelector('#help')?.remove();
   dialog.replaceChildren();dialog.setAttribute('aria-label','Settings');

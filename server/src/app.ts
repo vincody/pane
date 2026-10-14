@@ -4,6 +4,8 @@ import {createLocalSessions} from './features/sessions/local-sessions.ts';
 import {createLocalRunner} from './features/sessions/local-runner.ts';
 import {attachTerminalPty} from './features/terminal/terminal-pty.ts';
 import {selectSshKey} from './features/terminal/ssh-key-picker.ts';
+import {selectWorkspaceFolder,defaultWorkspaceFolder} from './features/files/folder-picker.ts';
+import {createProjectFolder} from './features/files/new-project.ts';
 import {createDevServers,type DevServerOptions} from './features/dev-servers/dev-servers.ts';
 import http from 'node:http';
 import fs from 'node:fs/promises';
@@ -12,7 +14,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Files, FileError, isWithin } from './features/files/files.ts';
 import { gitBranch } from './features/git/git.ts';
-import {worktreeBranches,createWorktree,unregisterNewWorktree,existingWorktree} from './features/git/worktrees.ts';
+import {worktreeBranches,createWorktree,unregisterNewWorktree,existingWorktree,createComposerWorktree} from './features/git/worktrees.ts';
 import {changes,fileDiff} from './features/git/git-changes.ts';
 import type { SessionRecord } from '../../shared/contracts.ts';
 
@@ -52,9 +54,9 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
   let saved: unknown = null;
   try { saved = JSON.parse(await fs.readFile(projectFile, 'utf8')); } catch {}
   const candidates: unknown[] = Array.isArray(saved) ? saved.map((root: unknown) => ({ root })) : saved && typeof saved === 'object' && 'projects' in saved && Array.isArray(saved.projects) ? saved.projects : [];
-  const entries = candidates.filter((entry): entry is { root: unknown; name?: unknown; parentId?:unknown;nameSource?:unknown } => Boolean(entry && typeof entry === 'object' && 'root' in entry));
+  const entries = candidates.filter((entry): entry is { root: unknown; name?: unknown; parentId?:unknown;nameSource?:unknown;note?:unknown } => Boolean(entry && typeof entry === 'object' && 'root' in entry));
   for (const entry of entries) {
-    try { const project = await files.addProject(entry.root); if(typeof entry.parentId==='string')project.parentId=entry.parentId; if(typeof entry.name==='string'&&entry.name.trim()){const name=entry.name.trim();const custom=entry.nameSource==='custom'||(entry.nameSource===undefined&&name!==path.basename(project.root)&&name!==project.name);if(project.parentId||custom){project.name=name.slice(0,200);project.nameSource='custom';}} } catch {}
+    try { const project = await files.addProject(entry.root); if(typeof entry.parentId==='string')project.parentId=entry.parentId; if(typeof entry.note==='string')project.note=entry.note.slice(0,2000); if(typeof entry.name==='string'&&entry.name.trim()){const name=entry.name.trim();const custom=entry.nameSource==='custom'||(entry.nameSource===undefined&&name!==path.basename(project.root)&&name!==project.name);if(project.parentId||custom){project.name=name.slice(0,200);project.nameSource='custom';}} } catch {}
   }
   for(const [id,project] of files.projects)if(project.parentId&&(!files.projects.has(project.parentId)||files.projects.get(project.parentId)?.parentId||project.parentId===id))files.projects.delete(id);
   // A persisted empty list is intentional: never resurrect a removed workspace.
@@ -68,7 +70,7 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
       try {
         const result = await operation();
         const temporary = projectFile + '.tmp';
-        await fs.writeFile(temporary, JSON.stringify({ projects: [...files.projects.values()].map(({ root, name,parentId,nameSource }) => ({ root, name,nameSource,...(parentId?{parentId}:{}) })) }, null, 2));
+        await fs.writeFile(temporary, JSON.stringify({ projects: [...files.projects.values()].map(({ root, name,parentId,nameSource,note }) => ({ root, name,nameSource,...(parentId?{parentId}:{}),...(note?{note}:{}) })) }, null, 2));
         await fs.rename(temporary, projectFile);
         return result;
       } catch (error) { files.projects = before; throw error; }
@@ -90,6 +92,13 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
       if (url.pathname.startsWith('/api/')) {
         if (req.headers['x-ai-web-token'] !== token) throw new FileError(403, 'Reload AI Web to reconnect.');
         if (req.method === 'GET' && url.pathname === '/api/projects') return json(200, { projects: await listProjects(), defaultProject: defaultProjectId() });
+        if(req.method==='POST'&&url.pathname==='/api/select-workspace-folder')return json(200,{path:await selectWorkspaceFolder()});
+        if(req.method==='GET'&&url.pathname==='/api/project-defaults')return json(200,{parent:await defaultWorkspaceFolder()});
+        if(req.method==='POST'&&url.pathname==='/api/create-project'){
+          const data=await body(req);
+          const project=await changeProjects(async()=>files.addProject(await createProjectFolder(data)));
+          return json(201,{...project,branch:await gitBranch(project.root)});
+        }
         if(req.method==='POST'&&url.pathname==='/api/project-order'){
           const data=await body(req);await changeProjects(()=>{
             if(!Array.isArray(data.ids)||!data.ids.every((id: unknown): id is string=>typeof id==='string')||new Set(data.ids).size!==data.ids.length)throw new FileError(400,'Provide each project ID exactly once.');
@@ -104,7 +113,7 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
           if(parent.parentId)throw new FileError(400,'Choose a parent workspace.');
           if(req.method==='GET')return json(200,await worktreeBranches(parent));
           if(req.method==='POST'){
-            const data=await body(req);let created:{root:string;name:string;parentId:string}|undefined;
+            const data=await body(req);let created:{root:string;name:string;parentId:string;note?:string}|undefined;
             try{
               const child=await changeProjects(async()=>{
                 if(!files.projects.has(parent.id))throw new FileError(404,'Workspace was removed.');
@@ -115,8 +124,8 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
                   if(prior)return prior;
                   const opened=await files.addProject(root);opened.name=typeof data.branch==='string'?data.branch:opened.name;opened.parentId=parent.id;opened.nameSource='custom';return opened;
                 }
-                created=await createWorktree(parent,stateDir,data);
-                const child=await files.addProject(created.root);child.name=created.name;child.parentId=parent.id;child.nameSource='custom';return child;
+                created=await (data.mode==='compose'?createComposerWorktree(parent,stateDir,data):createWorktree(parent,stateDir,data));
+                const child=await files.addProject(created.root);child.name=created.name;child.parentId=parent.id;child.nameSource='custom';if(created.note)child.note=created.note;return child;
               });
               return json(201,{...child,branch:await gitBranch(child.root)});
             }catch(error){if(created)await unregisterNewWorktree(parent,created.root).catch(()=>{});throw error;}

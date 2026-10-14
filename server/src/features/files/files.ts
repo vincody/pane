@@ -5,7 +5,7 @@ import {repositoryName} from '../git/repository-name.ts';
 
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 export const imageTypes: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
-export interface Workspace { id: string; name: string; root: string; parentId?: string; nameSource?:'automatic'|'custom' }
+export interface Workspace { id: string; name: string; root: string; parentId?: string; nameSource?:'automatic'|'custom';note?:string }
 export interface FileTreeEntry { name: string; path: string; type: 'link' | 'directory' | 'file'; image: boolean }
 export interface FileReference { name: string; path: string }
 export interface FileReferenceResult { files: FileReference[]; truncated: boolean }
