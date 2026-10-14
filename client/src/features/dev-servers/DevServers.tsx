@@ -54,5 +54,3 @@ export function setupDevServers({api,getProject,onError}:Options){
  render();void refresh();
  return {projectChanged,dispose(){disposed=true;generation++;controller?.abort();clearTimeout(timer);clearTimeout(expiryTimer);document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',keydown);document.removeEventListener('visibilitychange',visible);window.removeEventListener('focus',focus);window.removeEventListener('resize',position);root.unmount();panel.remove();trigger.remove();}};
 }
-
-
