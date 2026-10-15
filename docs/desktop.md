@@ -42,6 +42,12 @@ Desktop tests use isolated profiles, real PowerShell PTYs, stubbed native dialog
 
 To test the packaged runtime, build it first and set `PANE_DESKTOP_EXECUTABLE` to the absolute path of `release/win-unpacked/Pane.exe`, then run `npx playwright test --config config/playwright/desktop.config.ts`.
 
+## File editing modes
+
+Markdown (`.md` and `.markdown`) shows **Source / Live Editor** when rich editing is compatible, and **Source / Preview** otherwise. Existing Preview preferences and restored preview views automatically select Live Editor for compatible Markdown. Ctrl+Shift+V toggles Source and the available visual mode. Live Editor provides formatted editing for headings, emphasis, lists/tasks, tables, code blocks and local images. It shares the same Monaco document buffer, dirty indicator, save/version checks and draft recovery. Simply opening a rich view does not rewrite or dirty the source. YAML front matter is preserved verbatim and edited in Source. Other text/code files retain Editor and Preview; images and Git diffs retain their existing viewers.
+
+The Markdown codec loads lazily when checking a Markdown file; the editable surface mounts only when selected. The Live Editor button is enabled only after eligibility passes using the same extension/schema configuration as the mounted editor; unsupported files keep Source and Preview. Files over 256 KiB, embedded HTML/JSX, reference definitions/footnotes, and unsupported round trips stay editable in Source, with Preview still available. A parsed-content comparison refuses rich editing when the Markdown codec would lose meaning, while treating HTML entities and reordered inline marks as equivalent. External images are not fetched. Primary, secondary and detached file panes have their own view switches; desktop recovery includes the selected live view and supported unsaved drafts.
+
 ## Files context menu
 
 Right-click a file, folder or empty area in Files (or use Shift+F10 on a focused entry) to create files/folders, copy absolute/relative paths, duplicate, rename, reveal in File Explorer, or move items to Recycle Bin. Creation uses the selected folder or the selected file's parent. Existing names are never silently overwritten. Rename/trash close affected clean tabs; renamed files are reopened at their new paths. Save or close affected unsaved files before renaming, duplicating or deleting them.
@@ -69,3 +75,10 @@ The first public release establishes the update baseline. To verify end-to-end, 
 ## Release status
 
 This is a desktop preview, not a signed public release. The GitHub update feed and draft-release workflow are configured; a published baseline and a higher release are still required to verify a real installed upgrade. Windows builds are currently unsigned; release signing and clean-machine upgrade verification remain release gates, alongside broader DPI/multi-monitor/native-dialog checks. When signing is configured, keep updater publisher-signature verification enabled. macOS and Linux desktop packaging are not configured or verified.
+
+
+## Notifications
+
+Settings → Notifications separates in-app **Popup notifications** from **System notifications**. Both retain completion, input-request and error events and transition deduplication. System notifications are enabled by default, including for existing profiles; existing popup, sound and focused preferences are preserved. Background native notifications use Electron. **Notification sound** offers App sound (default), Windows default, or Off. App sound plays bundled `done.mp3` for completion and `request.mp3` for action requests/errors, while silencing the Windows toast to avoid duplicate sounds. A single player prevents overlapping tones, including while minimized or hidden in the tray. The desktop renderer permits this local audio without an initial click. Existing sound-off preferences migrate to Off. Windows default uses the OS toast sound; Off silences both. Enabling **Notify while focused** also permits delivery while Pane is focused. Clicking a notification restores Pane and opens its session.
+
+**Test notification** always sends an explicit system notification while Settings is open, even if automatic notifications or UI popups are off. It uses the sound preference and reports confirmed delivery, unsupported platforms or errors. Windows Do Not Disturb / notification settings can suppress banners even after accepting delivery. System notification delivery is desktop-only and always uses Electron IPC, never the browser Notification API. An old native bridge reports a required full quit/reopen instead of requesting browser permission.

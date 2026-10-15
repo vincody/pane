@@ -92,8 +92,8 @@ button:disabled{opacity:.55}
 .topbar .terminal-toggle,.topbar .files-toggle,.topbar .view-switch{background:transparent;color:var(--muted);border-color:var(--hairline)}
 .view-switch button.active,.pane-file-view button.active{background:var(--surface-card);color:var(--ink)}
 .titlebar-attention{color:var(--warning)}
-.save-button,.primary-button{background:var(--primary-active);color:var(--on-primary);border-color:var(--primary-active);border-radius:var(--radius-md);font-weight:500}
-.save-button:hover,.primary-button:hover{background:var(--primary-hover);color:var(--on-primary-hover);border-color:var(--primary-hover)}
+.primary-button{background:var(--primary-active);color:var(--on-primary);border-color:var(--primary-active);border-radius:var(--radius-md);font-weight:500}
+.primary-button:hover{background:var(--primary-hover);color:var(--on-primary-hover);border-color:var(--primary-hover)}
 .secondary-button{background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);border-radius:var(--radius-md)}
 .secondary-button:hover{background:var(--surface-card)}
 .file-filter{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--radius-md)}
@@ -157,6 +157,8 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 .preview-content blockquote{border-color:var(--primary);color:var(--muted)}
 .preview-content code{background:var(--surface-card);color:var(--body-strong)}
 .preview-content pre,.preview-content pre code{background:var(--code-bg);color:var(--code-text)}
+.preview-content:has(>pre.code-preview){background:var(--code-bg)}
+.preview-content>pre.code-preview{margin:0;padding:0;border:0;border-radius:0;box-shadow:none;background:transparent}
 .code-copy-button{background:var(--code-surface);color:var(--code-text);border-color:var(--code-border)}
 /* Terminal and code remain dark, with local aliases for their own chrome. */
 #terminal-panel,#editor-pane,.secondary-code,.file-layout-code{
@@ -355,3 +357,10 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 #add-workspace-dialog .workspace-add-alternatives .workspace-add-card{background:transparent}
 #add-workspace-dialog .workspace-add-card strong{color:var(--ink)}
 #add-workspace-dialog .workspace-add-card:hover,#add-workspace-dialog .workspace-add-card:focus-visible{color:var(--ink);background:var(--surface-card)}
+
+/* Keep file saving in the same compact action row as the editor view controls. */
+#app main>.topbar #save{align-self:center;align-items:center;justify-content:center;flex:0 0 32px;width:32px;min-width:32px;height:32px;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--primary-active);gap:0;box-shadow:none}
+#app main>.topbar #save svg{width:16px;height:16px}
+#app main>.topbar #save:disabled{color:var(--muted);opacity:.45}
+#app main>.topbar #save:hover:not(:disabled){background:var(--surface-card);border-color:var(--hairline);color:var(--ink)}
+#app main>.topbar #save:focus-visible{outline:2px solid var(--primary-active);outline-offset:1px}

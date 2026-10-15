@@ -19,6 +19,7 @@ test('typed folder controller preserves edits, previews and stale-save protectio
  try{
   await page.goto(`http://127.0.0.1:${serverPort(app.server)}`);
   await page.getByRole('button',{name:'Open folder',exact:true}).click();
+  await page.locator('.workspace-add-manual').click();
   await page.getByLabel('Folder path',{exact:true}).fill(root);
   await page.locator('#folder-form button[type=submit]').click();
   await expect(page.locator('#folder-dialog')).not.toBeVisible();
@@ -29,10 +30,10 @@ test('typed folder controller preserves edits, previews and stale-save protectio
   const edited='# Edited\n\n```ts\nconst value = 2;\n```\n';
   await page.keyboard.insertText(edited);
   await expect(page.locator('.tab-dirty')).toHaveCount(1);
-  await page.locator('.view-switch [data-view=preview]').click();
-  await expect(page.locator('#preview-content h1')).toHaveText('Edited');
-  await expect(page.locator('#preview-content code')).toHaveText('const value = 2;\n');
-  await expect(page.getByRole('button',{name:'Copy code',exact:true})).toBeVisible();
+  await page.locator('.view-switch [data-view=live]').click();
+  const live=page.getByRole('textbox',{name:'Live Markdown editor',exact:true});await expect(live.locator('h1')).toHaveText('Edited');
+  await expect(live.locator('pre code')).toHaveText('const value = 2;');
+  await expect(page.locator('.view-switch [data-view=preview]')).toBeHidden();
   expect(await fs.readFile(path.join(root,'notes.md'),'utf8')).toBe(original);
   await page.locator('#save').click();await expect(page.locator('.tab-dirty')).toHaveCount(0);
   expect(await fs.readFile(path.join(root,'notes.md'),'utf8')).toBe(edited);
@@ -48,7 +49,13 @@ test('typed folder controller preserves edits, previews and stale-save protectio
   await expect(page.locator('#preview-content script')).toHaveCount(0);
   expect(await page.evaluate(()=>window.bad)).toBeUndefined();
   await page.getByRole('treeitem',{name:'unsafe.html',exact:true}).click();
+  await page.locator('.view-switch [data-view=preview]').click();
   await expect(page.frameLocator('#preview-content iframe').locator('h1')).toHaveText('Static preview');
+  const closeNotes=page.getByRole('button',{name:'Close notes.md',exact:true}),discard=page.getByRole('dialog',{name:'Discard unsaved changes?'});
+  await closeNotes.click();await expect(discard).toBeVisible();await expect(discard).toContainText('notes.md');await expect(discard.getByRole('button',{name:'Keep editing',exact:true})).toBeFocused();await page.screenshot({path:'test-results/discard-dialog-light.png',animations:'disabled'});await page.evaluate(()=>document.documentElement.dataset.theme='dark');await page.screenshot({path:'test-results/discard-dialog-dark.png',animations:'disabled'});
+  await discard.getByRole('button',{name:'Keep editing',exact:true}).click();await expect(discard).toHaveCount(0);await expect(closeNotes).toBeVisible();await expect(page.locator('.tab-dirty')).toHaveCount(1);
+  await closeNotes.click();await expect(discard).toBeVisible();await page.keyboard.press('Escape');await expect(discard).toHaveCount(0);await expect(closeNotes).toBeVisible();
+  await closeNotes.click();await discard.getByRole('button',{name:'Discard changes',exact:true}).click();await expect(closeNotes).toHaveCount(0);expect(await fs.readFile(path.join(root,'notes.md'),'utf8')).toBe('# External edit\n');
   expect(errors).toEqual([]);
  }finally{
   await page.close();await app.closeSessions();

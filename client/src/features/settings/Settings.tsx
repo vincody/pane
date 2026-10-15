@@ -33,7 +33,7 @@ export function setupSettings({icon,api}: {icon:NativeIcon;api:Api}) {
     {id:'editor',name:'Editor',description:'Choose how files open and how code is displayed.',icon:'code',controls:['#font-setting','#wrap-setting','[aria-label="Opening files"]','[aria-label="Default file view"]'],nodes:[]},
     {id:'terminal',name:'Terminal',description:'Choose how new terminal sessions are arranged.',icon:'monitor',controls:['#terminal-setting','#auto-split-terminal-setting'],nodes:[]},
     {id:'usage',name:'Usage',description:'Keep account limits within reach.',icon:'chart',controls:['[aria-label="Show usage"]','[aria-label="Show Codex usage"]','[aria-label="Show Claude usage"]','[aria-label="Usage quota window"]'],nodes:[]},
-    {id:'notifications',name:'Notifications',description:'Stay informed when agents need you.',icon:'bell',controls:['[aria-label="Popup notifications"]','[aria-label="Notification sounds"]','#test-notification','[aria-label="Notify while focused"]'],nodes:[]},
+    {id:'notifications',name:'Notifications',description:'Stay informed when agents need you.',icon:'bell',controls:['[aria-label="Popup notifications"]','[aria-label="Notification sounds"]','[aria-label="System notifications"]','#test-notification','[aria-label="Notify while focused"]'],nodes:[]},
     {id:'integrations',name:'Integrations',description:'Check the tools and accounts used to connect your workspace.',icon:'branch',controls:[],nodes:[]},
     {id:'keybinds',name:'Keybinds',description:'Keyboard shortcuts for navigating your workspace and editing files.',icon:'code',controls:[],nodes:[]},
     {id:'about',name:'About & Updates',description:'App version, release notes and software updates.',icon:'monitor',controls:[],nodes:[]}

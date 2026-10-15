@@ -26,6 +26,8 @@ test('split previews render independently for code, Markdown, HTML and images',a
  await expect(page.locator('.view-switch')).toBeVisible();
  await page.locator('.view-switch [data-view=preview]').click();
  await expect(page.locator('#preview-content .code-preview')).toContainText('Starting Pane');
+ await expect(page.locator('#preview-content .code-preview')).toHaveCSS('border-top-width','0px');
+ await expect(page.locator('#preview-content .code-preview')).toHaveCSS('border-radius','0px');
  const previewHandle=page.locator('.preview-heading');
  await expect(previewHandle).toHaveAttribute('draggable','true');
  const previewDrag=await page.evaluateHandle(()=>new DataTransfer());
@@ -54,12 +56,11 @@ test('split previews render independently for code, Markdown, HTML and images',a
  await page.dispatchEvent('body','dragend',{dataTransfer:previewDrag});await previewDrag.dispose();
  const code=pane('Start-AIWeb.ps1');await expect(code.locator('.file-layout-preview .code-preview')).toContainText('Starting Pane');
  await drop('notes.md',code,'down');const markdown=pane('notes.md');
- await markdown.locator('[data-view=preview]').click();
- await expect(markdown.locator('.file-layout-preview h1')).toHaveText('Split preview');
- await expect(markdown.getByRole('button',{name:'Copy code',exact:true})).toBeAttached();
+ await markdown.getByRole('button',{name:'Live Editor',exact:true}).click();const live=markdown.getByRole('textbox',{name:'Live Markdown editor',exact:true});await expect(live).toBeVisible();await expect(markdown.getByRole('button',{name:'Preview',exact:true})).toBeHidden();await expect(live.locator('h1')).toHaveText('Split preview');await expect(live.locator('pre')).toContainText('const value = 1;');
+ await live.locator('h1').click();await page.keyboard.press('End');await page.keyboard.type(' edited');await markdown.getByRole('button',{name:'Source',exact:true}).click();await expect(markdown.locator('.monaco-editor')).toContainText('Split preview edited');await markdown.getByRole('button',{name:'Live Editor',exact:true}).click();await expect(live.locator('h1')).toHaveText('Split preview edited');
  await code.locator('[data-view=editor]').click();await expect(code.locator('.file-layout-code')).toBeVisible();
- await code.locator('.monaco-editor .view-lines').click({position:{x:60,y:15}});await page.keyboard.press('Control+End');await page.keyboard.type('\nWrite-Host "Updated preview"\n');await expect(page.locator('.tab-dirty')).toHaveCount(1);
- await expect(markdown.locator('.file-layout-preview h1')).toBeVisible();
+ await code.locator('.monaco-editor .view-lines').click({position:{x:60,y:15}});await page.keyboard.press('Control+End');await page.keyboard.type('\nWrite-Host "Updated preview"\n');await expect(page.locator('.tab-dirty')).toHaveCount(2);
+ await expect(live.locator('h1')).toBeVisible();
  await code.locator('[data-view=preview]').click();await expect(code.locator('.code-preview')).toContainText('Updated preview');
  await drop('page.html',markdown,'right');const html=pane('page.html');
  await html.locator('[data-view=preview]').click();
@@ -72,6 +73,6 @@ test('split previews render independently for code, Markdown, HTML and images',a
  await code.getByRole('button',{name:'Maximize file pane',exact:true}).click();
  await expect(code.locator('.code-preview')).toBeVisible();
  await code.getByRole('button',{name:'Restore file pane',exact:true}).click();
- await expect(markdown.locator('.file-layout-preview h1')).toBeVisible();
+ await expect(live.locator('h1')).toBeVisible();
  await page.screenshot({path:'test-results/split-previews.png',animations:'disabled'});expect(errors).toEqual([]);
 });

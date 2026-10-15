@@ -21,6 +21,9 @@ import {setupColorTheme} from '../features/settings/color-theme.ts';
 import {setupTabDrag} from '../features/layout/tab-drag.ts';
 import {fileIcon} from '../features/files/file-icons.ts';
 import {setupFileActions} from '../features/files/file-actions.ts';
+import {confirmDiscardFile} from '../features/files/discard-dialog.ts';
+import {createLiveMarkdownSurface} from '../features/files/live-markdown.ts';
+import {chooseFileView,syncFileModeButtons} from '../features/files/markdown-modes.ts';
 import type {FileAction} from '../../../shared/file-actions.ts';
 import {createUsagePanel} from '../features/usage/Usage.tsx';
 import { createAgentView } from '../features/agents/agent-view.ts';
@@ -55,7 +58,7 @@ import type {Workspace,SessionSnapshot,AgentSnapshot,TextFile,ImageFile,FileDiff
 import type {TerminalAgent} from '../components/contracts.ts';
 import type {DraggedFile,DropZone} from '../features/layout/tab-drag.ts';
 import type {ExternalFilePane} from '../features/terminal/terminal-view.ts';
-type FilePane=ExternalFilePane&{preview:HTMLElement;editor:monaco.editor.IStandaloneCodeEditor|monaco.editor.IStandaloneDiffEditor|null};
+type FilePane=ExternalFilePane&{preview:HTMLElement;editor:monaco.editor.IStandaloneCodeEditor|monaco.editor.IStandaloneDiffEditor|null;live?:ReturnType<typeof createLiveMarkdownSurface>};
 const token = $('meta[name="ai-web-token"]').content;
 const api=createApi(token);
 $('#app').classList.toggle('sidebar-hidden',document.documentElement.dataset.workspacesHidden==='true');
@@ -163,6 +166,13 @@ function toast(message:string) {
   toastTimer = setTimeout(() => $('#toast').classList.remove('visible'), 6500);
 }
 const fileUrl = (route:string, doc:Pick<OpenDocument,'project'|'path'> = currentDocument!) => `/api/${route}?${new URLSearchParams({ project: doc.project, path: doc.path })}`;
+async function loadLiveImage(doc:OpenDocument,source:string){
+ if(/^(?:[a-z][a-z0-9+.-]*:|\/|\\)/i.test(source))throw new Error('External images are not loaded.');
+ const parts=doc.path.split('/');parts.pop();for(const part of decodeURIComponent(source).split('/')){if(part==='..'){if(!parts.length)throw new Error('Image is outside this workspace.');parts.pop();}else if(part&&part!=='.')parts.push(part);}
+ return api(fileUrl('image',{project:doc.project,path:parts.join('/')}),{image:true});
+}
+const mainLiveElement=document.createElement('div');$('#editor-pane').append(mainLiveElement);
+const mainLive=createLiveMarkdownSurface(mainLiveElement,{save:doc=>{void saveFile(doc);},loadImage:loadLiveImage,fallback:reason=>{if(currentDocument)currentDocument.liveError=reason;setView('editor');toast(reason);}});
 
 monaco.editor.defineTheme('ai-web', {
   base: 'vs-dark', inherit: true,
@@ -207,7 +217,7 @@ function checkpointWorkbench(){
  const dirty=[...documents.values()].filter(doc=>doc.dirty).length,terminals=terminalView.runningCount,busy=Boolean(gitView?.busy)||pendingApiWrites()>0||[...documents.values()].some(doc=>doc.saving);
  if(!workbenchReady)return {dirty,terminals,busy,saved:false};
  const views=new Map(workspaceTabStates);if(currentProject)views.set(currentProject.id,captureWorkspaceState());
- const value:WorkbenchJournal={version:1,selected:currentProject?.id||null,files:[...documents.values()].filter(doc=>doc.kind!=='diff').map(doc=>({project:doc.project,path:doc.path,pane:filePanes.has(doc.key),view:filePanes.get(doc.key)?.element.dataset.fileView==='preview'?'preview':'editor',...(doc.dirty&&doc.model?{draft:doc.model.getValue(),version:doc.version}:{})})),views:[...views].map(([project,view])=>({...view,project,kind:view.kind==='agent'?'empty':view.kind})),layout:terminalView.captureLayout(),git:gitView?.openProjects||[],positions:captureTabPositions()};
+ const value:WorkbenchJournal={version:1,selected:currentProject?.id||null,files:[...documents.values()].filter(doc=>doc.kind!=='diff').map(doc=>({project:doc.project,path:doc.path,pane:filePanes.has(doc.key),view:chooseFileView(doc,filePanes.get(doc.key)?.element.dataset.fileView||doc.view||'editor'),...(doc.dirty&&doc.model?{draft:doc.model.getValue(),version:doc.version}:{})})),views:[...views].map(([project,view])=>({...view,project,kind:view.kind==='agent'?'empty':view.kind})),layout:terminalView.captureLayout(),git:gitView?.openProjects||[],positions:captureTabPositions()};
  return {dirty,terminals,busy,saved:terminalView.checkpoint()&&writeWorkbenchJournal(value)};
 }
 async function selectProject(project:Workspace|null,initial=false) {
@@ -379,6 +389,7 @@ async function openFile(project:string, path:string, {newTab=false,recovery=unde
     doc.savedContent = doc.content;
     doc.model = monaco.editor.createModel(doc.content, language(path), monaco.Uri.parse(`ai-web://${project}/${path}`));
     doc.subscription = doc.model.onDidChangeContent(() => {
+      doc.liveError=undefined;
       doc.dirty = doc.model!.getValue() !== doc.savedContent; renderTabs();
       if (currentDocument === doc) { updateToolbar(); status(doc.dirty ? 'Unsaved changes' : 'Ready'); }
       schedulePreview(doc);
@@ -415,7 +426,7 @@ function selectDocument(doc:OpenDocument,{keepChat=false}={}) {
   $('#image-editor').replaceChildren();
   if (doc.kind === 'image') showImage($('#image-editor'),doc);
   renderTabs(); updateToolbar(); renderPreview();
-  setView(defaultFileView);
+  setView(doc.view||defaultFileView);
   for (const row of $('#tree').querySelectorAll<HTMLElement>('.file-row')) row.classList.toggle('active', row.dataset.project === doc.project && row.dataset.path === doc.path);
   status(doc.dirty ? 'Unsaved changes' : 'Ready'); if (doc.model&&!keepChat) editor.focus();
 }
@@ -450,14 +461,21 @@ function updateAITabStatus(agent=agentView?.snapshot){
  tab.dataset.status=state;tab.title=labels[state] || state;
  const indicator=tab.querySelector<HTMLElement>('.ai-tab-indicator')!;if(state==='working'){if(!/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/.test(indicator.textContent))indicator.textContent='⠏';}else indicator.textContent=state==='blocked'?'!':state==='occupied'?'–':'';indicator.setAttribute('role','img');indicator.setAttribute('aria-label',labels[state] || state);
 }
-function closeDocument(doc:OpenDocument) {
+const pendingFileClose=new WeakSet<OpenDocument>();
+async function closeDocument(doc:OpenDocument) {
+  if(pendingFileClose.has(doc))return;
+  if(doc.dirty){
+    pendingFileClose.add(doc);
+    try{if(!await confirmDiscardFile(doc.name))return;}finally{pendingFileClose.delete(doc);}
+    if(documents.get(doc.key)!==doc)return;
+  }
   const keepChat=agentView.visible&&!$('#app').classList.contains('chat-file-split');
-  if (doc.dirty && !confirm(`Discard unsaved changes to ${doc.name}?`)) return;
+  if(currentDocument===doc)mainLive.hide();
   if(filePanes.has(doc.key)){
     const pane=filePanes.get(doc.key)!;filePanes.delete(doc.key);
     documents.delete(doc.key);forgetTabPosition(`file:${doc.key}`);
     if(currentDocument===doc)currentDocument=null;
-    terminalView.removeFilePane(`file:${doc.key}`);pane.editor?.dispose();for(const model of doc.diffModels||[])model.dispose();
+    terminalView.removeFilePane(`file:${doc.key}`);pane.live?.dispose();pane.editor?.dispose();for(const model of doc.diffModels||[])model.dispose();
     previewRequests.set(pane.preview,(previewRequests.get(pane.preview)||0)+1);
     doc.subscription?.dispose();doc.model?.dispose();if(doc.imageUrl)URL.revokeObjectURL(doc.imageUrl);
     if(!terminalView.visible){const next=[...documents.values()].filter(doc=>doc.project===currentProject?.id).at(-1);if(next)selectDocument(next);}
@@ -484,10 +502,12 @@ function updateToolbar() {
   else{delete previewHandle.dataset.project;delete previewHandle.dataset.path;previewHandle.removeAttribute('title');}
   $('#save').hidden = currentDocument?.kind === 'image';
   $('.view-switch').hidden = currentDocument?.kind === 'image';
+  syncFileModeButtons($('.view-switch'),currentDocument,chooseFileView(currentDocument,mode),setView);
   $('#save').disabled = !currentDocument?.dirty || Boolean(currentDocument.saving);
   $('.topbar').classList.toggle('has-document', Boolean(currentDocument));
   $('#workspace').classList.toggle('no-file',!currentDocument);
   if(!currentDocument){
+    mainLive.hide();
     editor.setModel(null);
     const preview=$('#preview-content');previewRequests.set(preview,(previewRequests.get(preview)||0)+1);preview.replaceChildren();$('#preview-kind').textContent='';
     $('#image-editor').replaceChildren();$('#image-editor').hidden=true;
@@ -508,9 +528,12 @@ async function saveFile(target?:OpenDocument|Event|null) {
   finally { doc.saving = false; renderTabs(); updateToolbar(); }
 }
 function setView(view:string) {
-  if(currentDocument?.kind==='image')view='preview';
+  view=chooseFileView(currentDocument,view);
+  if(currentDocument)currentDocument.view=view as FileView;
   mode = view; $('#workspace').dataset.view = view;
-  for (const button of document.querySelectorAll<HTMLButtonElement>('.view-switch button[data-view]')) { button.classList.toggle('active', button.dataset.view === view); button.setAttribute('aria-pressed', String(button.dataset.view === view)); }
+  syncFileModeButtons($('.view-switch'),currentDocument,view as FileView,setView);
+  $('#editor').hidden=view!=='editor'||currentDocument?.kind==='image';
+  if(view==='live'&&currentDocument)void mainLive.show(currentDocument);else mainLive.hide();
   editor.layout(); renderPreview();
   if (view !== 'editor' && !matchMedia('(prefers-reduced-motion: reduce)').matches) $('#preview-pane').animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' });
 }
@@ -528,7 +551,7 @@ function schedulePreview(doc:OpenDocument|null=currentDocument) {
 }
 async function renderPreview({doc=currentDocument,target=$('#preview-content'),secondary=false,view=mode}={}) {
   const generation=(previewRequests.get(target)||0)+1;previewRequests.set(target,generation);
-  if (!doc || view === 'editor') return;
+  if (!doc || view !== 'preview'&&view !=='split') return;
   const scrollTop=target.scrollTop;
   try{
   target.replaceChildren(); if(!secondary)$('#preview-kind').textContent = doc.kind === 'image' ? 'Image file' : doc.dirty ? 'Unsaved edits' : 'Current file';
@@ -675,6 +698,7 @@ async function start() {
       try{
         await openFile(saved.project,saved.path,{newTab:true,...(saved.draft!==undefined?{recovery:{draft:saved.draft,version:saved.version}}:{})});const doc=documents.get(`${saved.project}:${saved.path}`);if(!doc)continue;
         if(saved.draft!==undefined&&doc.model){if(saved.version&&doc.version!==saved.version){doc.version=saved.version;conflicts++;}doc.model.setValue(saved.draft);}
+        doc.view=chooseFileView(doc,saved.view);
         if(saved.pane){mountFilePane(doc,null);filePanes.get(doc.key)?.paneHeader.querySelector<HTMLButtonElement>(`[data-view=${saved.view}]`)?.click();}
       }catch{missing++;}
     }
@@ -703,6 +727,8 @@ const contentViews=document.createElement('div');contentViews.id='content-views'
 const terminalView=createTerminalView({token,icon,onSelect:()=>{if(restoringWorkbench)return;const context=projects.find(project=>project.id===terminalView.focusedProjectId);if(context&&context.id!==currentProject?.id)void selectProject(context);else gitView?.deactivate();activeFileKey=null;document.querySelector<HTMLElement>("#app")!.dataset.fileFocused="false";agentView.close();},onSessionsChange:agents=>{for(const old of terminalAgents)if(!agents.some(agent=>agent.id===old.id))notifications?.remove(old.id);terminalAgents=sessionAttention.update(agents,!document.hidden&&document.hasFocus());for(const agent of agents)notifications?.observe({...agent,terminalSession:true});usagePanel.setAgents([...sessionData.agents,...terminalAgents]);if(!draggedProject&&!reorderingProjects)renderProjects();},onClose:visible=>{ $('#terminal-toggle').setAttribute('aria-pressed',String(visible)); $('.topbar').classList.toggle('terminal-active',visible); }});editorStack.append(terminalView.element);$('#terminal-toggle').title='New terminal';$('#terminal-toggle').setAttribute('aria-label','New terminal');$('#terminal-toggle').onclick=()=>{agentView.close();endFileSplit();terminalView.newSession(currentProject);};
 new ResizeObserver(()=>editor.layout()).observe(editorStack);
 const secondaryPane=document.createElement('section');secondaryPane.id='secondary-file';secondaryPane.hidden=true;secondaryPane.setAttribute('aria-label','Second file editor');secondaryPane.innerHTML='<header><span class="secondary-file-title"></span><button type="button" class="icon-button" aria-label="Merge split panes" title="Merge split panes"></button></header><div class="secondary-code"></div><div class="secondary-image" hidden></div>';contentViews.append(secondaryPane);secondaryPane.querySelector<HTMLButtonElement>('button')!.append(icon('close'));secondaryPane.querySelector<HTMLButtonElement>('button')!.onclick=()=>{if(secondaryDocument)closeDocument(secondaryDocument);};
+const secondaryLiveElement=document.createElement('div');secondaryPane.append(secondaryLiveElement);
+const secondaryLive=createLiveMarkdownSurface(secondaryLiveElement,{save:doc=>{void saveFile(doc);},loadImage:loadLiveImage,fallback:reason=>{if(secondaryDocument)secondaryDocument.liveError=reason;setSecondaryView('editor');toast(reason);}});
 const secondarySwitch=document.createElement('div');secondarySwitch.className='pane-file-view';secondarySwitch.innerHTML='<button type="button" data-secondary-view="editor">Editor</button><button type="button" data-secondary-view="preview">Preview</button>';secondaryPane.querySelector<HTMLElement>('header')!.insertBefore(secondarySwitch,secondaryPane.querySelector<HTMLButtonElement>('header button')!);
 const secondaryPreview=document.createElement('div');secondaryPreview.className='secondary-preview preview-content';secondaryPreview.hidden=true;secondaryPane.append(secondaryPreview);
 secondaryPane.querySelector<HTMLElement>('header')!.draggable=true;secondaryPane.querySelector<HTMLElement>('header')!.classList.add('file-pane-drag-handle');
@@ -719,19 +745,19 @@ fileZoom.onclick=()=>{
  requestAnimationFrame(()=>secondaryEditor?.layout());
 };
 function setSecondaryView(view:FileView){
- if(secondaryDocument?.kind==='image')view='preview';
- secondarySwitch.hidden=secondaryDocument?.kind==='image';
- secondaryMode=view;
- secondaryPane.querySelector<HTMLElement>('.secondary-code')!.hidden=view==='preview'||secondaryDocument?.kind==='image';
- secondaryPane.querySelector<HTMLElement>('.secondary-image')!.hidden=view==='preview'||secondaryDocument?.kind!=='image';
+ view=chooseFileView(secondaryDocument,view);
+ secondarySwitch.hidden=secondaryDocument?.kind==='image';secondaryMode=view;
+ secondaryPane.querySelector<HTMLElement>('.secondary-code')!.hidden=view!=='editor'||secondaryDocument?.kind==='image';
+ secondaryPane.querySelector<HTMLElement>('.secondary-image')!.hidden=view!=='editor'||secondaryDocument?.kind!=='image';
  secondaryPreview.hidden=view!=='preview';
- for(const button of htmlChildren(secondarySwitch)){button.classList.toggle('active',button.dataset.secondaryView===view);button.setAttribute('aria-pressed',String(button.dataset.secondaryView===view));}
+ syncFileModeButtons(secondarySwitch,secondaryDocument,view,setSecondaryView,'secondaryView');
+ if(view==='live'&&secondaryDocument)void secondaryLive.show(secondaryDocument);else secondaryLive.hide();
  if(secondaryDocument)void renderPreview({doc:secondaryDocument,target:secondaryPreview,secondary:true,view});
  requestAnimationFrame(()=>secondaryEditor?.layout());
 }
 for(const button of htmlChildren(secondarySwitch))button.onclick=()=>setSecondaryView(button.dataset.secondaryView==='preview'?'preview':'editor');
 const defaultViewRow=document.createElement('div');defaultViewRow.className='setting-row';defaultViewRow.innerHTML='<div><strong>Default file view</strong><small>Choose Editor or Preview whenever a file is opened</small></div><select aria-label="Default file view"><option value="editor">Editor</option><option value="preview">Preview</option></select>';document.querySelector<HTMLElement>('.settings-footnote')!.before(defaultViewRow);const defaultViewSelect=defaultViewRow.querySelector<HTMLSelectElement>('select')!;defaultViewSelect.value=defaultFileView;defaultViewSelect.onchange=()=>{defaultFileView=defaultViewSelect.value==='preview'?'preview':'editor';try{localStorage.setItem('ai-web.default-file-view',defaultFileView);}catch{}};
-function endFileSplit(){fileZoomAnimation?.cancel();$('#app').classList.remove('file-pane-maximized','file-pane-first');fileZoom.setAttribute('aria-label','Maximize file pane');fileZoom.setAttribute('aria-pressed','false');if(secondaryDocument&&secondaryEditor)secondaryDocument.secondaryViewState=secondaryEditor.saveViewState();secondaryDocument=null;secondaryEditor?.setModel(null);$('#secondary-file')?.setAttribute('hidden','');$('#app').classList.remove('file-file-split');}
+function endFileSplit(){secondaryLive.hide();fileZoomAnimation?.cancel();$('#app').classList.remove('file-pane-maximized','file-pane-first');fileZoom.setAttribute('aria-label','Maximize file pane');fileZoom.setAttribute('aria-pressed','false');if(secondaryDocument&&secondaryEditor)secondaryDocument.secondaryViewState=secondaryEditor.saveViewState();secondaryDocument=null;secondaryEditor?.setModel(null);$('#secondary-file')?.setAttribute('hidden','');$('#app').classList.remove('file-file-split');}
 function showSecondary(doc:OpenDocument){if(secondaryDocument&&secondaryEditor)secondaryDocument.secondaryViewState=secondaryEditor.saveViewState();secondaryDocument=doc;const handle=secondaryPane.querySelector<HTMLElement>("header")!;handle.dataset.project=doc.project;handle.dataset.path=doc.path;secondaryPane.hidden=false;secondaryPane.querySelector<HTMLElement>('.secondary-file-title')!.textContent=doc.name;const code=secondaryPane.querySelector<HTMLElement>('.secondary-code')!,image=secondaryPane.querySelector<HTMLElement>('.secondary-image')!;code.hidden=doc.kind==='image';image.hidden=doc.kind!=='image';if(!secondaryEditor)secondaryEditor=monaco.editor.create(code,{model:null,theme:'ai-web',fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false});secondaryEditor.setModel(doc.model || null);if(doc.secondaryViewState)secondaryEditor.restoreViewState(doc.secondaryViewState);image.replaceChildren();if(doc.kind==='image')showImage(image,doc);setSecondaryView(defaultFileView);requestAnimationFrame(()=>secondaryEditor?.layout());}
 function dropTab(key:string,zone:DropZone){
  if(documents.get(key)?.kind==='diff'){const doc=documents.get(key)!;mountFilePane(doc,typeof zone==='object'?zone.id:terminalView.activePaneId,typeof zone==='object'?zone.direction:zone==='bottom'?'down':'right');return;}
@@ -769,10 +795,11 @@ function mountFilePane(doc:OpenDocument,target:string|null|undefined,direction:'
     if(doc.kind==='diff'){(paneEditor as monaco.editor.IStandaloneDiffEditor).setModel({original:doc.diffModels[0],modified:doc.diffModels[1]});header.querySelector<HTMLElement>('.pane-file-view')!.hidden=true;const badge=document.createElement('span');badge.className='diff-baseline';badge.textContent='Git → Working tree';badge.title=doc.baseline?'HEAD compared with the file on disk':'New file compared with an empty Git baseline';header.insertBefore(badge,zoom);}
     if(doc.kind!=='diff')paneEditor?.addCommand(monaco.KeyMod.CtrlCmd|monaco.KeyCode.KeyS,()=>saveFile(doc));
     header.querySelector<HTMLElement>('.pane-file-view')!.hidden=doc.kind==='image'||doc.kind==='diff';
-    const setMode=(view:FileView)=>{if(doc.kind==='image')view='preview';element.dataset.fileView=view;code.hidden=view!=='editor'||doc.kind==='image';image.hidden=true;preview.hidden=view!=='preview';for(const button of header.querySelectorAll<HTMLElement>('[data-view]')){button.classList.toggle('active',button.dataset.view===view);button.setAttribute('aria-pressed',String(button.dataset.view===view));}void renderPreview({doc,target:preview,secondary:true,view});requestAnimationFrame(()=>paneEditor?.layout());};
-    for(const button of header.querySelectorAll<HTMLElement>('[data-view]'))button.onclick=()=>setMode(button.dataset.view==='preview'?'preview':'editor');
-    pane={id:`file:${doc.key}`,project:projects.find(project=>project.id===doc.project)!,element,paneHeader:header,paneZoom:zoom,preview,editor:paneEditor,layout:()=>{if(doc.kind==='diff')(paneEditor as monaco.editor.IStandaloneDiffEditor).updateOptions({renderSideBySide:element.clientWidth>=680});paneEditor?.layout();},onSelect:()=>{currentDocument=doc;activeFileKey=doc.key;$('#app').dataset.fileFocused='true';agentView.close();renderTabs();},};
-    const initialView:FileView=doc.kind==='diff'?'editor':doc===secondaryDocument?secondaryMode:doc===currentDocument?(mode==='preview'?'preview':'editor'):defaultFileView;
+    const liveElement=document.createElement('div');element.append(liveElement);
+    const live=createLiveMarkdownSurface(liveElement,{save:doc=>{void saveFile(doc);},loadImage:loadLiveImage,fallback:reason=>{doc.liveError=reason;setMode('editor');toast(reason);}});
+    const setMode=(view:FileView)=>{view=chooseFileView(doc,view);element.dataset.fileView=view;code.hidden=view!=='editor'||doc.kind==='image';image.hidden=true;preview.hidden=view!=='preview';syncFileModeButtons(header.querySelector<HTMLElement>('.pane-file-view')!,doc,view,setMode);if(view==='live')void live.show(doc);else live.hide();void renderPreview({doc,target:preview,secondary:true,view});requestAnimationFrame(()=>paneEditor?.layout());};
+    pane={id:`file:${doc.key}`,project:projects.find(project=>project.id===doc.project)!,element,paneHeader:header,paneZoom:zoom,preview,live,editor:paneEditor,layout:()=>{if(doc.kind==='diff')(paneEditor as monaco.editor.IStandaloneDiffEditor).updateOptions({renderSideBySide:element.clientWidth>=680});paneEditor?.layout();},onSelect:()=>{currentDocument=doc;activeFileKey=doc.key;$('#app').dataset.fileFocused='true';agentView.close();renderTabs();},};
+    const initialView:FileView=doc.kind==='diff'?'editor':doc===secondaryDocument?secondaryMode:doc===currentDocument?chooseFileView(doc,mode):defaultFileView;
     filePanes.set(doc.key,pane);setMode(initialView);
   }
   terminalView.placeFilePane(pane,target,direction);

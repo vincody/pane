@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import electronUpdater from 'electron-updater';
+import type {NotificationDelivery} from '../shared/desktop-notifications.ts';
 import {createUpdates} from './updates.ts';
 import {createApp} from '../server/src/app.ts';
 
@@ -84,7 +85,7 @@ async function boot(){
  origin=`http://127.0.0.1:${port}`;await log(`Backend ready on port ${port}.`);
  let bounds:{width:number;height:number;x?:number;y?:number}={width:1440,height:950};
  try{const saved=JSON.parse(await fs.readFile(path.join(stateDir,'window.json'),'utf8'));if(Number.isFinite(saved.width)&&Number.isFinite(saved.height)){bounds={width:Math.max(900,Math.min(3840,saved.width)),height:Math.max(600,Math.min(2160,saved.height))};if(Number.isFinite(saved.x)&&Number.isFinite(saved.y)&&screen.getAllDisplays().some(display=>saved.x>=display.workArea.x&&saved.x<display.workArea.x+display.workArea.width&&saved.y>=display.workArea.y&&saved.y<display.workArea.y+display.workArea.height))Object.assign(bounds,{x:saved.x,y:saved.y});}}catch{}
- window=new BrowserWindow({...bounds,frame:false,minWidth:900,minHeight:600,show:false,title:'Pane',backgroundColor:'#171613',icon:path.join(appDir,'desktop-build','icon.png'),webPreferences:{preload:path.join(appDir,'desktop-build','preload.cjs'),additionalArguments:[`--pane-backend-id=${crypto.randomUUID()}`],nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,spellcheck:false}});
+ window=new BrowserWindow({...bounds,frame:false,minWidth:900,minHeight:600,show:false,title:'Pane',backgroundColor:'#171613',icon:path.join(appDir,'desktop-build','icon.png'),webPreferences:{preload:path.join(appDir,'desktop-build','preload.cjs'),additionalArguments:[`--pane-backend-id=${crypto.randomUUID()}`,'--pane-notifications=1'],nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,spellcheck:false,autoplayPolicy:'no-user-gesture-required'}});
  const contents=window.webContents;
  const {autoUpdater}=electronUpdater;
  updates=await createUpdates({engine:autoUpdater,version:app.getVersion(),platform:`${process.platform} ${process.arch}`,supported:app.isPackaged&&process.platform==='win32'&&process.arch==='x64',preferencesFile:path.join(stateDir,'updates.json'),log,publish:state=>{if(!contents.isDestroyed())contents.send('pane:update-state',state);}});
@@ -101,12 +102,25 @@ async function boot(){
  contents.session.setPermissionRequestHandler((contents,permission,callback,details)=>callback(contents===window?.webContents&&details.isMainFrame&&details.requestingUrl.startsWith(origin+'/')&&permitted(permission)));
  contents.session.setPermissionCheckHandler((contents,permission,requestingOrigin,details)=>contents===window?.webContents&&details.isMainFrame&&requestingOrigin===origin&&permitted(permission));
  const notices=new Map<string,Notification>();
- ipcMain.on('pane:notify',(event,value:unknown)=>{
-  if(event.sender!==contents||event.senderFrame!==contents.mainFrame||!value||typeof value!=='object'||window?.isFocused()||!Notification.isSupported())return;
-  const data=value as Record<string,unknown>;if(typeof data.id!=='string'||data.id.length>256||typeof data.title!=='string'||typeof data.body!=='string')return;
-  notices.get(data.id)?.close();if(notices.size>=8){const first=notices.keys().next().value!;notices.get(first)?.close();notices.delete(first);}
-  const id=data.id,notice=new Notification({title:data.title.slice(0,120),body:data.body.slice(0,240),silent:true,icon:path.join(appDir,'desktop-build','icon.png')});notices.set(id,notice);
-  notice.on('click',()=>{show();if(!contents.isDestroyed())contents.send('pane:notification-click',id);});notice.on('close',()=>{if(notices.get(id)===notice)notices.delete(id);});notice.on('failed',()=>{notices.delete(id);void log('Native notification unavailable.');});notice.show();
+ ipcMain.handle('pane:notify',async(event,value:unknown):Promise<NotificationDelivery>=>{
+  if(event.sender!==contents||event.senderFrame!==contents.mainFrame||!event.senderFrame.url.startsWith(origin+'/'))return {status:'error',message:'Untrusted notification request.'};
+  if(!value||typeof value!=='object')return {status:'error',message:'Invalid notification.'};
+  const data=value as Record<string,unknown>;if(typeof data.id!=='string'||!data.id||data.id.length>256||typeof data.title!=='string'||typeof data.body!=='string'||typeof data.silent!=='boolean'||typeof data.allowFocused!=='boolean')return {status:'error',message:'Invalid notification.'};
+  if(!Notification.isSupported())return {status:'unavailable',message:'System notifications are not supported on this device.'};
+  if(window?.isFocused()&&!data.allowFocused)return {status:'suppressed'};
+  try{
+   notices.get(data.id)?.close();if(notices.size>=8){const first=notices.keys().next().value!;notices.get(first)?.close();notices.delete(first);}
+   const id=data.id,notice=new Notification({title:data.title.slice(0,120),body:data.body.slice(0,240),silent:data.silent,icon:path.join(appDir,'desktop-build','icon.png')});notices.set(id,notice);
+   return await new Promise(resolve=>{
+    const timer=setTimeout(()=>resolve({status:'error',message:'The system did not confirm delivery. Check Windows notification settings.'}),5000);
+    const finish=(result:NotificationDelivery)=>{clearTimeout(timer);resolve(result);};
+    notice.once('show',()=>finish({status:'sent'}));
+    notice.on('click',()=>{show();if(!contents.isDestroyed())contents.send('pane:notification-click',id);});
+    notice.on('close',()=>{if(notices.get(id)===notice)notices.delete(id);});
+    notice.on('failed',(_event,error)=>{if(notices.get(id)===notice)notices.delete(id);finish({status:'error',message:'Windows could not show the notification. Check system notification settings.'});void log(`Native notification failed: ${error}`);});
+    try{notice.show();}catch{finish({status:'error',message:'Could not show the system notification.'});notices.delete(id);}
+   });
+  }catch{return {status:'error',message:'Could not create the system notification.'};}
  });
  contents.setWindowOpenHandler(({url})=>{external(url);return {action:'deny'};});
  contents.on('will-navigate',(event,url)=>{if(url!==origin+'/'){event.preventDefault();external(url);}});
