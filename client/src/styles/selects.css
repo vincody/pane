@@ -3,7 +3,6 @@
 @supports (appearance: base-select) {
  html body select:not([multiple]):not([size]),
  html body select:not([multiple]):not([size])::picker(select) {
-  inset:auto;top:anchor(bottom);left:anchor(left);position-try-fallbacks:flip-block;
   appearance:base-select;
  }
  html body select:not([multiple]):not([size]) {
@@ -28,6 +27,7 @@
  }
  html body select:not([multiple]):not([size]):open::picker-icon {rotate:180deg}
  html body select:not([multiple]):not([size])::picker(select) {
+  inset:auto;top:anchor(bottom);left:anchor(left);position-try-fallbacks:flip-block;
   margin-block:6px;padding:5px;min-width:anchor-size(width);
   max-width:calc(100vw - 24px);max-height:min(320px,60dvh);
   overflow:auto;overscroll-behavior:contain;
@@ -52,3 +52,21 @@
   html body select:not([multiple]):not([size]),html body select:not([multiple]):not([size])::picker-icon {transition:none}
  }
 }
+
+/* Agent uses a DOM picker so provider icons also work without base-select. */
+#sub-workspace-dialog select[name=agent][hidden]{display:none!important}
+#sub-workspace-dialog .worktree-agent-trigger{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:9px 11px;border:1px solid var(--hairline);border-radius:7px;background:var(--canvas);color:var(--ink);font:12px/1.5 var(--font-ui);text-align:left;cursor:pointer}
+#sub-workspace-dialog .worktree-agent-trigger:hover{border-color:var(--muted)}
+#sub-workspace-dialog .worktree-agent-trigger:focus-visible,#sub-workspace-dialog .worktree-agent-trigger[aria-expanded=true]{outline:none;border-color:var(--git-blue);box-shadow:0 0 0 2px color-mix(in srgb,var(--git-blue) 16%,transparent)}
+.worktree-agent-trigger>img,.worktree-agent-trigger>svg,.worktree-agent-menu button>img,.worktree-agent-menu button>svg{width:19px;height:19px;flex:none;object-fit:contain;color:var(--muted)}
+.worktree-agent-trigger>.agent-chevron{margin-left:auto;width:14px;height:14px;transition:transform 120ms}
+.worktree-agent-trigger[aria-expanded=true]>.agent-chevron{transform:rotate(180deg)}
+.worktree-agent-menu{position:fixed;inset:auto;margin:0;padding:5px;max-width:calc(100vw - 24px);max-height:240px;overflow:auto;overscroll-behavior:contain;border:1px solid var(--hairline);border-radius:9px;background:var(--canvas);color:var(--ink);box-shadow:0 8px 24px #0002}
+#sub-workspace-dialog .worktree-agent-menu button{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:9px 10px;border:0;border-radius:5px;background:transparent;color:var(--ink);font:12px/1.5 var(--font-ui);text-align:left;cursor:pointer}
+#sub-workspace-dialog .worktree-agent-menu button[data-active=true]{background:var(--surface-card)}
+#sub-workspace-dialog .worktree-agent-menu button[aria-selected=true]{color:var(--git-blue)}
+.worktree-agent-menu .agent-check{margin-left:auto;visibility:hidden}
+.worktree-agent-menu [aria-selected=true] .agent-check{visibility:visible}
+#sub-workspace-dialog .worktree-agent-trigger:disabled{opacity:.5;cursor:not-allowed}
+@media(pointer:coarse){#sub-workspace-dialog .worktree-agent-trigger,#sub-workspace-dialog .worktree-agent-menu button{min-height:44px}}
+@media(prefers-reduced-motion:reduce){.worktree-agent-trigger>.agent-chevron{transition:none}}

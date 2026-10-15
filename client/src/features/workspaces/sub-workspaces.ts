@@ -1,4 +1,5 @@
 import {attachBranchSuggestions} from './branch-suggestions.ts';
+import {attachAgentPicker} from './agent-picker.ts';
 import type {Api} from '../../components/contracts.ts';
 import type {Workspace,WorktreeBranches} from '../../../../shared/contracts.ts';
 import {automaticWorktreeName,worktreeSlug,type WorktreeLaunch} from '../../../../shared/worktree-composer.ts';
@@ -9,6 +10,7 @@ export function createSubWorkspaceDialog({api,getProjects,onCreated}:{api:Api;ge
  document.body.append(dialog);
  const form=dialog.querySelector<HTMLFormElement>('form')!,error=form.querySelector<HTMLElement>('.form-error')!,submit=form.querySelector<HTMLButtonElement>('[type=submit]')!,source=form.querySelector<HTMLInputElement>('[name=source]')!,base=form.querySelector<HTMLSelectElement>('[name=base]')!,repository=form.querySelector<HTMLSelectElement>('[name=repository]')!,branch=form.querySelector<HTMLInputElement>('[name=branchName]')!,displayName=form.querySelector<HTMLInputElement>('[name=displayName]')!,destination=form.querySelector<HTMLInputElement>('[name=destination]')!,reuse=form.querySelector<HTMLInputElement>('[name=reuse]')!,agent=form.querySelector<HTMLSelectElement>('[name=agent]')!,note=form.querySelector<HTMLTextAreaElement>('[name=note]')!,openExisting=form.querySelector<HTMLButtonElement>('.composer-open-existing')!;
  const suggestions=attachBranchSuggestions(source);
+ const agentPicker=attachAgentPicker(agent);
  let parent:Workspace|undefined,metadata:WorktreeBranches|undefined,loaded=false,busy=false,generation=0,automaticName='',lastSource:string|null=null,destinationTouched=false;
  const shortRef=(value:string)=>value.replace(/^refs\/remotes\//,'');
  const pickedSource=()=>metadata?.bases.find(value=>value===source.value.trim()||shortRef(value)===source.value.trim())||null;
@@ -66,6 +68,7 @@ export function createSubWorkspaceDialog({api,getProjects,onCreated}:{api:Api;ge
  return {async open(project:Workspace,initial?:{name:string;note:string}){
   if(busy)return;form.reset();form.querySelector<HTMLDetailsElement>('details')!.open=false;automaticName=automaticWorktreeName(getProjects().map(project=>project.name));destinationTouched=false;metadata=undefined;loaded=false;lastSource=null;
   try{const saved=localStorage.getItem('ai-web.worktree-agent');if(saved&&['shell','claude','codex','none'].includes(saved))agent.value=saved;}catch{}
+  agentPicker.refresh();
   options(repository,[]);for(const item of getProjects().filter(item=>!item.parentId)){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;option.title=item.root;repository.append(option);}
   repository.value=project.id;if(initial){source.value=initial.name;note.value=initial.note.slice(0,2000);}if(!dialog.open)dialog.showModal();source.focus();await loadProject(project);
  }};
