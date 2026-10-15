@@ -1,0 +1,19 @@
+.context-menu.file-context-menu{position:fixed;z-index:1200;width:270px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;padding:6px;border:1px solid var(--hairline);border-radius:12px;background:var(--canvas);box-shadow:0 12px 40px #0003;color:var(--body)}
+.context-menu.file-context-menu[hidden]{display:none}
+.context-menu.file-context-menu button{display:flex;align-items:center;gap:11px;width:100%;min-height:34px;padding:7px 10px;border:0;border-radius:6px;text-align:left;color:inherit;font:500 12px var(--font-ui);background:transparent}
+.context-menu.file-context-menu button svg{width:17px;height:17px;flex:none;color:var(--muted)}
+.context-menu.file-context-menu button:hover,.context-menu.file-context-menu button:focus-visible{background:var(--surface-card);color:var(--ink);outline:none}
+.context-menu.file-context-menu button:disabled{opacity:.4;cursor:not-allowed}
+.context-menu.file-context-menu [role=separator]{height:1px;background:var(--hairline);margin:5px}
+.context-menu.file-context-menu button.file-action-danger,.context-menu.file-context-menu button.file-action-danger svg{color:var(--error)}
+.file-row.file-context-target{background:var(--surface-card)}
+.file-action-dialog{width:min(440px,calc(100vw - 32px));padding:24px;border:1px solid var(--hairline);border-radius:var(--radius-xl);background:var(--canvas);color:var(--body)}
+.file-action-dialog h2{margin:0 0 10px;font:400 24px var(--font-display);color:var(--ink)}
+.file-action-detail{font-size:12px;line-height:1.6;color:var(--muted);overflow-wrap:anywhere;margin:0 0 20px}
+.file-action-name{display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--ink)}
+.file-action-name[hidden]{display:none}
+.file-action-dialog input{width:100%;padding:10px 12px;border:1px solid var(--hairline);border-radius:8px;background:var(--surface-soft);color:var(--ink);font:13px var(--font-ui)}
+.file-action-dialog input:focus{outline:2px solid var(--primary);outline-offset:2px}
+.file-action-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.file-action-error{min-height:16px;margin:12px 0 0;font-size:12px;color:var(--error);overflow-wrap:anywhere}
+.file-action-dialog .file-action-danger{background:var(--error);color:#fff}

@@ -42,6 +42,12 @@ Desktop tests use isolated profiles, real PowerShell PTYs, stubbed native dialog
 
 To test the packaged runtime, build it first and set `PANE_DESKTOP_EXECUTABLE` to the absolute path of `release/win-unpacked/Pane.exe`, then run `npx playwright test --config playwright.desktop.config.ts`.
 
+## Files context menu
+
+Right-click a file, folder or empty area in Files (or use Shift+F10 on a focused entry) to create files/folders, copy absolute/relative paths, duplicate, rename, reveal in File Explorer, or move items to Recycle Bin. Creation uses the selected folder or the selected file's parent. Existing names are never silently overwritten. Rename/trash close affected clean tabs; renamed files are reopened at their new paths. Save or close affected unsaved files before renaming, duplicating or deleting them.
+
+Recycle Bin and File Explorer use scoped Electron shell actions and are disabled in browser-only mode. There is no permanent-delete fallback. Workspace roots, open nested workspaces, metadata paths and linked entries are protected from these mutations. Failed recursive copies report that a partial copy may remain; originals are retained.
+
 ## Updates and releases
 
 Settings → **About & Updates** displays the actual runtime version, platform, stable channel, last check, release notes and download progress. The installed Windows x64 app checks GitHub Releases 30 seconds after launch and every six hours while running; automatic checks can be disabled in this page (saved to `updates.json`). Manual checks still work. Downloads are explicit. A small titlebar button announces an available/downloaded update and opens this page.

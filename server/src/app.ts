@@ -14,6 +14,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Files, FileError, isWithin } from './features/files/files.ts';
+import {createFileActions,type NativeFileActions} from './features/files/file-actions.ts';
 import { gitBranch } from './features/git/git.ts';
 import {worktreeBranches,createWorktree,unregisterNewWorktree,existingWorktree,createComposerWorktree} from './features/git/worktrees.ts';
 import {changes,fileDiff} from './features/git/git-changes.ts';
@@ -23,6 +24,7 @@ import {createGitHub} from './features/git/github.ts';
 import type { SessionRecord } from '../../shared/contracts.ts';
 
 export interface AppOptions {
+  nativeFileActions?:NativeFileActions;
   assetsDir?:string;
   nativePickers?:{folder:()=>Promise<string|null>;key:()=>Promise<string|null>;downloads:()=>Promise<string>};
   github?:ReturnType<typeof createGitHub>;
@@ -47,8 +49,9 @@ async function body(req: http.IncomingMessage): Promise<Record<string, unknown>>
   catch { throw new FileError(400, 'Invalid JSON.'); }
 }
 
-export async function createApp({ initialRoot = appRoot, stateDir = path.join(appRoot, '.ai-web'), assetsDir=path.join(appRoot,'dist'),nativePickers,agentHome, localLaunch, accountUsage, codexEngineFactory,devServerOptions,github=createGitHub() } : AppOptions = {}) {
+export async function createApp({ initialRoot = appRoot, stateDir = path.join(appRoot, '.ai-web'), assetsDir=path.join(appRoot,'dist'),nativePickers,nativeFileActions,agentHome, localLaunch, accountUsage, codexEngineFactory,devServerOptions,github=createGitHub() } : AppOptions = {}) {
   const files = new Files();
+  const fileActions=createFileActions(files,nativeFileActions);
   const devServers=createDevServers({...devServerOptions,getProjects:()=>[...files.projects.values()]});
   const local=await createLocalSessions({home:agentHome,stateDir});
   const registeredSession=(record: SessionRecord)=>[...files.projects.values()].some(project=>record.cwd&&isWithin(path.resolve(project.root),path.resolve(record.cwd)));
@@ -214,6 +217,10 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
           return json(200, { removed: id,removedIds:removed });
         }
         if (req.method === 'GET' && url.pathname === '/api/tree') return json(200, { entries: await files.tree(id, relative) });
+        if(url.pathname==='/api/file-actions'){
+          if(req.method==='GET')return json(200,fileActions.capabilities());
+          if(req.method==='POST')return json(200,await fileActions.perform(id,await body(req)));
+        }
         if (req.method === 'GET' && url.pathname === '/api/file') return json(200, await files.read(id, relative));
         if (req.method === 'PUT' && url.pathname === '/api/file') {
           const data = await body(req);

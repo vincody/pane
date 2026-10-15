@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import {createApp} from '../../server/src/app.ts';
+import {serverPort} from '../helpers/http.ts';
+
+test('file actions authenticate, preserve collisions, constrain paths and use native trash/reveal',async t=>{
+ const directory=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'pane-file-actions-'))),root=path.join(directory,'project');await fs.mkdir(root);
+ const trashed:string[]=[],revealed:string[]=[];
+ const app=await createApp({initialRoot:root,stateDir:path.join(directory,'state'),agentHome:directory,nativeFileActions:{trash:async target=>{trashed.push(target);await fs.rename(target,path.join(directory,'recycled'));},reveal:target=>{revealed.push(target);}}});
+ await new Promise<void>(resolve=>app.server.listen(0,'127.0.0.1',resolve));
+ t.after(async()=>{await app.closeSessions();await new Promise<void>(resolve=>app.server.close(()=>resolve()));await fs.rm(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
+ const project=[...app.files.projects.values()][0],url=`http://127.0.0.1:${serverPort(app.server)}/api/file-actions?project=${project.id}`,headers={'X-AI-Web-Token':app.token,'Content-Type':'application/json'};
+ const perform=(action:string,file:string,name?:string)=>fetch(url,{method:'POST',headers,body:JSON.stringify({action,path:file,name})});
+ assert.equal((await fetch(url,{method:'POST',body:'{}'})).status,403);
+ assert.equal((await fetch(url,{method:'POST',headers:{...headers,Origin:'https://outside.invalid'},body:'{}'})).status,403);
+ assert.deepEqual(await (await fetch(url,{headers})).json(),{trash:true,reveal:true});
+ for(const name of ['../outside','a/b','bad:stream','NUL.txt','.git','trailing.'])assert.ok((await perform('create-file','',name)).status>=400);
+ assert.equal((await perform('create-folder','','src')).status,200);
+ assert.equal((await perform('create-file','src','note.txt')).status,200);await fs.writeFile(path.join(root,'src/note.txt'),'keep');
+ assert.equal((await perform('create-file','src','note.txt')).status,409);assert.equal(await fs.readFile(path.join(root,'src/note.txt'),'utf8'),'keep');
+ assert.equal((await perform('create-file','','existing.txt')).status,200);
+ assert.equal((await perform('rename','src/note.txt','renamed.txt')).status,200);
+ assert.equal(await fs.readFile(path.join(root,'src/renamed.txt'),'utf8'),'keep');
+ assert.equal((await perform('duplicate','src/renamed.txt')).status,200);assert.equal((await perform('duplicate','src/renamed.txt')).status,200);
+ assert.equal(await fs.readFile(path.join(root,'src/renamed copy 2.txt'),'utf8'),'keep');
+ assert.equal((await perform('duplicate','src')).status,200);assert.equal(await fs.readFile(path.join(root,'src copy/renamed.txt'),'utf8'),'keep');
+ assert.equal((await perform('rename','existing.txt','src')).status,409);
+ for(const action of ['rename','duplicate','trash'])assert.equal((await perform(action,'','other')).status,403);
+ await fs.mkdir(path.join(root,'.git'));await fs.writeFile(path.join(root,'.git/config'),'protected');
+ assert.equal((await perform('trash','.git/config')).status,403);
+ assert.equal((await perform('trash','../outside')).status,400);assert.equal(trashed.length,0);
+ assert.equal((await perform('reveal','src/renamed.txt')).status,200);assert.deepEqual(revealed,[path.join(root,'src/renamed.txt')]);
+ assert.equal((await perform('trash','src/renamed.txt')).status,200);assert.deepEqual(trashed,[path.join(root,'src/renamed.txt')]);assert.equal(await fs.readFile(path.join(directory,'recycled'),'utf8'),'keep');
+ const nested=await app.files.addProject(path.join(root,'src copy'));
+ assert.equal((await perform('rename','src copy','other')).status,409);app.files.projects.delete(nested.id);
+ const link=path.join(root,'linked');await fs.symlink(directory,link,process.platform==='win32'?'junction':'dir');
+ assert.equal((await perform('trash','linked')).status,403);assert.equal((await perform('create-file','linked','escaped.txt')).status,403);assert.equal(await fs.stat(path.join(directory,'escaped.txt')).catch(()=>null),null);
+});
+
+test('browser file actions never fall back to permanent deletion',async t=>{
+ const directory=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'pane-file-web-')));await fs.writeFile(path.join(directory,'keep.txt'),'keep');
+ const app=await createApp({initialRoot:directory,stateDir:path.join(directory,'state'),agentHome:directory});await new Promise<void>(resolve=>app.server.listen(0,'127.0.0.1',resolve));
+ t.after(async()=>{await app.closeSessions();await new Promise<void>(resolve=>app.server.close(()=>resolve()));await fs.rm(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
+ const id=[...app.files.projects.keys()][0],url=`http://127.0.0.1:${serverPort(app.server)}/api/file-actions?project=${id}`,headers={'X-AI-Web-Token':app.token,'Content-Type':'application/json'};
+ assert.deepEqual(await (await fetch(url,{headers})).json(),{trash:false,reveal:false});
+ assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({action:'trash',path:'keep.txt'})})).status,501);
+ assert.equal(await fs.readFile(path.join(directory,'keep.txt'),'utf8'),'keep');
+});

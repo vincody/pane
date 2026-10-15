@@ -20,6 +20,8 @@ import {setupSettings} from '../features/settings/Settings.tsx';
 import {setupColorTheme} from '../features/settings/color-theme.ts';
 import {setupTabDrag} from '../features/layout/tab-drag.ts';
 import {fileIcon} from '../features/files/file-icons.ts';
+import {setupFileActions} from '../features/files/file-actions.ts';
+import type {FileAction} from '../../../shared/file-actions.ts';
 import {createUsagePanel} from '../features/usage/Usage.tsx';
 import { createAgentView } from '../features/agents/agent-view.ts';
 import { createTerminalView } from '../features/terminal/terminal-view.ts';
@@ -110,6 +112,11 @@ const paths:Record<string,string> = {
   read: 'M4 5h6l2 2 2-2h6v14h-6l-2 2-2-2H4Z M12 7v14',
   branch: 'M6 8v8 M18 8a6 6 0 0 1-6 6H6 M6 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M18 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M6 16a3 3 0 1 0 0 6 3 3 0 0 0 0-6',
   file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z M14 2v6h6',
+  'file-plus':'M14 2H6a2 2 0 0 0-2 2v16h16V8Z M14 2v6h6 M12 11v6 M9 14h6',
+  'folder-plus':'M3 7V4h6l2 3h10v13H3Z M12 10v7 M8.5 13.5h7',
+  copy:'M8 8h13v13H8Z M16 8V3H3v13h5',
+  rename:'m15 4 5 5 M4 20l5-1L21 7l-5-5L4 14Z',
+  trash:'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7',
   code: 'm8 8-4 4 4 4 m8-8 4 4-4 4 m-3-13-2 18',
   image: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z m-2 13 5-5 4 4 3-3 6 6 M8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4',
   markdown: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z M6 15V9l3 3 3-3v6 m5-6v6 m-2-2 2 2 2-2',
@@ -306,6 +313,21 @@ async function refreshTree() {
     const list = await treeDirectory(project, '', 0);
     if (project.id === currentProject?.id) { $('#tree').replaceChildren(list); filterTree(); }
   } catch (error) { status(errorMessage(error,'Operation failed.'), true); }
+}
+function guardFileAction(project:string,path:string){
+ const affected=[...documents.values()].filter(doc=>doc.project===project&&(doc.path===path||doc.path.startsWith(path+'/')));
+ if(affected.some(doc=>doc.dirty||doc.saving))throw new Error('Save or close unsaved files in this item before renaming, duplicating or deleting it.');
+}
+async function fileActionChanged(project:string,action:FileAction,before:string,after:string){
+ const affected=[...documents.values()].filter(doc=>doc.project===project&&(doc.path===before||doc.path.startsWith(before+'/')));
+ if(action==='rename'||action==='trash'){
+  const selected=affected.find(doc=>doc.key===activeFileKey),reopen=action==='rename'?affected.filter(doc=>doc.kind!=='diff').map(doc=>({path:after+doc.path.slice(before.length),active:doc===selected})):[];
+  for(const doc of affected)closeDocument(doc);
+  for(const directory of [...expanded])if(directory===before||directory.startsWith(before+'/')){expanded.delete(directory);if(action==='rename')expanded.add(after+directory.slice(before.length));}
+  if(currentProject?.id===project){for(const item of reopen.filter(item=>!item.active))await openFile(project,item.path,{newTab:true});const active=reopen.find(item=>item.active);if(active)await openFile(project,active.path,{newTab:true});}
+ }
+ if(action==='create-file'||action==='create-folder'){const parent=after.includes('/')?after.slice(0,after.lastIndexOf('/')):'';if(currentProject?.id===project)expanded.add(parent);}
+ if(currentProject?.id===project){await refreshTree();void changesView?.refresh();gitView?.projectChanged();if(action==='create-file')await openFile(project,after,{newTab:true});}
 }
 async function treeDirectory(project:Workspace,path:string,depth:number) {
   const { entries } = await api<{entries:TreeEntry[]}>(`/api/tree?${new URLSearchParams({ project: project.id, path })}`);
@@ -760,6 +782,7 @@ tabDrag=setupTabDrag({tabs:$('#tabs'),content:contentViews,onReorder:()=>{},canD
 
 notifications=createNotifications({icon,isViewing:agent=>!document.hidden&&document.hasFocus()&&(agent.terminalSession?Boolean(terminalAgents.find(item=>item.id===agent.id)?.selected):agentView.visible&&Boolean(agent.agent_session?.value?agentView.selected?.agent_session?.value===agent.agent_session.value:agent.pane_id&&agentView.selected?.pane_id===agent.pane_id)),onOpen:agent=>{if(agent.terminalSession){agentView.close();if(agent.id)openTerminalAgent(agent.id);}else{agentView.open(agent);agentView.focusLatest();}}});
 setupColorTheme();setupSettings({icon,api});
+setupFileActions({tree:$('#tree'),api,icon,getProject:()=>currentProject,guard:guardFileAction,changed:fileActionChanged,toast});
 const subWorkspaceDialog=createSubWorkspaceDialog({api,getProjects:()=>projects,onCreated:async (project,launch)=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);if(launch)terminalView.startSession(existing||project,launch);toast(`Opened ${project.branch||project.name}`);}});
 workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{void subWorkspaceDialog.open(project);},onSelect:project=>{if(Date.now()-lastProjectDrag>300)void selectProject(project);},onAgentSelect:openTerminalAgent,onMenu:showWorkspaceMenu,setupDrag:setupProjectDrag});
 changesView=setupChanges({api,icon,getProject:()=>currentProject,onOpenDiff:openDiff,onError:message=>toast(message),onStatuses:(id,data)=>fileGit.update(id,data)});

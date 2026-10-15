@@ -78,7 +78,7 @@ async function boot(){
   if(pickerOpen)throw new Error('A file picker is already open.');pickerOpen=true;
   try{show();const result=await dialog.showOpenDialog(window!,{title:folder?'Choose a workspace folder':'Choose SSH private key',defaultPath:folder?app.getPath('downloads'):path.join(os.homedir(),'.ssh')+path.sep,properties:folder?['openDirectory','createDirectory']:['openFile']});return result.canceled?null:result.filePaths[0]||null;}finally{pickerOpen=false;}
  }
- backend=await createApp({stateDir,initialRoot:app.getPath('downloads'),assetsDir:path.join(appDir,'dist'),nativePickers:{folder:()=>pick(true),key:()=>pick(false),downloads:async()=>app.getPath('downloads')}});
+ backend=await createApp({stateDir,initialRoot:app.getPath('downloads'),assetsDir:path.join(appDir,'dist'),nativePickers:{folder:()=>pick(true),key:()=>pick(false),downloads:async()=>app.getPath('downloads')},nativeFileActions:{trash:absolute=>shell.trashItem(absolute),reveal:absolute=>{shell.showItemInFolder(absolute);}}});
  const port=Number(process.env.PANE_DESKTOP_PORT||17317);if(!Number.isInteger(port)||port<1||port>65535)throw new Error('Invalid desktop port.');
  await new Promise<void>((resolve,reject)=>{backend!.server.once('error',reject);backend!.server.listen(port,'127.0.0.1',()=>resolve());});
  origin=`http://127.0.0.1:${port}`;await log(`Backend ready on port ${port}.`);
