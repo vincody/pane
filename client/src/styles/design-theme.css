@@ -76,6 +76,15 @@ button:disabled{opacity:.55}
 #sidebar-usage.compact-usage{border-color:var(--hairline)}
 .compact-usage-line:hover{background:var(--surface-card)}
 .compact-usage-metric .near-limit{color:var(--warning)}
+.about-version{padding:4px 8px;border-radius:6px;background:var(--surface-card);color:var(--ink);font:12px var(--font-code)}
+.about-updates .setting-row{gap:20px;margin:16px 0;padding:14px 0;border-top:1px solid var(--hairline)}
+.about-updates .setting-row input{flex:none}
+.about-download{display:flex;align-items:center;gap:12px;font-size:12px}
+.about-download progress{flex:1;accent-color:var(--primary)}
+.about-release-notes{margin:14px 0;font-size:12px}
+.about-release-notes summary{cursor:pointer;color:var(--ink)}
+.about-release-notes p{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto}
+.about-updates>a{display:inline-block;margin-top:16px;color:var(--primary);font-size:12px}
 #app main>.topbar{background:var(--canvas);border-bottom:1px solid var(--hairline);color:var(--body)}
 #app .files-sidebar .files-head{border-bottom:0}
 #app main>.topbar>#unified-tabs .file-tab,#app main>.topbar>#unified-tabs .terminal-tab{font-size:12px;border-radius:var(--radius-sm);color:var(--muted)}
@@ -159,6 +168,12 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 #terminal-screens .terminal-screen{background:var(--code-bg);border-color:var(--code-border);border-radius:var(--radius-md)}
 #terminal-screens .terminal-screen.pane-focused{border-color:var(--primary)}
 .terminal-pane-body>.xterm,.terminal-pane-body .xterm-viewport{background-color:var(--code-bg)}
+/* xterm 6 scrolls through .xterm-scrollable-element. Its legacy viewport
+   remains for renderer sizing and must not draw a second native scrollbar. */
+#terminal-screens .terminal-screen .xterm-viewport{overflow:hidden;scrollbar-width:none}
+#terminal-screens .xterm-viewport::-webkit-scrollbar{display:none;width:0;height:0}
+#terminal-screens .xterm-scrollable-element>.scrollbar{background:transparent}
+#terminal-screens .xterm-scrollable-element>.scrollbar>.slider{border-radius:6px}
 .terminal-pane-header{background:var(--code-soft);border-color:var(--code-border)}
 .terminal-screen.pane-focused>.terminal-pane-header{background:var(--code-bg);border-bottom-color:transparent}
 .terminal-pane-title{color:var(--code-text);font-size:12px}

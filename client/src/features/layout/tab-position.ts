@@ -3,6 +3,8 @@ const positions = new Map<string,number>();
 export type UnifiedTabKey = `terminal:${string}` | `file:${string}`;
 export type TabOrderCallback = (order: string[]) => void;
 let next = 0;
+export function captureTabPositions(){return [...positions.entries()];}
+export function restoreTabPositions(saved:[string,number][]){positions.clear();for(const [key,value] of saved)positions.set(key,value);next=Math.max(0,...saved.map(([,value])=>value));}
 export function forgetTabPosition(key:string){positions.delete(key);}
 export function positionTab(node:HTMLElement, key:string) {
   if (!positions.has(key)) positions.set(key, ++next);

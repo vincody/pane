@@ -112,9 +112,10 @@ export function createGitPanel(options:GitPanelOptions){
  }
  function close(id:string){const entry=entries.get(id);if(!entry||entry.workspace.busy)return;if(active===id)deactivate();entries.delete(id);forgetTabPosition(`file:git:${id}`);entry.workspace.dispose();onTabsChanged();}
  trigger.disabled=!getProject();
- trigger.onclick=()=>{const selected=getProject();if(!selected)return;let entry=entries.get(selected.id);if(!entry){const project={...selected};const workspace=createGitWorkspace({...options,project,onBusyChanged:onTabsChanged});entry={project,workspace};entries.set(project.id,entry);host.append(workspace.element);}activate(entry);};
+ function prepare(project:Workspace){let entry=entries.get(project.id);if(!entry){const workspace=createGitWorkspace({...options,project:{...project},onBusyChanged:onTabsChanged});entry={project:{...project},workspace};entries.set(project.id,entry);host.append(workspace.element);}return entry;}
+ trigger.onclick=()=>{const selected=getProject();if(selected)activate(prepare(selected));};
  return {
-  deactivate,restore(projectId:string){const entry=entries.get(projectId);if(!entry)return false;activate(entry);return true;},get activeProject(){return active;},refresh(){const entry=active?entries.get(active):undefined;return entry?.workspace.refresh();},
+  prepare,get openProjects(){return [...entries.keys()];},get busy(){return [...entries.values()].some(entry=>entry.workspace.busy);},deactivate,restore(projectId:string){const entry=entries.get(projectId);if(!entry)return false;activate(entry);return true;},get activeProject(){return active;},refresh(){const entry=active?entries.get(active):undefined;return entry?.workspace.refresh();},
   projectChanged(){trigger.disabled=!getProject();if(active&&active!==getProject()?.id)deactivate();},
   appendTabs(container:HTMLElement){for(const [id,entry] of entries){
    if(id!==getProject()?.id)continue;

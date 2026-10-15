@@ -1,5 +1,7 @@
 node_modules/
 dist/
+desktop-build/
+release/
 .ai-web/
 test-results/
 playwright-report/

@@ -1,3 +1,4 @@
+if(window.paneDesktop)document.documentElement.dataset.desktop='true';
 // Apply the saved theme before the app renders, avoiding a light flash.
 try {
   const theme = localStorage.getItem('ai-web.theme') === 'dark' ? 'dark' : 'light';

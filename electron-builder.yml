@@ -1,0 +1,28 @@
+appId: dev.vincody.pane
+productName: Pane
+publish:
+  provider: github
+  owner: vincody
+  repo: pane
+  releaseType: draft
+directories:
+  output: release
+files:
+  - desktop-build/**
+  - dist/**
+  - package.json
+asar: true
+asarUnpack:
+  - node_modules/node-pty/**
+npmRebuild: false
+win:
+  icon: desktop-build/icon.ico
+  artifactName: Pane-Setup-${version}-${arch}.${ext}
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false

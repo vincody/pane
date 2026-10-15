@@ -2,7 +2,7 @@
 
 A local workspace for AI agent terminals, files and Git changes. Pane runs Codex and Claude Code through their own CLIs in real terminal processes, with a web interface built around split panes.
 
-The current application runs locally in a browser. Desktop packaging is planned.
+Pane runs locally in a browser or in the Windows desktop preview. The desktop build includes its backend runtime; Git and AI CLIs remain separate installations.
 
 ## Requirements
 
@@ -34,6 +34,8 @@ On a fresh checkout, the start script installs dependencies and builds the front
 
 ## Features
 
+- **Desktop preview (Windows x64):** an Electron window starts its own local backend, with owner-bound native file/folder dialogs, tray hide/reopen, and explicit quit behavior. Desktop recovery restores file tabs, workspace selection, tab order, terminal/file split layouts and supported unsaved drafts. Reload reconnects live terminals; a full restart restores ended tabs without automatically starting agents or SSH. Newer disk files are protected from stale recovered saves. See [Desktop development and release](docs/desktop.md) for limits, data locations and lifecycle behavior.
+
 - **Workspaces:** browse local folders with a centered native Windows picker, clone a Git URL, or create a new Git project. Folder browsing and new-project locations default to Downloads; manual paths remain available. Rename display names and resize or hide either sidebar. Git branches and sessions stay visible under each folder, alongside attention counts. Session rows show working, waiting for input, completed or error states, with unread markers cleared when viewed. Ctrl+Shift+J (Cmd+Shift+J on macOS) jumps to the next session needing attention.
 - **Worktrees:** The Workspaces sidebar groups each project's Local checkout and named worktrees, with branches, notes and sessions inside each card. The Orca-style create composer offers Project, optional Create From, Start from and Agent. Type a task name to derive a branch, choose a branch as the starting point, or leave the name blank for a generated marine-creature name. Reuse branch checks out an available local branch; a checked-out branch can be opened separately without changing it. Advanced provides branch override, location and note. Names that collide get a numeric suffix; existing folders are never overwritten. Choose Claude Code, Codex, a blank terminal or no session. Creating from a remote branch automatically fetches that branch before creating the worktree; fetch failures stop creation and offer retrying or choosing a local branch. Local edits stay in Local, and switching working folders preserves sessions. Remove from web preserves worktree files and branches on disk.
 - **Terminals:** launch Shell, Codex, Claude or SSH from New session; rename tabs; reorder, split, swap, resize and maximize panes. Right-click a tab or pane title for its management menu; terminal contents keep their own mouse handling. Focused pane titles blend into the terminal background, with compact line spacing and correctly fitted padding. Reloading the same browser tab reattaches to the existing terminal process while the Pane server remains running. Closing a terminal explicitly ends its process. Detached terminals continue running until closed or the server stops.
@@ -55,11 +57,28 @@ Workspace registration and server state live in `.ai-web/`, which is excluded fr
 
 The server binds to `127.0.0.1`. HTTP APIs require a per-run token and check the local origin. File access is limited to registered workspaces, including checks on linked paths. The application is intended for local use and has not been designed for public Internet hosting.
 
-Text editing is limited to UTF-8 files up to 2 MB. Saves preserve BOM and line endings and reject stale versions if another process changed the file. Unsaved edits are not restored after a page reload. Live terminal tabs restore from session metadata in the same browser tab and replay up to the most recent 512 KiB of output. Exact split layouts and full historical scrollback are not restored; server or machine restarts end the original processes.
+Text editing is limited to UTF-8 files up to 2 MB. Saves preserve BOM and line endings and reject stale versions if another process changed the file. In browser mode, unsaved edits are not restored after a page reload. Live terminal tabs restore from session metadata in the same browser tab and replay up to the most recent 512 KiB of output. In browser mode, exact split layouts and full historical scrollback are not restored; server or machine restarts end the original processes.
 
 Markdown previews are sanitized. HTML previews are static and sandboxed, with scripting and remote resource loading disabled.
 
 ## Development and checks
+
+### Windows desktop preview
+
+```sh
+npm ci
+npm run desktop
+```
+
+Use `npm run desktop:pack` for the unpacked Windows app or `npm run desktop:dist` for the installer. Output is in `release/`; `release/win-unpacked/Pane.exe` runs without a separately installed Node.js. Builds are currently unsigned. Settings → About & Updates manages updates from published GitHub Releases. Pushing a stable version tag builds a Draft Release through GitHub Actions; publish it after reviewing the installer. Local build commands never publish releases. See the release steps in the [desktop documentation](docs/desktop.md#updates-and-releases).
+
+```sh
+npm run test:desktop
+```
+
+Desktop runs independently on port 17317. The development build adopts registered folders from `.ai-web/projects.json` on first use without changing the web state. Browser preferences are not imported. Settings → Integrations checks local Git, OpenSSH, Codex and Claude executables and GitHub CLI sign-in. See [desktop documentation](docs/desktop.md).
+
+### Web and shared checks
 
 ```sh
 npm run build

@@ -1,4 +1,5 @@
 import {createAccountUsage} from './features/usage/account-usage.ts';
+import {localTools} from './features/integrations/local-tools.ts';
 import {createTokenUsage} from './features/usage/token-usage.ts';
 import {createLocalSessions} from './features/sessions/local-sessions.ts';
 import {createLocalRunner} from './features/sessions/local-runner.ts';
@@ -22,6 +23,8 @@ import {createGitHub} from './features/git/github.ts';
 import type { SessionRecord } from '../../shared/contracts.ts';
 
 export interface AppOptions {
+  assetsDir?:string;
+  nativePickers?:{folder:()=>Promise<string|null>;key:()=>Promise<string|null>;downloads:()=>Promise<string>};
   github?:ReturnType<typeof createGitHub>;
   devServerOptions?:Omit<DevServerOptions,'getProjects'>;
   initialRoot?: string; stateDir?: string; agentHome?: string;
@@ -44,7 +47,7 @@ async function body(req: http.IncomingMessage): Promise<Record<string, unknown>>
   catch { throw new FileError(400, 'Invalid JSON.'); }
 }
 
-export async function createApp({ initialRoot = appRoot, stateDir = path.join(appRoot, '.ai-web'), agentHome, localLaunch, accountUsage, codexEngineFactory,devServerOptions,github=createGitHub() } : AppOptions = {}) {
+export async function createApp({ initialRoot = appRoot, stateDir = path.join(appRoot, '.ai-web'), assetsDir=path.join(appRoot,'dist'),nativePickers,agentHome, localLaunch, accountUsage, codexEngineFactory,devServerOptions,github=createGitHub() } : AppOptions = {}) {
   const files = new Files();
   const devServers=createDevServers({...devServerOptions,getProjects:()=>[...files.projects.values()]});
   const local=await createLocalSessions({home:agentHome,stateDir});
@@ -96,8 +99,8 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
       if (url.pathname.startsWith('/api/')) {
         if (req.headers['x-ai-web-token'] !== token) throw new FileError(403, 'Reload AI Web to reconnect.');
         if (req.method === 'GET' && url.pathname === '/api/projects') return json(200, { projects: await listProjects(), defaultProject: defaultProjectId() });
-        if(req.method==='POST'&&url.pathname==='/api/select-workspace-folder')return json(200,{path:await selectWorkspaceFolder()});
-        if(req.method==='GET'&&url.pathname==='/api/project-defaults')return json(200,{parent:await defaultWorkspaceFolder()});
+        if(req.method==='POST'&&url.pathname==='/api/select-workspace-folder')return json(200,{path:await (nativePickers?.folder||selectWorkspaceFolder)()});
+        if(req.method==='GET'&&url.pathname==='/api/project-defaults')return json(200,{parent:await (nativePickers?.downloads||defaultWorkspaceFolder)()});
         if(req.method==='POST'&&url.pathname==='/api/create-project'){
           const data=await body(req);
           const project=await changeProjects(async()=>files.addProject(await createProjectFolder(data)));
@@ -142,10 +145,11 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
           const project = await changeProjects(() => files.addProject(data.path));
           return json(201, { ...project, branch: await gitBranch(project.root) });
         }
-        if(req.method==='POST'&&url.pathname==='/api/ssh/select-key')return json(200,{path:await selectSshKey()});
+        if(req.method==='POST'&&url.pathname==='/api/ssh/select-key')return json(200,{path:await (nativePickers?.key||selectSshKey)()});
         if(req.method==='GET'&&url.pathname==='/api/account-usage')return json(200,await usage.read((url.searchParams.get('providers') || '').split(',').filter(Boolean)));
         if(req.method==='GET'&&url.pathname==='/api/token-usage')return json(200,await tokenUsage.read(Number(url.searchParams.get('since')||0)));
         if(req.method==='GET'&&url.pathname==='/api/integrations/github')return json(200,await github.integrationStatus(appRoot));
+        if(req.method==='GET'&&url.pathname==='/api/integrations/tools')return json(200,{tools:await localTools()});
         if(req.method==='POST'&&url.pathname==='/api/close-terminal'){const data=await body(req);if(typeof data.sessionId!=='string')throw new FileError(400,'Provide a terminal session ID.');return json(200,{closed:closeTerminalPty.stop(data.sessionId)});}
         if(req.method==='GET'&&url.pathname==='/api/dev-servers'){
           const project=url.searchParams.get('project')||'';if(!files.projects.has(project))throw new FileError(404,'Workspace not found.');
@@ -225,7 +229,7 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
         return json(404, { error: 'Endpoint not found.' });
       }
       if (req.method !== 'GET') throw new FileError(405, 'Method not allowed.');
-      const dist = path.join(appRoot, 'dist');
+      const dist = assetsDir;
       const relative = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
       const target = path.resolve(dist, '.' + relative);
       if (!isWithin(dist, target)) throw new FileError(403, 'Invalid path.');

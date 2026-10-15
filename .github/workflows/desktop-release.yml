@@ -1,0 +1,71 @@
+name: Desktop release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Validate release version
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          if ($env:GITHUB_REF_NAME -cne "v$version") { throw "Tag must match package.json version: v$version" }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Only stable versions are supported by this workflow.' }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run desktop:build
+      - name: Build Windows installer and update metadata
+        run: npx electron-builder --win nsis --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify packaged native runtime and updater
+        shell: pwsh
+        run: |
+          $env:PANE_DESKTOP_EXECUTABLE = Join-Path $env:GITHUB_WORKSPACE 'release/win-unpacked/Pane.exe'
+          npx playwright test --config playwright.desktop.config.ts
+      - name: Preserve build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pane-windows-${{ github.ref_name }}
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+          if-no-files-found: error
+      - name: Create or update draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $existing = gh release view $tag --json isDraft --jq '.isDraft' 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            if ($existing -ne 'true') { throw 'Refusing to replace files on an already published release.' }
+          } else {
+            gh release create $tag --verify-tag --draft --title "Pane $tag" --generate-notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create draft release.' }
+          }
+          $files = @(Get-ChildItem -LiteralPath 'release' -File | Where-Object { $_.Name -like '*.exe' -or $_.Name -like '*.blockmap' -or $_.Name -eq 'latest.yml' } | ForEach-Object { $_.FullName })
+          if (!(Test-Path -LiteralPath 'release/latest.yml') -or $files.Count -lt 3) { throw 'Installer, blockmap and latest.yml are required.' }
+          gh release upload $tag @files --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload release files.' }

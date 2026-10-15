@@ -30,6 +30,7 @@ export interface GitHubPull extends GitHubItem {draft:boolean;base:string;head:s
 export interface GitHubPullFile extends GitCommitFile {patch:string|null}
 export interface GitHubCheck {name:string;status:string;conclusion:string|null;url:string|null}
 export interface GitHubPullDetails {pull:GitHubPull;files:GitHubPullFile[];checks:GitHubCheck[];checksMessage?:string;truncated:boolean}
+export interface LocalToolStatus {id:string;name:string;installed:boolean|null}
 export interface TextFile {kind:'text';content:string;version:string;bom:boolean;size:number}
 export interface ImageFile {kind:'image';size:number;path:string}
 export interface TreeEntry {name:string;path:string;type:'file'|'directory'|'link';image:boolean}

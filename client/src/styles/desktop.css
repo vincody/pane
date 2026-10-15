@@ -1,0 +1,35 @@
+/* One in-app title/tab row replaces the Windows caption and native menu bar. */
+html[data-desktop=true] #app{padding-top:40px}
+html[data-desktop=true] #app main>.topbar{position:fixed;inset:0 0 auto;z-index:50;width:100%;height:40px;min-height:40px;padding:0;gap:0;-webkit-app-region:drag;user-select:none;border:0}
+html[data-desktop=true] .desktop-titlebar-left{display:flex;align-items:center;justify-content:space-between;gap:8px;align-self:stretch;flex:none;width:max(132px,var(--desktop-left-edge,var(--left-panel-width,260px)));padding:0 12px}
+html[data-desktop=true] #app.sidebar-hidden .desktop-titlebar-left{width:96px;gap:4px;padding:0 8px}
+html[data-desktop=true] #app.sidebar-hidden .desktop-app-menu{padding:0 3px;gap:4px}
+html[data-desktop=true] #app.sidebar-hidden .desktop-app-menu>span{display:none}
+html[data-desktop=true] .desktop-titlebar-right{display:flex;align-items:center;justify-content:flex-end;align-self:stretch;flex:none;width:max(180px,var(--desktop-right-edge,var(--right-panel-width,260px)))}
+html[data-desktop=true] #projects-sidebar>.brand{display:none}
+html[data-desktop=true] .topbar :is(button,input,select,[role=tab],[role=separator],a){-webkit-app-region:no-drag}
+html[data-desktop=true] #unified-tabs{min-width:60px;margin-left:8px}
+html[data-desktop=true] .topbar .topbar-right{gap:8px;margin-right:6px;flex:none}
+html[data-desktop=true] .desktop-app-menu{display:flex;align-items:center;gap:7px;height:30px;padding:0 7px;flex:none;border-radius:5px;color:var(--ink);font:600 12px var(--font-ui);background:transparent}
+.desktop-app-menu img{width:21px;height:21px}.desktop-app-menu svg{width:12px;height:12px;fill:none;stroke:var(--muted);stroke-width:1.4}
+html[data-desktop=true] .desktop-app-menu:hover{background:var(--surface-card)}
+.desktop-window-controls{display:flex;align-self:stretch;flex:none;margin-left:4px;-webkit-app-region:no-drag}
+html[data-desktop=true] .desktop-window-controls button{display:grid;place-items:center;width:46px;height:100%;padding:0;border:0;border-radius:0;background:transparent;color:var(--body);-webkit-app-region:no-drag}
+.desktop-window-controls svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1;shape-rendering:geometricPrecision}
+html[data-desktop=true] .desktop-window-controls button:hover{background:var(--surface-card);color:var(--ink)}
+html[data-desktop=true] .desktop-window-controls .desktop-window-close:hover{background:#c42b1c;color:#fff}
+html[data-desktop=true] .desktop-window-controls button:focus-visible{outline:2px solid var(--primary);outline-offset:-3px}
+html[data-desktop=true][data-window-focused=false] :is(.desktop-app-menu,.desktop-window-controls){opacity:.65}
+html[data-desktop=true] #app main>.topbar #show-sidebar{display:inline-flex}
+/* Keep the caption distinct from the canvas, including when no tabs are open. */
+html[data-desktop=true] #app main>.topbar{background:var(--surface-soft)}
+html[data-desktop=true] #app main>.topbar>#unified-tabs [role=tab][aria-selected=true]{background:var(--canvas)}
+html[data-desktop=true] .desktop-titlebar-right{justify-content:space-between}
+html[data-desktop=true] #app main>.topbar .desktop-titlebar-right>.topbar-right{margin:0;padding:0 0 0 12px;gap:0}
+html[data-desktop=true] #app main>.topbar #toggle-files{width:30px;height:30px;padding:0;justify-content:center;border:0;box-shadow:none;background:transparent;color:var(--muted)}
+html[data-desktop=true] #app main>.topbar #toggle-files[aria-expanded=true]{color:var(--primary)}
+html[data-desktop=true] #app main>.topbar #toggle-files:hover{background:var(--surface-card);color:var(--ink)}
+html[data-desktop=true] #app main>.topbar #toggle-files:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+html[data-desktop=true] .desktop-update-button{flex:none;white-space:nowrap;padding:5px 9px;margin:0 8px;border-radius:5px;background:var(--surface-card);color:var(--primary);font-size:11px}
+html[data-desktop=true] .desktop-update-button:hover{background:var(--surface-cream-strong)}
+html[data-desktop=true] .desktop-update-button[hidden]{display:none}

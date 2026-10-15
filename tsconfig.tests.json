@@ -1,5 +1,17 @@
 {
- "extends":"./tsconfig.json",
- "compilerOptions":{"types":["node","react","react-dom","vite/client"]},
- "include":["tests/**/*.ts","playwright.config.ts"]
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "react",
+      "react-dom",
+      "vite/client"
+    ]
+  },
+  "include": [
+    "tests/**/*.ts",
+    "playwright.config.ts",
+    "client/src/desktop.d.ts",
+    "playwright.desktop.config.ts"
+  ]
 }
