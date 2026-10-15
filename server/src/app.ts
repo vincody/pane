@@ -18,9 +18,11 @@ import {worktreeBranches,createWorktree,unregisterNewWorktree,existingWorktree,c
 import {changes,fileDiff} from './features/git/git-changes.ts';
 import {gitSnapshot,gitHistory,gitCommitDetails,gitCommitDiff} from './features/git/git-history.ts';
 import {gitSync} from './features/git/git-sync.ts';
+import {createGitHub} from './features/git/github.ts';
 import type { SessionRecord } from '../../shared/contracts.ts';
 
 export interface AppOptions {
+  github?:ReturnType<typeof createGitHub>;
   devServerOptions?:Omit<DevServerOptions,'getProjects'>;
   initialRoot?: string; stateDir?: string; agentHome?: string;
   modelControl?: unknown;
@@ -42,7 +44,7 @@ async function body(req: http.IncomingMessage): Promise<Record<string, unknown>>
   catch { throw new FileError(400, 'Invalid JSON.'); }
 }
 
-export async function createApp({ initialRoot = appRoot, stateDir = path.join(appRoot, '.ai-web'), agentHome, localLaunch, accountUsage, codexEngineFactory,devServerOptions } : AppOptions = {}) {
+export async function createApp({ initialRoot = appRoot, stateDir = path.join(appRoot, '.ai-web'), agentHome, localLaunch, accountUsage, codexEngineFactory,devServerOptions,github=createGitHub() } : AppOptions = {}) {
   const files = new Files();
   const devServers=createDevServers({...devServerOptions,getProjects:()=>[...files.projects.values()]});
   const local=await createLocalSessions({home:agentHome,stateDir});
@@ -143,6 +145,7 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
         if(req.method==='POST'&&url.pathname==='/api/ssh/select-key')return json(200,{path:await selectSshKey()});
         if(req.method==='GET'&&url.pathname==='/api/account-usage')return json(200,await usage.read((url.searchParams.get('providers') || '').split(',').filter(Boolean)));
         if(req.method==='GET'&&url.pathname==='/api/token-usage')return json(200,await tokenUsage.read(Number(url.searchParams.get('since')||0)));
+        if(req.method==='GET'&&url.pathname==='/api/integrations/github')return json(200,await github.integrationStatus(appRoot));
         if(req.method==='POST'&&url.pathname==='/api/close-terminal'){const data=await body(req);if(typeof data.sessionId!=='string')throw new FileError(400,'Provide a terminal session ID.');return json(200,{closed:closeTerminalPty.stop(data.sessionId)});}
         if(req.method==='GET'&&url.pathname==='/api/dev-servers'){
           const project=url.searchParams.get('project')||'';if(!files.projects.has(project))throw new FileError(404,'Workspace not found.');
@@ -159,6 +162,20 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
         }
         const id = url.searchParams.get('project') || '';
         const relative = url.searchParams.get('path') || '';
+        if(url.pathname.startsWith('/api/github/')){
+          const project=files.projects.get(id);if(!project)throw new FileError(404,'Workspace not found.');
+          if(req.method==='GET'&&url.pathname==='/api/github/context')return json(200,await github.context(project.root,url.searchParams.get('fresh')==='1'));
+          if(req.method==='GET'&&url.pathname==='/api/github/pulls')return json(200,await github.entries(project.root,'pulls',url.searchParams.get('state')||'open',url.searchParams.get('search')||'',url.searchParams.get('fresh')==='1'));
+          if(req.method==='GET'&&url.pathname==='/api/github/issues')return json(200,await github.entries(project.root,'issues',url.searchParams.get('state')||'open',url.searchParams.get('search')||'',url.searchParams.get('fresh')==='1'));
+          if(req.method==='POST'&&url.pathname==='/api/github/issues')return json(201,await github.createIssue(project.root,await body(req)));
+          if(req.method==='GET'&&url.pathname==='/api/github/labels')return json(200,await github.labels(project.root,url.searchParams.get('page')||1,url.searchParams.get('fresh')==='1'));
+          if(req.method==='GET'&&url.pathname==='/api/github/issue')return json(200,await github.issue(project.root,url.searchParams.get('number'),url.searchParams.get('fresh')==='1'));
+          if(req.method==='GET'&&url.pathname==='/api/github/pull')return json(200,await github.pullDetails(project.root,url.searchParams.get('number'),url.searchParams.get('section')||'all',url.searchParams.get('fresh')==='1'));
+          if(req.method==='POST'&&url.pathname==='/api/github/draft')return json(201,await github.createDraft(project.root,await body(req)));
+          if(req.method==='GET'&&url.pathname==='/api/github/conversation')return json(200,await github.conversation(project.root,url.searchParams.get('number'),url.searchParams.get('page')||1));
+          if(req.method==='POST'&&url.pathname==='/api/github/comment')return json(201,await github.comment(project.root,url.searchParams.get('number'),await body(req)));
+          throw new FileError(404,'GitHub operation not found.');
+        }
         if(url.pathname.startsWith('/api/git/')){
           const project=files.projects.get(id);if(!project)throw new FileError(404,'Workspace not found.');
           if(req.method==='GET'&&url.pathname==='/api/git/status')return json(200,await gitSnapshot(project.root));

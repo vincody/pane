@@ -63,10 +63,10 @@ export function createSubWorkspaceDialog({api,getProjects,onCreated}:{api:Api;ge
   finally{busy=false;submit.innerHTML='Create worktree';for(const control of form.querySelectorAll<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>('input,select,textarea'))control.disabled=false;update();}
  }
  form.onsubmit=event=>{event.preventDefault();void perform();};openExisting.onclick=()=>{void perform(true);};
- return {async open(project:Workspace){
+ return {async open(project:Workspace,initial?:{name:string;note:string}){
   if(busy)return;form.reset();form.querySelector<HTMLDetailsElement>('details')!.open=false;automaticName=automaticWorktreeName(getProjects().map(project=>project.name));destinationTouched=false;metadata=undefined;loaded=false;lastSource=null;
   try{const saved=localStorage.getItem('ai-web.worktree-agent');if(saved&&['shell','claude','codex','none'].includes(saved))agent.value=saved;}catch{}
   options(repository,[]);for(const item of getProjects().filter(item=>!item.parentId)){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;option.title=item.root;repository.append(option);}
-  repository.value=project.id;if(!dialog.open)dialog.showModal();source.focus();await loadProject(project);
+  repository.value=project.id;if(initial){source.value=initial.name;note.value=initial.note.slice(0,2000);}if(!dialog.open)dialog.showModal();source.focus();await loadProject(project);
  }};
 }

@@ -19,8 +19,17 @@ export interface GitRef {ref:string;name:string;hash:string;kind:'local'|'remote
 export interface GitSnapshot {available:boolean;branch:string|null;head:string|null;upstream:string|null;remote:string|null;remotes:string[];ahead:number;behind:number;dirty:boolean;conflicted:boolean;refs:GitRef[]}
 export interface GitCommit {hash:string;parents:string[];author:string;date:string;subject:string}
 export interface GitHistory {commits:GitCommit[];hasMore:boolean;refs:GitRef[];head:string|null}
-export interface GitCommitFile {path:string;previousPath?:string;status:string}
+export interface GitCommitFile {path:string;previousPath?:string;status:string;added?:number|null;removed?:number|null;binary?:boolean}
 export interface GitCommitDetails {hash:string;parents:string[];author:string;date:string;message:string;files:GitCommitFile[];truncated:boolean}
+export interface GitHubRepository {name:string;url:string;defaultBranch:string}
+export interface GitHubContext {available:boolean;repository:GitHubRepository|null;message?:string;branch:string|null;head:string|null;headBranch:string|null;canCreate:boolean;bases:string[];dirty:boolean}
+export interface GitHubItem {number:number;title:string;body:string;state:string;url:string;author:string;updatedAt:string;labels:string[]}
+export interface GitHubLabel {name:string;color:string;description:string}
+export interface GitHubLabelPage {labels:GitHubLabel[];hasMore:boolean;page:number}
+export interface GitHubPull extends GitHubItem {draft:boolean;base:string;head:string;headSha:string;mergeable:string}
+export interface GitHubPullFile extends GitCommitFile {patch:string|null}
+export interface GitHubCheck {name:string;status:string;conclusion:string|null;url:string|null}
+export interface GitHubPullDetails {pull:GitHubPull;files:GitHubPullFile[];checks:GitHubCheck[];checksMessage?:string;truncated:boolean}
 export interface TextFile {kind:'text';content:string;version:string;bom:boolean;size:number}
 export interface ImageFile {kind:'image';size:number;path:string}
 export interface TreeEntry {name:string;path:string;type:'file'|'directory'|'link';image:boolean}
@@ -29,3 +38,6 @@ export interface DevServerSnapshot {available:boolean;scannedAt:string|null;rows
 export interface SshConnection {name:string;host:string;username?:string;port?:number;identityFile?:string}
 export type TerminalClientMessage={type:'start';project:string;cols:number;rows:number;sessionId?:string;detachable?:boolean;ssh?:SshConnection}|{type:'attach';sessionId:string;cols:number;rows:number}|{type:'close'}|{type:'input';data:string}|{type:'resize';cols:number;rows:number};
 export type TerminalServerMessage={type:'ready';shell:string;project:string;sessionId?:string;attached?:boolean}|{type:'data';data:string;replay?:boolean}|{type:'agent';agent:string|null}|{type:'error';message:string;code?:string}|{type:'exit';exitCode:number;signal?:number};
+export interface GitHubIntegrationStatus {status:'connected'|'not-installed'|'not-authenticated'|'unavailable';version:string|null;account:string|null;message:string}
+export interface GitHubMessage {id:string;author:string;body:string;createdAt:string;url:string;kind:'comment'|'review'|'inline';state?:string;path?:string;line?:number}
+export interface GitHubConversation {messages:GitHubMessage[];hasMore:boolean;page:number}

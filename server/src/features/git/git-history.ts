@@ -1,6 +1,7 @@
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {FileError,MAX_TEXT_BYTES} from '../files/files.ts';
+import {parseNumstat} from './git-changes.ts';
 import type {GitSnapshot,GitRef,GitHistory,GitCommitDetails,FileDiff} from '../../../../shared/contracts.ts';
 
 const execute=promisify(execFile);
@@ -46,9 +47,11 @@ export async function gitCommitDetails(root:string,value:unknown):Promise<GitCom
  // Compare merges against their first parent, matching the selected commit's mainline diff.
  const parent=parents.split(' ').filter(Boolean)[0];
  const raw=parent?await runGit(root,['diff','--no-ext-diff','--no-textconv','--name-status','-z','-M',parent,hash,'--']):changes;
+ const statistics=await runGit(root,parent?['diff','--no-ext-diff','--no-textconv','--numstat','-z','-M',parent,hash,'--']:['diff-tree','--root','--no-commit-id','--no-ext-diff','--no-textconv','--numstat','-r','-z','-M',hash,'--']);
+ const stats=new Map(parseNumstat(statistics).map(file=>[file.path,file]));
  const parts=raw.split('\0'),files=[];
  for(let index=0;index<parts.length&&parts[index];){const status=parts[index++],first=parts[index++];if(!first)break;if(/^[RC]/.test(status)){const target=parts[index++];if(target)files.push({path:target,previousPath:first,status:status[0]});}else files.push({path:first,status:status[0]});}
- return {hash,parents:parents.split(' ').filter(Boolean),author,date,message:message.join('\0').trimEnd(),files:files.slice(0,300),truncated:files.length>300};
+ return {hash,parents:parents.split(' ').filter(Boolean),author,date,message:message.join('\0').trimEnd(),files:files.slice(0,300).map(file=>{const stat=stats.get(file.path);return {...file,...(stat?{added:stat.added,removed:stat.removed,binary:stat.binary}:{})};}),truncated:files.length>300};
 }
 export async function gitCommitDiff(root:string,value:unknown,file:unknown):Promise<FileDiff>{
  const details=await gitCommitDetails(root,value);if(typeof file!=='string')throw new FileError(400,'Choose a changed file.');

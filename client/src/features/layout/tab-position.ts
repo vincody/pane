@@ -21,7 +21,7 @@ export function setupUnifiedTabOrder(strip:HTMLElement,onOrder:TabOrderCallback)
   strip.addEventListener('dragover',event=>{if(!source)return;const node=eventElement(event)?.closest<HTMLElement>(selector);if(!node||key(node)===source)return;event.preventDefault();clear();node.classList.add(event.clientX>node.getBoundingClientRect().left+node.offsetWidth/2?'tab-drop-after':'tab-drop-before');});
   strip.addEventListener('drop',event=>{
     const target=eventElement(event)?.closest<HTMLElement>(selector);if(!source||!target)return;event.preventDefault();event.stopPropagation();
-    const nodes=[...strip.querySelectorAll<HTMLElement>(selector)];const order=nodes.map(key).sort((a,b)=>(positions.get(a)||0)-(positions.get(b)||0));
+    const nodes=[...strip.querySelectorAll<HTMLElement>(selector)].filter(node=>!node.hidden);const order=nodes.map(key).sort((a,b)=>(positions.get(a)||0)-(positions.get(b)||0));
     const moving=source;source=null;if(moving===key(target)){clear();return;}
     order.splice(order.indexOf(moving),1);order.splice(order.indexOf(key(target))+(event.clientX>target.getBoundingClientRect().left+target.offsetWidth/2?1:0),0,moving);
     order.forEach((id,index)=>positions.set(id,index+1));next=Math.max(next,order.length);

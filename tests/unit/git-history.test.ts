@@ -25,8 +25,8 @@ test('history preserves merge ancestry, refs and renamed/root diffs without touc
  const history=await gitHistory(root);assert.equal(history.commits[0].hash,rename);assert.equal(history.commits.find(item=>item.hash===merge)?.parents.length,2);assert.ok(history.commits.some(item=>item.hash===feature));
  for(const [index,item] of history.commits.entries())for(const parent of item.parents){const parentIndex=history.commits.findIndex(item=>item.hash===parent);assert.ok(parentIndex<0||parentIndex>index);}
  assert.equal((await gitHistory(root,'HEAD',1)).hasMore,true);assert.equal((await gitHistory(root,'refs/heads/feature')).commits[0].hash,feature);await assert.rejects(gitHistory(root,'--all'),/available branch/);
- const detail=await gitCommitDetails(root,rename);assert.deepEqual(detail.files,[{path:'renamed file.txt',previousPath:'file.txt',status:'R'}]);const diff=await gitCommitDiff(root,rename,'renamed file.txt');assert.equal(diff.original,'base\n');assert.equal(diff.modified,'base\n');
- assert.equal((await gitCommitDiff(root,initial,'file.txt')).original,'');assert.equal((await gitCommitDetails(root,merge)).files[0].path,'feature.txt');
+ const detail=await gitCommitDetails(root,rename);assert.deepEqual(detail.files,[{path:'renamed file.txt',previousPath:'file.txt',status:'R',added:0,removed:0,binary:false}]);const diff=await gitCommitDiff(root,rename,'renamed file.txt');assert.equal(diff.original,'base\n');assert.equal(diff.modified,'base\n');
+ assert.equal((await gitCommitDiff(root,initial,'file.txt')).original,'');assert.equal((await gitCommitDetails(root,initial)).files[0].added,1);assert.equal((await gitCommitDetails(root,merge)).files[0].path,'feature.txt');
  await assert.rejects(gitCommitDetails(root,'HEAD'),/valid commit/);await assert.rejects(gitCommitDiff(root,rename,'../outside'),/not in the selected commit/);assert.equal(await git(root,['status','--porcelain']),before);
  await fs.writeFile(path.join(root,'binary.bin'),Buffer.from([0,1,2]));await git(root,['add','binary.bin']);await git(root,['commit','-m','binary']);await assert.rejects(gitCommitDiff(root,await git(root,['rev-parse','HEAD']),'binary.bin'),/supported text diff/);
 });
@@ -52,6 +52,9 @@ test('Git APIs authenticate and scope history and diff to registered workspaces'
  const app=await createApp({initialRoot:root,stateDir:path.join(temp,'state')});await new Promise<void>(resolve=>app.server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise<void>(resolve=>app.server.close(()=>resolve())));
  const address=app.server.address();assert.ok(address&&typeof address!=='string');const base=`http://127.0.0.1:${address.port}`,headers={'X-AI-Web-Token':app.token};const project=(await(await fetch(base+'/api/projects',{headers})).json()).projects[0];
  assert.equal((await fetch(base+`/api/git/history?project=${project.id}`)).status,403);assert.equal((await fetch(base+'/api/git/history?project=missing',{headers})).status,404);
+ assert.equal((await fetch(base+`/api/github/issues?project=${project.id}`,{method:'POST',body:JSON.stringify({title:'Must not create'})})).status,403);
+ assert.equal((await fetch(base+'/api/github/issues?project=missing',{method:'POST',headers,body:JSON.stringify({title:'Must not create'})})).status,404);
+ assert.equal((await fetch(base+'/api/github/labels?project=missing',{headers})).status,404);
  const history=await(await fetch(base+`/api/git/history?project=${project.id}`,{headers})).json();assert.equal(history.commits[0].hash,hash);
  const diff=await(await fetch(base+`/api/git/commit-diff?${new URLSearchParams({project:project.id,hash,path:'file.txt'})}`,{headers})).json();assert.equal(diff.modified,'hello');
  assert.equal((await fetch(base+`/api/git/commit?project=${project.id}&hash=--all`,{headers})).status,400);

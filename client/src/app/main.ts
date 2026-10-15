@@ -1,3 +1,4 @@
+import {worktreeSlug} from '../../../shared/worktree-composer.ts';
 import {startWorkingAnimation} from '../features/notifications/working-animation.ts';
 import {setupTitlebar} from '../features/layout/Titlebar.tsx';
 import {setupHistory} from '../features/history/History.tsx';
@@ -32,6 +33,7 @@ import DOMPurify from 'dompurify';
 import '../styles/styles.css';
 import '../styles/design-theme.css';
 import '../styles/git.css';
+import '../styles/selects.css';
 
 self.MonacoEnvironment = { getWorker(_, label) {
   if (label === 'json') return new JsonWorker();
@@ -76,6 +78,9 @@ let sessionData:SessionSnapshot = {agents:[],sessions:[]};
 let tabOrder:string[]=[],tabDrag:ReturnType<typeof setupTabDrag>|undefined,secondaryDocument:OpenDocument|null=null,secondaryEditor:monaco.editor.IStandaloneCodeEditor|undefined,secondarySaveBound=false;
 let defaultFileView:FileView='editor',secondaryMode:FileView='editor';
 let activeFileKey:string|null=null;
+interface WorkspaceTabState {kind:'git'|'pane'|'file'|'agent'|'empty';file:string|null;pane:string|undefined;mode:string;secondary:string|null;secondaryMode:FileView;classes:string[];order:string[];agent:AgentSnapshot|null;agentVisible:boolean}
+const workspaceTabStates=new Map<string,WorkspaceTabState>();
+
 let openingSplit=false;
 const filePanes=new Map<string,FilePane>();
 function focusSecondaryFile(){
@@ -187,21 +192,34 @@ function renderProjects() {
   workspaceSidebar?.render({projects:[...projects],currentProjectId:currentProject?.id||null,agents:[...terminalAgents]});
   titlebar?.refresh();
 }
-async function selectProject(project:Workspace|null) {
+async function selectProject(project:Workspace|null,initial=false) {
+  if(!initial&&project&&project.id===currentProject?.id){currentProject=project;changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged();renderTabs();renderProjects();await refreshTree();return;}
+  if(currentProject){
+    workspaceTabStates.set(currentProject.id,{kind:gitView?.activeProject===currentProject.id?'git':agentView.visible?'agent':terminalView.visible?'pane':currentDocument?'file':'empty',file:currentDocument?.project===currentProject.id?currentDocument.key:null,pane:terminalView.focusedProjectId===currentProject.id?terminalView.activePaneId:undefined,mode,secondary:secondaryDocument?.key||null,secondaryMode,classes:['file-file-split','chat-file-split','split-vertical','split-ai-last','file-pane-first'].filter(name=>$('#app').classList.contains(name)),order:[...tabOrder],agent:agentView.selected||null,agentVisible:agentView.visible});
+  }
   if (terminalView?.visible) terminalView.toggle();
-  agentView?.close();
+  agentView?.close();gitView?.deactivate();
   closeWorkspaceMenu(false);
-  if (!project) { currentProject = null;terminalView?.setProject(null);try{localStorage.removeItem('ai-web.selected-workspace');}catch{}changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged(); $('#empty').hidden = false; renderProjects(); $('#tree').replaceChildren(); return; }
   if(currentDocument?.model)currentDocument.viewState=editor.saveViewState();
-  endFileSplit();
-  currentProject = project;try{localStorage.setItem('ai-web.selected-workspace',project.id);}catch{}
-  changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged();titlebar?.refresh();$('#empty').hidden = true; expanded.clear(); $('#filter').value = '';
-  terminalView?.setProject(project);
+  endFileSplit();$('#app').classList.remove('chat-file-split','split-vertical','split-ai-last');
+  currentProject=project;
+  const remembered=project?workspaceTabStates.get(project.id):undefined;tabOrder=remembered?.order||[];
+  if (!project) {currentDocument=null;activeFileKey=null;editor.setModel(null);$('#preview-content').replaceChildren();$('#image-editor').hidden=true;terminalView?.setProject(null);try{localStorage.removeItem('ai-web.selected-workspace');}catch{}changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged();$('#empty').hidden=false;renderTabs();renderProjects();$('#tree').replaceChildren();return;}
+  try{localStorage.setItem('ai-web.selected-workspace',project.id);}catch{}
+  changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged();titlebar?.refresh();$('#empty').hidden=true;expanded.clear();$('#filter').value='';
   if(currentDocument?.project!==project.id){currentDocument=null;activeFileKey=null;editor.setModel(null);$('#preview-content').replaceChildren();$('#image-editor').hidden=true;$('#empty').hidden=false;}
-  if(!terminalView.visible){const doc=[...documents.values()].filter(doc=>doc.project===project.id).at(-1);if(doc)selectDocument(doc);}
-  renderTabs();renderProjects(); await refreshTree();
-  if (!currentDocument) status(project.root);
+  terminalView?.setProject(project);
+  const rememberedFile=remembered?.file?documents.get(remembered.file):undefined;
+  if(remembered?.kind==='file'&&rememberedFile){selectDocument(rememberedFile);setView(remembered.mode);}
+  else if(remembered?.kind==='pane'&&remembered.pane)terminalView.select(remembered.pane);
+  else if(!terminalView.visible){const doc=rememberedFile||[...documents.values()].filter(doc=>doc.project===project.id).at(-1);if(doc)selectDocument(doc);}
+  if(remembered?.agent){if(terminalView.visible&&remembered.agentVisible)terminalView.toggle();agentView.open(remembered.agent);if(!remembered.agentVisible)agentView.suspend();}
+  if(remembered?.secondary){const secondary=documents.get(remembered.secondary);if(secondary&&secondary.project===project.id){showSecondary(secondary);setSecondaryView(remembered.secondaryMode);for(const name of remembered.classes)$('#app').classList.add(name);}}
+  if(remembered?.kind==='git')gitView?.restore(project.id);
+  renderTabs();renderProjects();await refreshTree();
+  if(currentProject?.id===project.id&&!currentDocument)status(project.root);
 }
+
 let menuOrigin:HTMLElement|null=null,renameProject:Workspace|null=null;
 function closeWorkspaceMenu(restoreFocus = true) {
   const menu = $('#workspace-menu');
@@ -341,12 +359,14 @@ async function openFile(project:string, path:string, {newTab=false}={}) {
 }
 async function openDiff(project:Workspace,file:GitFileChange,revision?:string){
  const result=await api<FileDiff>(revision?`/api/git/commit-diff?${new URLSearchParams({project:project.id,hash:revision,path:file.path})}`:fileUrl('diff',{project:project.id,path:file.path})),key=revision?`diff:${project.id}:${revision}:${file.path}`:`diff:${project.id}:${file.path}`;
+ gitView?.deactivate();
  let doc=documents.get(key);
  if(doc?.kind==='diff'){doc.diffModels[0].setValue(result.original);doc.diffModels[1].setValue(result.modified);terminalView.select(`file:${key}`);return;}
  doc={key,project:project.id,path:file.path,name:`${file.path.split('/').pop()} · ${revision?revision.slice(0,8):'Diff'}`,kind:'diff',dirty:false,baseline:result.baseline,diffModels:[monaco.editor.createModel(result.original,language(file.path),monaco.Uri.parse(`git-base://${project.id}/${revision||'HEAD'}/${file.path}`)),monaco.editor.createModel(result.modified,language(file.path),monaco.Uri.parse(`git-current://${project.id}/${revision||'working'}/${file.path}`))]};
  documents.set(key,doc);mountFilePane(doc,null);renderTabs();
 }
 function selectDocument(doc:OpenDocument,{keepChat=false}={}) {
+  gitView?.deactivate();
   if(openingSplit)return;
   if(terminalView.hasFilePane(`file:${doc.key}`)){terminalView.select(`file:${doc.key}`);return;}
   if(secondaryDocument===doc){focusSecondaryFile();return;}
@@ -369,16 +389,17 @@ function selectDocument(doc:OpenDocument,{keepChat=false}={}) {
 function renderTabs() {
   updateToolbar();
   $('#tabs').replaceChildren();$('#tabs').setAttribute('role','tablist');$('#tabs').setAttribute('aria-label','Open tabs');
-  const selectedAgent=agentView?.selected,split=$('#app').classList.contains('chat-file-split'),chatActive=agentView?.visible&&!split;
-  if(selectedAgent){const tab=document.createElement('div');tab.dataset.tabKey='ai';tab.className=`file-tab ai-session-tab${chatActive?' active':''}`;tab.tabIndex=0;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(chatActive));const title=selectedAgent.display_agent || selectedAgent.name || selectedAgent.terminal_title_stripped || 'AI';tab.setAttribute('aria-label',`AI · ${title}`);const mark=document.createElement('span');mark.className='ai-tab-mark';if(['codex','claude','opencode'].includes(selectedAgent.agent)){const image=document.createElement('img');image.src=`/agents/${selectedAgent.agent}.svg`;image.alt='';mark.append(image);}else mark.append(icon('code'));const indicator=document.createElement('span');indicator.className='ai-tab-indicator';mark.append(indicator);tab.append(mark);const label=document.createElement('span');label.className='ai-tab-name';label.textContent=title;tab.append(label);const close=document.createElement('button');close.className='tab-close';close.setAttribute('aria-label','Close AI tab');close.append(icon('close'));close.onclick=event=>{event.stopPropagation();agentView.close();};tab.append(close);tab.onclick=()=>{endFileSplit();if(!agentView.visible||split){$('#app').classList.remove('chat-file-split');agentView.resume();}};tab.onkeydown=event=>{if(event.target===tab&&['Enter',' '].includes(event.key)){event.preventDefault();tab.click();}};$('#tabs').append(tab);}
+  const selectedAgent=agentView?.selected,split=$('#app').classList.contains('chat-file-split'),gitActive=Boolean(gitView?.activeProject),chatActive=agentView?.visible&&!split&&!gitActive;
+  if(selectedAgent){const tab=document.createElement('div');tab.dataset.tabKey='ai';tab.className=`file-tab ai-session-tab${chatActive?' active':''}`;tab.tabIndex=0;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(chatActive));const title=selectedAgent.display_agent || selectedAgent.name || selectedAgent.terminal_title_stripped || 'AI';tab.setAttribute('aria-label',`AI · ${title}`);const mark=document.createElement('span');mark.className='ai-tab-mark';if(['codex','claude','opencode'].includes(selectedAgent.agent)){const image=document.createElement('img');image.src=`/agents/${selectedAgent.agent}.svg`;image.alt='';mark.append(image);}else mark.append(icon('code'));const indicator=document.createElement('span');indicator.className='ai-tab-indicator';mark.append(indicator);tab.append(mark);const label=document.createElement('span');label.className='ai-tab-name';label.textContent=title;tab.append(label);const close=document.createElement('button');close.className='tab-close';close.setAttribute('aria-label','Close AI tab');close.append(icon('close'));close.onclick=event=>{event.stopPropagation();agentView.close();};tab.append(close);tab.onclick=()=>{gitView?.deactivate();endFileSplit();if(!agentView.visible||split){$('#app').classList.remove('chat-file-split');agentView.resume();}};tab.onkeydown=event=>{if(event.target===tab&&['Enter',' '].includes(event.key)){event.preventDefault();tab.click();}};$('#tabs').append(tab);}
   for (const doc of documents.values()) {
     if(doc.project!==currentProject?.id)continue;
-    const tab = document.createElement('div'); tab.dataset.tabKey=doc.key;tab.dataset.project=doc.project;tab.dataset.path=doc.path;tab.className = `file-tab${activeFileKey===doc.key&&!chatActive ? ' active' : ''}`; tab.title = `${projects.find(p => p.id === doc.project)?.name}/${doc.path}`; tab.tabIndex = 0; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(activeFileKey===doc.key&&!chatActive));
+    const tab = document.createElement('div'); tab.dataset.tabKey=doc.key;tab.dataset.project=doc.project;tab.dataset.path=doc.path;tab.className = `file-tab${activeFileKey===doc.key&&!chatActive&&!gitActive ? ' active' : ''}`; tab.title = `${projects.find(p => p.id === doc.project)?.name}/${doc.path}`; tab.tabIndex = 0; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(activeFileKey===doc.key&&!chatActive&&!gitActive));
     tab.append(fileIcon(doc.path,icon)); const name = document.createElement('span'); name.className = 'tab-name'; name.textContent = doc.name; tab.append(name);
     if (doc.dirty) { const dot = document.createElement('span'); dot.className = 'tab-dirty'; dot.setAttribute('aria-label', 'Unsaved changes'); tab.append(dot); }
     const close = document.createElement('button'); close.className = 'tab-close'; close.append(icon('close')); close.setAttribute('aria-label', `Close ${doc.name}`); close.onclick = event => { event.stopPropagation(); closeDocument(doc); }; tab.append(close);
     tab.onclick = () => selectDocument(doc); tab.onkeydown = event => { if (event.target === tab && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); tab.click(); } }; $('#tabs').append(tab);
   }
+  gitView?.appendTabs($('#tabs'));
   const present=htmlChildren($('#tabs')).map(tab=>tab.dataset.tabKey).filter((key):key is string=>Boolean(key));tabOrder=tabOrder.filter(key=>present.includes(key));for(const key of present)if(!tabOrder.includes(key))tabOrder.push(key);for(const key of tabOrder){const tab=htmlChildren($('#tabs')).find(tab=>tab.dataset.tabKey===key);if(tab)$('#tabs').append(tab);}tabDrag?.decorate();
   for (const tab of htmlChildren($('#tabs'))) positionTab(tab, `file:${tab.dataset.tabKey}`);
   if(secondaryDocument&&!documents.has(secondaryDocument.key))endFileSplit();
@@ -594,12 +615,12 @@ document.addEventListener('keydown', event => {
   if (eventElement(event)?.closest<HTMLElement>('#agent-panel')) return;
   if(eventElement(event)?.closest<HTMLElement>('#secondary-file')&&(event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveFile(secondaryDocument);return;}
   const control = event.ctrlKey || event.metaKey;
-  if (control && event.key.toLowerCase() === 's') { event.preventDefault(); saveFile(); }
+  if (control && event.key.toLowerCase() === 's') { event.preventDefault(); if(!gitView?.activeProject)saveFile(); }
   if (control && event.key.toLowerCase() === 'o') { event.preventDefault(); if (!document.querySelector<HTMLElement>('dialog[open]')!) openFolderDialog(); }
-  if (control && event.shiftKey && event.key.toLowerCase() === 'v') { event.preventDefault(); setView(mode === 'editor' ? 'preview' : 'editor'); }
+  if (control && event.shiftKey && event.key.toLowerCase() === 'v'&&!gitView?.activeProject) { event.preventDefault(); setView(mode === 'editor' ? 'preview' : 'editor'); }
   if (control && event.key.toLowerCase() === 'b') { event.preventDefault(); toggleSidebar(); }
   if (control && event.shiftKey && event.key.toLowerCase() === 'e') { event.preventDefault(); toggleFiles(); }
-  if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing && !eventElement(event)?.closest<HTMLElement>('input,textarea,[contenteditable=true],.monaco-editor,dialog')) {
+  if (!gitView?.activeProject && event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing && !eventElement(event)?.closest<HTMLElement>('input,textarea,[contenteditable=true],.monaco-editor,dialog')) {
     if(terminalView.inputMostRecent('/')) event.preventDefault();
   }
 });
@@ -613,18 +634,18 @@ async function start() {
   const selected=projects.find(p => p.id === requested) || projects.find(p => p.id === data.defaultProject) || projects[0];
   currentProject=selected||null;terminalView.setProject(currentProject);
   terminalView.restore(projects);
-  await selectProject(selected);
+  await selectProject(selected,true);
   updateToolbar(); refreshSessions();
   setInterval(() => { refreshSessions(); }, 8000);
   $('#show-sidebar').setAttribute('aria-expanded',String(!$('#app').classList.contains('sidebar-hidden')));
 }
 const usagePanel=createUsagePanel({api});
- const agentView = createAgentView({api,icon,onStatus:agent=>{updateAITabStatus(agent);notifications?.observe(agent);},onSessionClosed:refreshSessions,onChange:()=>{if(agentView.visible)endFileSplit();$('#app').classList.remove('chat-file-split');renderProjects();renderTabs();editor.layout();}});
+ const agentView = createAgentView({api,icon,onStatus:agent=>{updateAITabStatus(agent);notifications?.observe(agent);},onSessionClosed:refreshSessions,onChange:()=>{if(agentView.visible){gitView?.deactivate();endFileSplit();}$('#app').classList.remove('chat-file-split');renderProjects();renderTabs();editor.layout();}});
 $('.topbar').insertBefore($('#tabs'),$('.toolbar-actions'));
 $('.topbar .toolbar-actions').append($('.view-switch'), $('#save'), $('#terminal-toggle'));
 $('#terminal-toggle-icon').append(icon('terminal'));
 const contentViews=document.createElement('div');contentViews.id='content-views';const editorStack=document.createElement('section');editorStack.id='editor-stack';editorStack.setAttribute('aria-label','File editor');contentViews.append($('#agent-panel'),editorStack);editorStack.append($('#workspace'));document.querySelector<HTMLElement>('main')!.append(contentViews);
-const terminalView=createTerminalView({token,icon,onSelect:()=>{const context=projects.find(project=>project.id===terminalView.focusedProjectId);if(context&&context.id!==currentProject?.id)void selectProject(context);activeFileKey=null;document.querySelector<HTMLElement>("#app")!.dataset.fileFocused="false";agentView.close();},onSessionsChange:agents=>{for(const old of terminalAgents)if(!agents.some(agent=>agent.id===old.id))notifications?.remove(old.id);terminalAgents=sessionAttention.update(agents,!document.hidden&&document.hasFocus());for(const agent of agents)notifications?.observe({...agent,terminalSession:true});usagePanel.setAgents([...sessionData.agents,...terminalAgents]);if(!draggedProject&&!reorderingProjects)renderProjects();},onClose:visible=>{ $('#terminal-toggle').setAttribute('aria-pressed',String(visible)); $('.topbar').classList.toggle('terminal-active',visible); }});editorStack.append(terminalView.element);$('#terminal-toggle').title='New terminal';$('#terminal-toggle').setAttribute('aria-label','New terminal');$('#terminal-toggle').onclick=()=>{agentView.close();endFileSplit();terminalView.newSession(currentProject);};
+const terminalView=createTerminalView({token,icon,onSelect:()=>{const context=projects.find(project=>project.id===terminalView.focusedProjectId);if(context&&context.id!==currentProject?.id)void selectProject(context);else gitView?.deactivate();activeFileKey=null;document.querySelector<HTMLElement>("#app")!.dataset.fileFocused="false";agentView.close();},onSessionsChange:agents=>{for(const old of terminalAgents)if(!agents.some(agent=>agent.id===old.id))notifications?.remove(old.id);terminalAgents=sessionAttention.update(agents,!document.hidden&&document.hasFocus());for(const agent of agents)notifications?.observe({...agent,terminalSession:true});usagePanel.setAgents([...sessionData.agents,...terminalAgents]);if(!draggedProject&&!reorderingProjects)renderProjects();},onClose:visible=>{ $('#terminal-toggle').setAttribute('aria-pressed',String(visible)); $('.topbar').classList.toggle('terminal-active',visible); }});editorStack.append(terminalView.element);$('#terminal-toggle').title='New terminal';$('#terminal-toggle').setAttribute('aria-label','New terminal');$('#terminal-toggle').onclick=()=>{agentView.close();endFileSplit();terminalView.newSession(currentProject);};
 new ResizeObserver(()=>editor.layout()).observe(editorStack);
 const secondaryPane=document.createElement('section');secondaryPane.id='secondary-file';secondaryPane.hidden=true;secondaryPane.setAttribute('aria-label','Second file editor');secondaryPane.innerHTML='<header><span class="secondary-file-title"></span><button type="button" class="icon-button" aria-label="Merge split panes" title="Merge split panes"></button></header><div class="secondary-code"></div><div class="secondary-image" hidden></div>';contentViews.append(secondaryPane);secondaryPane.querySelector<HTMLButtonElement>('button')!.append(icon('close'));secondaryPane.querySelector<HTMLButtonElement>('button')!.onclick=()=>{if(secondaryDocument)closeDocument(secondaryDocument);};
 const secondarySwitch=document.createElement('div');secondarySwitch.className='pane-file-view';secondarySwitch.innerHTML='<button type="button" data-secondary-view="editor">Editor</button><button type="button" data-secondary-view="preview">Preview</button>';secondaryPane.querySelector<HTMLElement>('header')!.insertBefore(secondarySwitch,secondaryPane.querySelector<HTMLButtonElement>('header button')!);
@@ -705,13 +726,13 @@ setupUnifiedTabOrder($('#unified-tabs'),order=>{tabOrder=order;});
 tabDrag=setupTabDrag({tabs:$('#tabs'),content:contentViews,onReorder:()=>{},canDrop:(key,zone)=>{if(!key||!zone)return false;if(typeof zone==='object')return documents.has(key);const split=$('#app').classList.contains('chat-file-split')||$('#app').classList.contains('file-file-split');if(zone!=='right'&&zone!=='bottom')return split;if(key==='ai')return Boolean(agentView.selected&&currentDocument);return Boolean(documents.has(key)&&(terminalView.visible||agentView.visible||agentView.selected&&split||currentDocument&&currentDocument.key!==key));},onDrop:dropTab,onFileDrop:dropFile});
 
 notifications=createNotifications({icon,isViewing:agent=>!document.hidden&&document.hasFocus()&&(agent.terminalSession?Boolean(terminalAgents.find(item=>item.id===agent.id)?.selected):agentView.visible&&Boolean(agent.agent_session?.value?agentView.selected?.agent_session?.value===agent.agent_session.value:agent.pane_id&&agentView.selected?.pane_id===agent.pane_id)),onOpen:agent=>{if(agent.terminalSession){agentView.close();if(agent.id)openTerminalAgent(agent.id);}else{agentView.open(agent);agentView.focusLatest();}}});
-setupColorTheme();setupSettings({icon});
+setupColorTheme();setupSettings({icon,api});
 const subWorkspaceDialog=createSubWorkspaceDialog({api,getProjects:()=>projects,onCreated:async (project,launch)=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);if(launch)terminalView.startSession(existing||project,launch);toast(`Opened ${project.branch||project.name}`);}});
 workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{void subWorkspaceDialog.open(project);},onSelect:project=>{if(Date.now()-lastProjectDrag>300)void selectProject(project);},onAgentSelect:openTerminalAgent,onMenu:showWorkspaceMenu,setupDrag:setupProjectDrag});
 changesView=setupChanges({api,icon,getProject:()=>currentProject,onOpenDiff:openDiff,onError:message=>toast(message),onStatuses:(id,data)=>fileGit.update(id,data)});
 devServers=setupDevServers({api,getProject:()=>currentProject,onError:message=>toast(message)});
 setupHistory({api,getProjects:()=>projects,getCurrentProject:()=>currentProject,onResume:(record,project)=>{agentView.close();terminalView.resumeSession(record,project);}});
-gitView=createGitPanel({api,icon,getProject:()=>currentProject,onChanged:()=>{void changesView?.refresh();void refreshTree();void refreshSessions();},onOpenDiff:async(project,hash,file)=>{await openDiff(project,{path:file.path,added:null,removed:null,binary:false},hash);}});
+gitView=createGitPanel({api,icon,getProject:()=>currentProject,onTabsChanged:renderTabs,onActivate:project=>{if(currentProject?.id!==project.id)void selectProject(project);agentView.suspend();(document.activeElement as HTMLElement|null)?.blur();terminalView.setFocused(false);},onDeactivate:()=>{if(terminalView.visible)terminalView.setFocused(true);},onStartIssue:(project,issue)=>{const parent=project.parentId?projects.find(item=>item.id===project.parentId):project;if(parent)void subWorkspaceDialog.open(parent,{name:`issue-${issue.number}-${worktreeSlug(issue.title)}`.replace(/-$/,'').slice(0,80),note:`Issue #${issue.number}: ${issue.title}\n${issue.url}\n\n${issue.body}`});},onChanged:()=>{void changesView?.refresh();void refreshTree();void refreshSessions();},onOpenDiff:async(project,hash,file)=>{await openDiff(project,{path:file.path,added:null,removed:null,binary:false},hash);}});
 titlebar=setupTitlebar({getProject:()=>projects.find(project=>project.id===(activeFileKey?documents.get(activeFileKey)?.project:terminalView.visible?terminalView.focusedProjectId:null))||currentProject,getAttention:()=>terminalAgents.map(agent=>({...agent,open:()=>openTerminalAgent(agent.id)}))});
 startWorkingAnimation();
 start().catch(error => { status(errorMessage(error,'Operation failed.'), true); toast(errorMessage(error,'Operation failed.')); });
