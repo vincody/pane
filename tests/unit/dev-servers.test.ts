@@ -67,7 +67,7 @@ test('web probing uses HEAD without following redirects and leaves non-loopback 
  assert.equal(loopbackHost('0000:0000:0000:0000:0000:0000:0000:0001'),'::1');assert.equal(loopbackHost('127.999.0.1'),null);
 });
 test('Dev servers API requires authentication and registered workspace, exposing only scoped display data',async t=>{
- const root=await fs.mkdtemp(path.join(os.tmpdir(),'pane-dev-server-api-'));t.after(()=>fs.rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100}));
+ const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'pane-dev-server-api-')));t.after(()=>fs.rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100}));
  const app=await createApp({initialRoot:root,stateDir:path.join(root,'state'),agentHome:root,devServerOptions:{collect:async()=>({complete:true,listeners:[{...listener,commandLine:`node "${path.join(root,'server.mjs')}"`}],processes:[]}),probe:async()=> 'http',excludePid:-1}});
  await new Promise<void>(resolve=>app.server.listen(0,'127.0.0.1',resolve));t.after(async()=>{await app.closeSessions();await new Promise<void>(resolve=>app.server.close(()=>resolve()));});
  const base=`http://127.0.0.1:${serverPort(app.server)}/api/dev-servers?project=`,project=[...app.files.projects.values()][0],headers={'X-AI-Web-Token':app.token};
