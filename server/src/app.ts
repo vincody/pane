@@ -16,6 +16,8 @@ import { Files, FileError, isWithin } from './features/files/files.ts';
 import { gitBranch } from './features/git/git.ts';
 import {worktreeBranches,createWorktree,unregisterNewWorktree,existingWorktree,createComposerWorktree} from './features/git/worktrees.ts';
 import {changes,fileDiff} from './features/git/git-changes.ts';
+import {gitSnapshot,gitHistory,gitCommitDetails,gitCommitDiff} from './features/git/git-history.ts';
+import {gitSync} from './features/git/git-sync.ts';
 import type { SessionRecord } from '../../shared/contracts.ts';
 
 export interface AppOptions {
@@ -157,6 +159,15 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
         }
         const id = url.searchParams.get('project') || '';
         const relative = url.searchParams.get('path') || '';
+        if(url.pathname.startsWith('/api/git/')){
+          const project=files.projects.get(id);if(!project)throw new FileError(404,'Workspace not found.');
+          if(req.method==='GET'&&url.pathname==='/api/git/status')return json(200,await gitSnapshot(project.root));
+          if(req.method==='GET'&&url.pathname==='/api/git/history')return json(200,await gitHistory(project.root,url.searchParams.get('ref')||'all',Number(url.searchParams.get('limit')||80)));
+          if(req.method==='GET'&&url.pathname==='/api/git/commit')return json(200,await gitCommitDetails(project.root,url.searchParams.get('hash')));
+          if(req.method==='GET'&&url.pathname==='/api/git/commit-diff')return json(200,await gitCommitDiff(project.root,url.searchParams.get('hash'),relative));
+          if(req.method==='POST'&&url.pathname==='/api/git/sync')return json(200,await gitSync(project.root,await body(req)));
+          throw new FileError(404,'Git operation not found.');
+        }
         if(req.method==='GET'&&['/api/changes','/api/diff'].includes(url.pathname)){
           const project=files.projects.get(id);if(!project)throw new FileError(404,'Workspace not found.');
           return json(200,url.pathname==='/api/diff'?await fileDiff(project.root,relative):await changes(project.root));

@@ -15,6 +15,12 @@ export interface TokenUsageSnapshot {providers:TokenUsage[];updatedAt:string;par
 export interface GitFileChange {path:string;added:number|null;removed:number|null;binary:boolean;untracked?:boolean}
 export interface GitChanges {available:boolean;files:GitFileChange[];baseline?:string|null;statuses?:Record<string,{code:string;originalPath?:string}>;truncated?:boolean}
 export interface FileDiff {path:string;original:string;modified:string;baseline:string|null}
+export interface GitRef {ref:string;name:string;hash:string;kind:'local'|'remote'|'tag'}
+export interface GitSnapshot {available:boolean;branch:string|null;head:string|null;upstream:string|null;remote:string|null;remotes:string[];ahead:number;behind:number;dirty:boolean;conflicted:boolean;refs:GitRef[]}
+export interface GitCommit {hash:string;parents:string[];author:string;date:string;subject:string}
+export interface GitHistory {commits:GitCommit[];hasMore:boolean;refs:GitRef[];head:string|null}
+export interface GitCommitFile {path:string;previousPath?:string;status:string}
+export interface GitCommitDetails {hash:string;parents:string[];author:string;date:string;message:string;files:GitCommitFile[];truncated:boolean}
 export interface TextFile {kind:'text';content:string;version:string;bom:boolean;size:number}
 export interface ImageFile {kind:'image';size:number;path:string}
 export interface TreeEntry {name:string;path:string;type:'file'|'directory'|'link';image:boolean}

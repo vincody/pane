@@ -2,6 +2,7 @@ import {startWorkingAnimation} from '../features/notifications/working-animation
 import {setupTitlebar} from '../features/layout/Titlebar.tsx';
 import {setupHistory} from '../features/history/History.tsx';
 import {setupChanges} from '../features/files/changes.ts';
+import {createGitPanel} from '../features/git/GitPanel.tsx';
 import {setupDevServers} from '../features/dev-servers/DevServers.tsx';
 import {createFileGitDecorations} from '../features/files/file-git-status.ts';
 import {createWorkspaceSidebar} from '../features/workspaces/WorkspaceSidebar.tsx';
@@ -30,6 +31,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import '../styles/styles.css';
 import '../styles/design-theme.css';
+import '../styles/git.css';
 
 self.MonacoEnvironment = { getWorker(_, label) {
   if (label === 'json') return new JsonWorker();
@@ -58,6 +60,7 @@ let notifications:ReturnType<typeof createNotifications>|undefined;
 let titlebar:ReturnType<typeof setupTitlebar>|undefined;
 let workspaceSidebar:ReturnType<typeof createWorkspaceSidebar>|undefined;
 let changesView:ReturnType<typeof setupChanges>|undefined;
+let gitView:ReturnType<typeof createGitPanel>|undefined;
 let devServers:ReturnType<typeof setupDevServers>|undefined;
 let terminalAgents:TerminalAgent[] = [];
 const sessionAttention=createSessionAttention();
@@ -188,11 +191,11 @@ async function selectProject(project:Workspace|null) {
   if (terminalView?.visible) terminalView.toggle();
   agentView?.close();
   closeWorkspaceMenu(false);
-  if (!project) { currentProject = null;terminalView?.setProject(null);try{localStorage.removeItem('ai-web.selected-workspace');}catch{}changesView?.projectChanged();devServers?.projectChanged(); $('#empty').hidden = false; renderProjects(); $('#tree').replaceChildren(); return; }
+  if (!project) { currentProject = null;terminalView?.setProject(null);try{localStorage.removeItem('ai-web.selected-workspace');}catch{}changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged(); $('#empty').hidden = false; renderProjects(); $('#tree').replaceChildren(); return; }
   if(currentDocument?.model)currentDocument.viewState=editor.saveViewState();
   endFileSplit();
   currentProject = project;try{localStorage.setItem('ai-web.selected-workspace',project.id);}catch{}
-  changesView?.projectChanged();devServers?.projectChanged();titlebar?.refresh();$('#empty').hidden = true; expanded.clear(); $('#filter').value = '';
+  changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged();titlebar?.refresh();$('#empty').hidden = true; expanded.clear(); $('#filter').value = '';
   terminalView?.setProject(project);
   if(currentDocument?.project!==project.id){currentDocument=null;activeFileKey=null;editor.setModel(null);$('#preview-content').replaceChildren();$('#image-editor').hidden=true;$('#empty').hidden=false;}
   if(!terminalView.visible){const doc=[...documents.values()].filter(doc=>doc.project===project.id).at(-1);if(doc)selectDocument(doc);}
@@ -336,11 +339,11 @@ async function openFile(project:string, path:string, {newTab=false}={}) {
   selectDocument(doc);if(replace){replacement.subscription?.dispose();replacement.model?.dispose();if(replacement.imageUrl)URL.revokeObjectURL(replacement.imageUrl);}
 
 }
-async function openDiff(project:Workspace,file:GitFileChange){
- const result=await api<FileDiff>(fileUrl('diff',{project:project.id,path:file.path})),key=`diff:${project.id}:${file.path}`;
+async function openDiff(project:Workspace,file:GitFileChange,revision?:string){
+ const result=await api<FileDiff>(revision?`/api/git/commit-diff?${new URLSearchParams({project:project.id,hash:revision,path:file.path})}`:fileUrl('diff',{project:project.id,path:file.path})),key=revision?`diff:${project.id}:${revision}:${file.path}`:`diff:${project.id}:${file.path}`;
  let doc=documents.get(key);
  if(doc?.kind==='diff'){doc.diffModels[0].setValue(result.original);doc.diffModels[1].setValue(result.modified);terminalView.select(`file:${key}`);return;}
- doc={key,project:project.id,path:file.path,name:`${file.path.split('/').pop()} · Diff`,kind:'diff',dirty:false,baseline:result.baseline,diffModels:[monaco.editor.createModel(result.original,language(file.path),monaco.Uri.parse(`git-base://${project.id}/${file.path}`)),monaco.editor.createModel(result.modified,language(file.path),monaco.Uri.parse(`git-current://${project.id}/${file.path}`))]};
+ doc={key,project:project.id,path:file.path,name:`${file.path.split('/').pop()} · ${revision?revision.slice(0,8):'Diff'}`,kind:'diff',dirty:false,baseline:result.baseline,diffModels:[monaco.editor.createModel(result.original,language(file.path),monaco.Uri.parse(`git-base://${project.id}/${revision||'HEAD'}/${file.path}`)),monaco.editor.createModel(result.modified,language(file.path),monaco.Uri.parse(`git-current://${project.id}/${revision||'working'}/${file.path}`))]};
  documents.set(key,doc);mountFilePane(doc,null);renderTabs();
 }
 function selectDocument(doc:OpenDocument,{keepChat=false}={}) {
@@ -708,6 +711,7 @@ workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{voi
 changesView=setupChanges({api,icon,getProject:()=>currentProject,onOpenDiff:openDiff,onError:message=>toast(message),onStatuses:(id,data)=>fileGit.update(id,data)});
 devServers=setupDevServers({api,getProject:()=>currentProject,onError:message=>toast(message)});
 setupHistory({api,getProjects:()=>projects,getCurrentProject:()=>currentProject,onResume:(record,project)=>{agentView.close();terminalView.resumeSession(record,project);}});
+gitView=createGitPanel({api,icon,getProject:()=>currentProject,onChanged:()=>{void changesView?.refresh();void refreshTree();void refreshSessions();},onOpenDiff:async(project,hash,file)=>{await openDiff(project,{path:file.path,added:null,removed:null,binary:false},hash);}});
 titlebar=setupTitlebar({getProject:()=>projects.find(project=>project.id===(activeFileKey?documents.get(activeFileKey)?.project:terminalView.visible?terminalView.focusedProjectId:null))||currentProject,getAttention:()=>terminalAgents.map(agent=>({...agent,open:()=>openTerminalAgent(agent.id)}))});
 startWorkingAnimation();
 start().catch(error => { status(errorMessage(error,'Operation failed.'), true); toast(errorMessage(error,'Operation failed.')); });

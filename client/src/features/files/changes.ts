@@ -2,7 +2,7 @@ import type { Workspace, GitChanges, GitFileChange } from '../../../../shared/co
 import { errorMessage, type Api, type NativeIcon } from '../../components/contracts.ts';
 import {gitStatus} from './file-git-status.ts';
 import {fileIcon} from './file-icons.ts';
-export interface ChangesOptions { api: Api; icon:NativeIcon; getProject: ()=>Workspace | null; onOpenDiff: (project: Workspace,file: GitFileChange)=>void | Promise<void>; onError: (message: string)=>void; onStatuses?: (projectId:string|null,data:GitChanges|null)=>void }
+export interface ChangesOptions { api: Api; icon:NativeIcon; getProject: ()=>Workspace | null; onOpenDiff: (project: Workspace,file: GitFileChange,revision?:string)=>void | Promise<void>; onError: (message: string)=>void; onStatuses?: (projectId:string|null,data:GitChanges|null)=>void }
 export type ChangesController = ReturnType<typeof setupChanges>;
 export function setupChanges({api,icon,getProject,onOpenDiff,onError,onStatuses}: ChangesOptions){
  const sidebar=document.querySelector<HTMLElement>('#files-sidebar')!,head=sidebar.querySelector<HTMLElement>('.files-head')!,tree=sidebar.querySelector<HTMLElement>('#tree')!,filter=sidebar.querySelector<HTMLElement>('.file-filter')!;

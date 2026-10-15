@@ -42,6 +42,7 @@ button:disabled{opacity:.55}
 .brand small,.section-head,.files-footer,.sidebar-footer,.workspace-branch,.agent-meta{color:var(--muted)}
 .section-head{font-size:11px;letter-spacing:.6px;font-weight:500}
 .sidebar-footer{border-top:0}
+#app .sidebar-footer{grid-template-columns:repeat(5,minmax(0,1fr))}
 .workspace-heading{gap:4px}
 .workspace-heading>span{flex:1}
 .workspace-heading #open-folder{flex:none;width:28px;height:28px;margin:0;padding:0;background:transparent;color:var(--muted);border:0;border-radius:var(--radius-sm)}
@@ -286,6 +287,10 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 .sidebar #projects .workspace-context-button>.react-icon{grid-column:1;grid-row:1 / 3;align-self:start;margin-top:3px}
 .sidebar #projects .workspace-context-button .workspace-context-name{position:static;clip-path:none;width:auto;height:auto;grid-column:2;font-size:12px;line-height:1.4;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
 .sidebar #projects .workspace-context-button .workspace-branch{grid-column:2;font-family:var(--font-code);font-size:10px;line-height:1.4}
+.sidebar #projects .workspace-branch-only{min-height:32px}
+.sidebar #projects .workspace-branch-only>.react-icon{grid-row:1;align-self:center;margin-top:0}
+.sidebar #projects .workspace-branch-only .workspace-branch{grid-row:1;font-size:12px}
+.sidebar #projects .workspace-context-row:has(.workspace-branch-only){min-height:34px}
 .sidebar #projects .workspace-worktree-label{display:none}
 .sidebar #projects .workspace-context-sessions{margin:0 4px;padding:0}
 .sidebar #projects .workspace-context-sessions::before{display:none}

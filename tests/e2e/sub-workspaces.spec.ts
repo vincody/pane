@@ -27,7 +27,7 @@ test('Local and worktrees own their sessions and remember the selected working f
  });
  await page.goto('/');
  const local=page.locator(`[data-context=${parent.id}]`),task=page.locator(`[data-context=${child.id}]`);
- await expect(local.locator('.workspace-context-name')).toHaveText('Local');await expect(local.locator('.workspace-branch')).toHaveText('dev');
+ await expect(local.locator('.workspace-context-name')).toHaveCount(0);await expect(local.locator('.workspace-branch')).toHaveText('dev');
  await page.getByRole('button',{name:'New session',exact:true}).click();await page.locator('[data-launch=shell]').click();await expect(local.locator('.terminal-agent-card')).toHaveCount(1);
  await expect.poll(()=>starts.length).toBe(1);await page.locator('.terminal-screen:visible').evaluate(node=>(node as HTMLElement).dataset.sessionMarker='local-session');
  await page.getByRole('button',{name:'New worktree in ai-web',exact:true}).click();await expect(page.getByLabel('Worktree project')).toHaveValue(parent.id);await expect(page.getByLabel('Starting branch')).toHaveValue('dev');await expect(page.getByRole('button',{name:/^Create worktree/})).toBeEnabled();
@@ -46,13 +46,13 @@ test('Local and worktrees own their sessions and remember the selected working f
  await expect(page.locator('.terminal-tab:visible')).toHaveCount(0);
  await page.getByRole('button',{name:'New session',exact:true}).click();await page.locator('[data-launch=shell]').click();await expect(task.locator('.terminal-agent-card')).toHaveCount(1);await expect.poll(()=>starts.length).toBe(2);expect(starts[1].project).toBe(child.id);
  await page.locator('.terminal-screen:visible').evaluate(node=>(node as HTMLElement).dataset.sessionMarker='task-session');
- await page.getByRole('button',{name:'Open Local in ai-web',exact:true}).click();await expect(page.locator('.terminal-screen:visible')).toHaveAttribute('data-session-marker','local-session');await expect(page.locator('#tree')).toContainText('local.txt');await expect(page.locator('.terminal-tab:visible')).toHaveCount(1);
+ await page.getByRole('button',{name:'Open dev in ai-web',exact:true}).click();await expect(page.locator('.terminal-screen:visible')).toHaveAttribute('data-session-marker','local-session');await expect(page.locator('#tree')).toContainText('local.txt');await expect(page.locator('.terminal-tab:visible')).toHaveCount(1);
  await page.keyboard.type('local command');await expect.poll(()=>inputs.some(input=>input.project===parent.id&&input.data.includes('l'))).toBe(true);
  await page.getByRole('button',{name:'Open SSH support in ai-web',exact:true}).click();await expect(page.locator('.terminal-screen:visible')).toHaveAttribute('data-session-marker','task-session');expect(starts).toHaveLength(2);
  await page.screenshot({path:'test-results/sub-workspaces-light.png'});
  await page.locator('#settings').click();await page.getByLabel('Color theme',{exact:true}).selectOption('dark');await page.locator('.close-dialog[aria-label="Close settings"]').click();await page.screenshot({path:'test-results/sub-workspaces-dark.png'});
  await page.reload();await expect(task.locator('.workspace-context-button')).toHaveAttribute('aria-current','page');await expect.poll(()=>attaches.length).toBe(2);expect(starts).toHaveLength(2);await expect(page.locator('.terminal-tab:visible')).toHaveCount(1);await expect(local.locator('.terminal-agent-card')).toHaveCount(1);await expect(task.locator('.terminal-agent-card')).toHaveCount(1);
  await page.getByRole('button',{name:'Close terminal pane',exact:true}).click();await expect(task.locator('.workspace-context-button')).toHaveAttribute('aria-current','page');await expect(page.locator('.terminal-tab:visible')).toHaveCount(0);await expect(local.locator('.terminal-agent-card')).toHaveCount(1);
- await page.getByRole('button',{name:'Open Local in ai-web',exact:true}).click();await expect(page.locator('.terminal-screen:visible')).toHaveCount(1);expect(starts).toHaveLength(2);
+ await page.getByRole('button',{name:'Open dev in ai-web',exact:true}).click();await expect(page.locator('.terminal-screen:visible')).toHaveCount(1);expect(starts).toHaveLength(2);
  await page.getByRole('button',{name:'New worktree in ai-web',exact:true}).click();await page.getByLabel('Worktree agent').selectOption('codex');await page.getByRole('button',{name:/^Create worktree/}).click();await expect.poll(()=>starts.length).toBe(3);expect(creations[1].name).toMatch(/^[A-Za-z]+(?:-\d+)?$/);await expect.poll(()=>inputs.some(input=>input.project===child.id&&input.data==='codex\r')).toBe(true);expect(errors).toEqual([]);
 });
