@@ -31,6 +31,10 @@ test('desktop isolates Node, restores drafts and splits, keeps hidden terminals 
   await desktop.evaluate(({dialog,BrowserWindow},root)=>{
     Reflect.set(dialog,'showOpenDialog',async(owner:unknown,options:{properties:string[]})=>{Reflect.set(globalThis,'panePickerOwner',owner===BrowserWindow.getAllWindows()[0]);return {canceled:false,filePaths:[options.properties.includes('openDirectory')?root:root+'\\draft.txt']};});
   },root);
+  // Auto split intentionally uses separate tabs in narrow windows. Give this
+  // split-recovery test an explicit content size, independent of runner display.
+  await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1800,1100));
+  await expect.poll(()=>page.evaluate(()=>innerWidth)).toBe(1800);
   const picked=await page.evaluate(async()=>{const token=document.querySelector<HTMLMetaElement>('meta[name=ai-web-token]')!.content;const headers={'X-AI-Web-Token':token};return Promise.all(['/api/select-workspace-folder','/api/ssh/select-key'].map(route=>fetch(route,{method:'POST',headers}).then(response=>response.json())));});
   expect(picked).toEqual([{path:root},{path:path.join(root,'draft.txt')}]);expect(await desktop.evaluate(()=>Reflect.get(globalThis,'panePickerOwner'))).toBe(true);
   await page.getByRole('treeitem',{name:'draft.txt',exact:true}).click();await page.locator('#editor .monaco-editor textarea').focus();await page.keyboard.press('Control+End');await page.keyboard.type('recovered draft');await expect(page.locator('.file-tab .tab-dirty')).toHaveCount(1);

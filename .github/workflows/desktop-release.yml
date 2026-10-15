@@ -51,6 +51,13 @@ jobs:
             release/*.blockmap
             release/latest.yml
           if-no-files-found: error
+      - name: Preserve native test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-test-diagnostics
+          path: test-results/
+          if-no-files-found: ignore
       - name: Create or update draft release
         shell: pwsh
         env:

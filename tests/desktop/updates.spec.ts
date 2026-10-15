@@ -22,7 +22,8 @@ test('packaged updater checks, downloads, persists preference and confirms resta
   });
   await expect(page.locator('.settings-navigation')).toHaveCount(1);
   await page.locator('#settings').click();await page.getByRole('button',{name:'About & Updates',exact:true}).click();
-  await page.getByRole('checkbox',{name:'Automatically check for updates'}).uncheck();
+  const automatic=page.getByRole('checkbox',{name:'Automatically check for updates'});
+  await automatic.click();await expect(automatic).not.toBeChecked();
   await expect.poll(async()=>JSON.parse(await fs.readFile(path.join(data,'updates.json'),'utf8')).automatic).toBe(false);
   await page.getByRole('button',{name:'Check for updates',exact:true}).click();await expect(page.getByRole('article',{name:'About Pane'})).toContainText('Pane has no public releases yet.');
   await page.getByRole('button',{name:'Check for updates',exact:true}).click();await expect(page.getByRole('button',{name:'Download update',exact:true})).toBeVisible();
