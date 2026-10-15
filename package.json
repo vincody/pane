@@ -10,14 +10,14 @@
     "build": "vite build",
     "start": "node --import tsx server/src/index.ts",
     "test": "node --import tsx --test tests/unit/*.test.ts",
-    "test:ui": "playwright test",
+    "test:ui": "playwright test --config config/playwright/web.config.ts",
     "dev": "npm run build && node --import tsx --watch server/src/index.ts",
-    "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.server.json && tsc -p tsconfig.tests.json && tsc -p tsconfig.desktop.json",
+    "typecheck": "tsc -p config/typescript/client.json && tsc -p config/typescript/server.json && tsc -p config/typescript/tests.json && tsc -p config/typescript/desktop.json",
     "desktop:build": "npm run build && node scripts/build-desktop.mjs",
     "desktop": "npm run desktop:build && electron .",
     "desktop:pack": "npm run desktop:build && electron-builder --dir --win --x64 --publish never",
     "desktop:dist": "npm run desktop:build && electron-builder --win nsis --x64 --publish never",
-    "test:desktop": "npm run desktop:build && playwright test --config playwright.desktop.config.ts"
+    "test:desktop": "npm run desktop:build && playwright test --config config/playwright/desktop.config.ts"
   },
   "overrides": {
     "dompurify": "$dompurify"

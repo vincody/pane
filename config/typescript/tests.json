@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "react",
+      "react-dom",
+      "vite/client"
+    ]
+  },
+  "include": [
+    "../../tests/**/*.ts",
+    "../../config/playwright/web.config.ts",
+    "../../client/src/desktop.d.ts",
+    "../../config/playwright/desktop.config.ts"
+  ]
+}

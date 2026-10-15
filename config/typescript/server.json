@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "../../server/src/**/*.ts",
+    "../../shared/**/*.ts",
+    "../../vite.config.ts",
+    "../../config/playwright/web.config.ts"
+  ]
+}

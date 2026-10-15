@@ -37,6 +37,9 @@ server/
       usage/                 Provider account quotas
     lib/                     CLI binary discovery
 shared/                      Browser/server API and terminal contracts
+config/
+  typescript/                Client, server, desktop and test typecheck configs
+  playwright/                Browser and desktop test runner configs
 tests/
   unit/                      Node test suite, including service integration checks
   e2e/                       Playwright browser checks and fixtures
@@ -51,7 +54,7 @@ demo/                        File preview examples
 - Put feature-specific views, controllers and types beside their feature.
 - Use shared browser components or utilities only when multiple features need them.
 - Keep browser/server payload definitions in `shared/contracts.ts`.
-- Keep configuration at the repository root: Vite, Playwright, TypeScript and npm commands.
+- Keep Vite, npm commands and the shared `tsconfig.json` at the root. TypeScript environment configs live in `config/typescript/`; Playwright configs live in `config/playwright/`.
 - Keep generated `dist/`, runtime `.ai-web/`, screenshots, logs and reference checkouts out of source control.
 
 ## Checks

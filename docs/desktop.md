@@ -40,7 +40,7 @@ npm run test:desktop
 
 Desktop tests use isolated profiles, real PowerShell PTYs, stubbed native dialog selections and temporary files. They verify renderer isolation, file picker ownership, draft/split recovery, keeping sessions alive while hidden, stopping a real child process on quit, stale-file protection and ended-session restoration. They do not send AI prompts or make GitHub writes.
 
-To test the packaged runtime, build it first and set `PANE_DESKTOP_EXECUTABLE` to the absolute path of `release/win-unpacked/Pane.exe`, then run `npx playwright test --config playwright.desktop.config.ts`.
+To test the packaged runtime, build it first and set `PANE_DESKTOP_EXECUTABLE` to the absolute path of `release/win-unpacked/Pane.exe`, then run `npx playwright test --config config/playwright/desktop.config.ts`.
 
 ## Files context menu
 
