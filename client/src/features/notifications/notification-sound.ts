@@ -1,6 +1,7 @@
 export type NotificationSoundMode='app'|'system'|'off';
 export type NotificationSoundKind='done'|'blocked'|'error';
 export type NotificationSoundChoices=Record<NotificationSoundKind,string>;
+export type NotificationSoundScope='all'|'each';
 export const NO_SOUND='none';
 export const NOTIFICATION_SOUNDS=[
  {id:'done',name:'Pane done',file:'done.mp3'},
@@ -25,10 +26,15 @@ export function readNotificationSoundMode(stored:Record<string,unknown>):Notific
 }
 export function readNotificationSoundChoices(stored:Record<string,unknown>):NotificationSoundChoices{
  const raw=stored.sounds&&typeof stored.sounds==='object'?stored.sounds as Record<string,unknown>:{};
- const valid=(value:unknown):value is string=>value===NO_SOUND||NOTIFICATION_SOUNDS.some(sound=>sound.id===value);
  const choices={...DEFAULT_SOUND_CHOICES};
- for(const kind of ['done','blocked','error'] as const)if(valid(raw[kind]))choices[kind]=raw[kind];
+ for(const kind of ['done','blocked','error'] as const)if(validSoundId(raw[kind]))choices[kind]=raw[kind];
  return choices;
+}
+function validSoundId(value:unknown):value is string{return value===NO_SOUND||NOTIFICATION_SOUNDS.some(sound=>sound.id===value);}
+export function readNotificationSoundScope(stored:Record<string,unknown>):NotificationSoundScope{return stored.soundScope==='all'?'all':'each';}
+export function readNotificationSoundAll(stored:Record<string,unknown>):string{return validSoundId(stored.soundAll)?stored.soundAll:DEFAULT_SOUND_CHOICES.done;}
+export function soundForKind(preferences:{soundScope:NotificationSoundScope;soundAll:string;sounds:NotificationSoundChoices},kind:NotificationSoundKind){
+ return preferences.soundScope==='all'?preferences.soundAll:preferences.sounds[kind];
 }
 export function readNotificationVolume(stored:Record<string,unknown>):number{
  const volume=Number(stored.volume);
