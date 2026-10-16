@@ -13,7 +13,7 @@ npm run desktop:dist
 
 `desktop` launches the development app; `desktop:pack` produces `release/win-unpacked/Pane.exe`; `desktop:dist` produces the NSIS installer. Build on Windows x64. Electron includes its runtime; an installed Node.js is not needed to run the packaged application. Git, OpenSSH and AI CLIs must be installed separately. The native node-pty addon uses its N-API Windows prebuild; its binaries and ConPTY helpers are unpacked from ASAR. Do not replace them with an ABI-specific build from another runtime.
 
-The desktop backend listens only on `127.0.0.1:17317`. The original browser server remains independent at port 7317. A single-instance lock prevents a second app instance; launching again reveals the existing window. If the desktop port is occupied, startup reports the error instead of attaching to an unrelated service. For isolated development/tests, set `PANE_DESKTOP_DATA_DIR` and `PANE_DESKTOP_PORT`.
+The desktop backend listens only on `127.0.0.1:17317` in the installed app. An unpackaged dev run (`npm run desktop`) uses its own data folder (`%APPDATA%\Pane Dev`) and port `17318`, so it can run beside the installed app. The dev run also uses its own Windows identity (`dev.vincody.pane.dev`, the installed app keeps `dev.vincody.pane`); sharing one made toasts and the taskbar resolve to Electron's own `Electron.lnk` Start Menu shortcut and open a bare Electron window. Electron recreates that shortcut on a dev run that sends a notification; it is harmless now. The original browser server remains independent at port 7317. A single-instance lock prevents a second app instance; launching again reveals the existing window. If the desktop port is occupied, startup reports the error instead of attaching to an unrelated service. For isolated development/tests, set `PANE_DESKTOP_DATA_DIR` and `PANE_DESKTOP_PORT`.
 
 ## Window controls
 
@@ -85,7 +85,7 @@ Isolation: the page runs in its own persistent session (`persist:pane-browser`),
 
 ## Web links
 
-Terminal output, the Markdown editor and previews can open web links. **Ctrl+click** (Cmd+click on Mac) a link in the terminal, in the source editor or in the Markdown editor; links in a Markdown preview open on a plain click. Settings → **Links** chooses where they go: **Ask every time** (default), **In Pane** (a Browser tab) or **In system browser**. The question offers both, plus *Remember my choice*, which saves the preference. Only credential-free http(s) links are handled; relative paths and other schemes are left alone. In a regular browser there is no in-app choice: links open in a new tab and the Links page is hidden.
+Terminal output, the Markdown editor and previews can open web links. **Ctrl+click** (Cmd+click on Mac) a link in the terminal, in the source editor or in the Markdown editor; links in a Markdown preview open on a plain click. Settings → **Links** chooses where they go: **Ask every time** (default), **In Pane** (a Browser tab) or **In system browser**. The question offers both and carries a note pointing to Settings → Links; the choice is never saved from the dialog, so changing it later is always done in Settings. Only credential-free http(s) links are handled; relative paths and other schemes are left alone. In a regular browser there is no in-app choice: links open in a new tab and the Links page is hidden.
 
 **Detect local servers** (on by default) watches terminal output, once per server and session, for `http(s)` addresses on this machine or its local network, such as the `Local:` line of a dev server. It shows a small prompt with *Open in Pane* and *Open in browser* (or only the one you chose in Settings). Replayed output, SSH sessions and external sites do not trigger it.
 
@@ -99,3 +99,17 @@ Settings → Notifications separates in-app **Popup notifications** from **Syste
 ## One-step updates
 
 After a new version is found, **Update now** approves downloading, silent installation and automatic relaunch in one action. The UI explains that running terminal/agent/SSH processes will end and supported drafts/layout will be recovered. Background checks still never download or install without that action. Downloads expose progress; failures require an explicit retry. Before installation, main checks for active writes and waits for them to finish, saves session recovery and flushes storage. If recovery cannot be saved, it stops without closing sessions. Windows NSIS installs with silent mode and force-relaunch enabled. Normal quit keeps its existing confirmation behavior.
+
+## Terminal paste
+
+xterm.js sends Ctrl+V to the shell as `^V` instead of pasting, so the terminal handles Ctrl+V, Ctrl+Shift+V, Shift+Insert (and Cmd+V on macOS) itself. It asks the main process for the clipboard (`pane:clipboard-read`, `desktop/clipboard.ts`) and pastes, in order of priority:
+
+1. Files copied in Explorer: their paths, quoted when they contain spaces.
+2. Text, up to 5 MB, with ESC replaced by `␛` so pasted escape sequences cannot end a bracketed paste early.
+3. An image: saved as a PNG in `%TEMP%\pane-paste\` (up to 25 MB) and its path is pasted, which agent CLIs such as Claude and Codex attach as an image. Saved images older than 24 hours are removed on the next image paste.
+
+Paste works only in the desktop app; there is no browser fallback.
+
+## Terminal copy (OSC 52)
+
+TUIs such as Claude CLI copy a mouse selection with the OSC 52 escape sequence, which xterm.js does not implement. The terminal registers a handler (`client/src/features/terminal/terminal-osc52.ts`) that writes the decoded text to the system clipboard through `pane:clipboard-write`. Clipboard queries (`?`) are ignored, payloads are capped at 128 KB of base64, only the last write of a burst is applied, and output replayed on reattach never writes to the clipboard.

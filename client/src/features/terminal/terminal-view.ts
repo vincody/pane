@@ -10,6 +10,8 @@ import {leaves, removePane, splitPane, swapPanes, chooseBalancedSplit} from './t
 import {terminalName, threadTitle} from './terminal-name.ts';
 import {readTerminalActivity} from './terminal-activity.ts';
 import {trackPromptInput} from './terminal-input.ts';
+import {isPasteShortcut,pasteIntoTerminal} from './terminal-paste.ts';
+import {createOsc52Handler} from './terminal-osc52.ts';
 import {validateResume} from '../history/history-session.ts';
 import '@xterm/xterm/css/xterm.css';
 import type {Workspace,SessionRecord,SshConnection} from '../../../../shared/contracts.ts';
@@ -19,7 +21,7 @@ export type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions} from './term
 import type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions,PaneSession,PaneGroup} from './terminal-types.ts';
 import {createTerminalConnection} from './terminal-connection.ts';
 
-export function createTerminalView({token, icon, onClose, onSessionsChange, onSelect, onOpenBrowser, onOpenLink, onLocalAddress}:TerminalViewOptions) {
+export function createTerminalView({token, icon, onClose, onSessionsChange, onSelect, onOpenBrowser, onOpenLink, onLocalAddress, onNotice}:TerminalViewOptions) {
   const workspace = document.querySelector<HTMLElement>('#workspace')!;
   const panel = document.createElement('section');
   panel.id = 'terminal-panel';
@@ -313,6 +315,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     const fit = new FitAddon(),addresses=createAddressDetector();
     terminal.loadAddon(fit);
     terminal.loadAddon(new WebLinksAddon((event,uri)=>{if(event.ctrlKey||event.metaKey)onOpenLink?.(uri,project);},{hover:()=>{body.title='Ctrl+click to open';},leave:()=>body.removeAttribute('title')}));
+    terminal.attachCustomKeyEventHandler(event=>{if(!isPasteShortcut(event))return true;event.preventDefault();void pasteIntoTerminal(terminal,window.paneDesktop?.readClipboard,onNotice);return false;});
+    body.addEventListener('paste',event=>{event.preventDefault();event.stopPropagation();void pasteIntoTerminal(terminal,window.paneDesktop?.readClipboard,onNotice);},true);
     terminal.open(body);
     $('#terminal-screens').append(element);
 
@@ -346,6 +350,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     element.ondrop=event=>{if(!draggedSession||draggedSession===session)return;event.preventDefault();event.stopPropagation();const source=draggedSession,direction=element.dataset.terminalDrop || 'swap';delete element.dataset.terminalDrop;draggedSession=null;if(direction==='swap')swapPanePositions(session,source);else attachPane(session,source,direction as SplitDirection);};
     session.observer = new ResizeObserver(() => fitSession(session));
     session.observer.observe(element);
+    terminal.parser.registerOscHandler(52,createOsc52Handler({isReplaying:()=>Boolean(session.replaying),write:window.paneDesktop?.writeClipboardText,onFailure:()=>onNotice?.('Could not copy to the clipboard.')}));
     terminal.onData(data => {
       if(session.replaying)return;
       if(session.agent || launch!=='shell'){

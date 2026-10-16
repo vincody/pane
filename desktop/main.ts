@@ -1,17 +1,21 @@
-import {app,BrowserWindow,Menu,Tray,dialog,ipcMain,shell,nativeImage,screen,Notification,powerMonitor} from 'electron';
+import {app,BrowserWindow,Menu,Tray,clipboard,dialog,ipcMain,shell,nativeImage,screen,Notification,powerMonitor} from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import electronUpdater from 'electron-updater';
 import type {NotificationDelivery} from '../shared/desktop-notifications.ts';
+import type {ClipboardPaste} from '../shared/desktop-clipboard.ts';
 import {createUpdates} from './updates.ts';
+import {readClipboardForPaste,type ClipboardLike} from './clipboard.ts';
 import {createApp} from '../server/src/app.ts';
 import {installBrowserGuards} from './browser-guard.ts';
 
 const dataOverride=process.env.PANE_DESKTOP_DATA_DIR;
 if(dataOverride)app.setPath('userData',path.resolve(dataOverride));
+else if(!app.isPackaged)app.setPath('userData',path.join(app.getPath('appData'),'Pane Dev'));
 app.setName('Pane');
-app.setAppUserModelId('dev.vincody.pane');
+// An unpackaged run must not share the installed app's Windows identity, or toasts and the taskbar resolve to its shortcut.
+app.setAppUserModelId(app.isPackaged?'dev.vincody.pane':'dev.vincody.pane.dev');
 process.on('uncaughtException',error=>void fatal(error));
 process.on('unhandledRejection',error=>void fatal(error));
 const locked=app.requestSingleInstanceLock();
@@ -88,12 +92,12 @@ async function boot(){
   try{show();const result=await dialog.showOpenDialog(window!,{title:folder?'Choose a workspace folder':'Choose SSH private key',defaultPath:folder?app.getPath('downloads'):path.join(os.homedir(),'.ssh')+path.sep,properties:folder?['openDirectory','createDirectory']:['openFile']});return result.canceled?null:result.filePaths[0]||null;}finally{pickerOpen=false;}
  }
  backend=await createApp({stateDir,initialRoot:app.getPath('downloads'),assetsDir:path.join(appDir,'dist'),nativePickers:{folder:()=>pick(true),key:()=>pick(false),downloads:async()=>app.getPath('downloads')},nativeFileActions:{trash:absolute=>shell.trashItem(absolute),reveal:absolute=>{shell.showItemInFolder(absolute);}}});
- const port=Number(process.env.PANE_DESKTOP_PORT||17317);if(!Number.isInteger(port)||port<1||port>65535)throw new Error('Invalid desktop port.');
+ const port=Number(process.env.PANE_DESKTOP_PORT||(app.isPackaged?17317:17318));if(!Number.isInteger(port)||port<1||port>65535)throw new Error('Invalid desktop port.');
  await new Promise<void>((resolve,reject)=>{backend!.server.once('error',reject);backend!.server.listen(port,'127.0.0.1',()=>resolve());});
  origin=`http://127.0.0.1:${port}`;await log(`Backend ready on port ${port}.`);
  let bounds:{width:number;height:number;x?:number;y?:number}={width:1440,height:950};
  try{const saved=JSON.parse(await fs.readFile(path.join(stateDir,'window.json'),'utf8'));if(Number.isFinite(saved.width)&&Number.isFinite(saved.height)){bounds={width:Math.max(900,Math.min(3840,saved.width)),height:Math.max(600,Math.min(2160,saved.height))};if(Number.isFinite(saved.x)&&Number.isFinite(saved.y)&&screen.getAllDisplays().some(display=>saved.x>=display.workArea.x&&saved.x<display.workArea.x+display.workArea.width&&saved.y>=display.workArea.y&&saved.y<display.workArea.y+display.workArea.height))Object.assign(bounds,{x:saved.x,y:saved.y});}}catch{}
- window=new BrowserWindow({...bounds,frame:false,minWidth:900,minHeight:600,show:false,title:'Pane',backgroundColor:'#171613',icon:path.join(appDir,'desktop-build','icon.png'),webPreferences:{preload:path.join(appDir,'desktop-build','preload.cjs'),additionalArguments:[`--pane-backend-id=${crypto.randomUUID()}`,'--pane-notifications=1','--pane-update-flow=1','--pane-browser=1'],nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:true,spellcheck:false,autoplayPolicy:'no-user-gesture-required'}});
+ window=new BrowserWindow({...bounds,frame:false,minWidth:900,minHeight:600,show:false,title:'Pane',backgroundColor:'#171613',icon:path.join(appDir,'desktop-build',process.platform==='win32'?'icon.ico':'icon.png'),webPreferences:{preload:path.join(appDir,'desktop-build','preload.cjs'),additionalArguments:[`--pane-backend-id=${crypto.randomUUID()}`,'--pane-notifications=1','--pane-update-flow=1','--pane-browser=1'],nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:true,spellcheck:false,autoplayPolicy:'no-user-gesture-required'}});
  const contents=window.webContents;
  const {autoUpdater}=electronUpdater;
  updates=await createUpdates({engine:autoUpdater,version:app.getVersion(),platform:`${process.platform} ${process.arch}`,supported:app.isPackaged&&process.platform==='win32'&&process.arch==='x64',preferencesFile:path.join(stateDir,'updates.json'),log,installApproved:()=>requestClose(false,true,true),publish:state=>{if(!contents.isDestroyed())contents.send('pane:update-state',state);}});
@@ -111,6 +115,15 @@ async function boot(){
  contents.session.setPermissionRequestHandler((contents,permission,callback,details)=>callback(contents===window?.webContents&&details.isMainFrame&&details.requestingUrl.startsWith(origin+'/')&&permitted(permission)));
  contents.session.setPermissionCheckHandler((contents,permission,requestingOrigin,details)=>contents===window?.webContents&&details.isMainFrame&&requestingOrigin===origin&&permitted(permission));
  const notices=new Map<string,Notification>();
+ ipcMain.handle('pane:clipboard-write',async(event,text:unknown)=>{
+  if(event.sender!==contents||event.senderFrame!==contents.mainFrame||!event.senderFrame.url.startsWith(origin+'/'))throw new Error('Untrusted clipboard request.');
+  if(typeof text!=='string'||!text||text.length>1024*1024)throw new Error('Invalid clipboard text.');
+  await clipboard.writeText(text);
+ });
+ ipcMain.handle('pane:clipboard-read',async(event):Promise<ClipboardPaste>=>{
+  if(event.sender!==contents||event.senderFrame!==contents.mainFrame||!event.senderFrame.url.startsWith(origin+'/'))return {kind:'error',message:'Untrusted clipboard request.'};
+  return readClipboardForPaste(clipboard as unknown as ClipboardLike,path.join(app.getPath('temp'),'pane-paste'));
+ });
  ipcMain.handle('pane:notify',async(event,value:unknown):Promise<NotificationDelivery>=>{
   if(event.sender!==contents||event.senderFrame!==contents.mainFrame||!event.senderFrame.url.startsWith(origin+'/'))return {status:'error',message:'Untrusted notification request.'};
   if(!value||typeof value!=='object')return {status:'error',message:'Invalid notification.'};

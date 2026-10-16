@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('paneDesktop',Object.freeze({
  windowControl(action){if(['minimize','maximize','close','menu','state'].includes(action))return ipcRenderer.invoke('pane:window',action);return Promise.resolve();},
  onWindowState(callback){const listener=(_event,value)=>callback(value);ipcRenderer.on('pane:window-state',listener);ipcRenderer.invoke('pane:window','state').then(value=>{if(value)callback(value);});return ()=>ipcRenderer.removeListener('pane:window-state',listener);},
  notify(value){if(!process.argv.includes('--pane-notifications=1'))return Promise.resolve({status:'unavailable',message:'Restart Pane to enable the native notification bridge.'});return ipcRenderer.invoke('pane:notify',value);},
+ writeClipboardText(text){return ipcRenderer.invoke('pane:clipboard-write',text);},
+ readClipboard(){return ipcRenderer.invoke('pane:clipboard-read');},
  onNotificationClick(callback){ipcRenderer.on('pane:notification-click',(_event,id)=>{if(typeof id==='string')callback(id);});},
  onCheckpoint(callback){
   ipcRenderer.on('pane:checkpoint',(_event,id)=>{
