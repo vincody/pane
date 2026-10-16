@@ -1,3 +1,4 @@
+import {setupEditorWorkers} from '../features/files/editor-workers.ts';
 import {readWorkbenchJournal,writeWorkbenchJournal,type WorkbenchJournal} from '../features/layout/workbench-journal.ts';
 import {captureTabPositions,restoreTabPositions} from '../features/layout/tab-position.ts';
 import {worktreeSlug} from '../../../shared/worktree-composer.ts';
@@ -9,7 +10,7 @@ import {createGitPanel} from '../features/git/GitPanel.tsx';
 import {setupDevServers} from '../features/dev-servers/DevServers.tsx';
 import {createFileGitDecorations} from '../features/files/file-git-status.ts';
 import {createWorkspaceSidebar} from '../features/workspaces/WorkspaceSidebar.tsx';
-import {createSubWorkspaceDialog} from '../features/workspaces/sub-workspaces.ts';
+import {createWorktreeDialog} from '../features/workspaces/worktree-dialog.ts';
 import {createAddWorkspaceDialog} from '../features/workspaces/add-workspace.ts';
 import {createSessionAttention,nextAttention} from '../features/workspaces/session-attention.ts';
 import {showImage} from '../features/files/image-viewer.ts';
@@ -19,7 +20,10 @@ import {createNotifications} from '../features/notifications/notifications.ts';
 import {setupSettings} from '../features/settings/Settings.tsx';
 import {setupColorTheme} from '../features/settings/color-theme.ts';
 import {setupTabDrag} from '../features/layout/tab-drag.ts';
+import {icon} from '../lib/icons.ts';
 import {fileIcon} from '../features/files/file-icons.ts';
+import {kind,language} from '../features/files/file-language.ts';
+import {createFileTree} from '../features/files/file-tree.ts';
 import {setupFileActions} from '../features/files/file-actions.ts';
 import {confirmDiscardFile} from '../features/files/discard-dialog.ts';
 import {createLiveMarkdownSurface} from '../features/files/live-markdown.ts';
@@ -30,11 +34,6 @@ import { createAgentView } from '../features/agents/agent-view.ts';
 import { createTerminalView } from '../features/terminal/terminal-view.ts';
 import { setupPanelResize } from '../features/layout/panel-resize.ts';
 import * as monaco from 'monaco-editor';
-import EditorWorker from 'monaco-editor/editor/editor.worker?worker';
-import JsonWorker from 'monaco-editor/language/json/json.worker?worker';
-import TsWorker from 'monaco-editor/language/typescript/ts.worker?worker';
-import HtmlWorker from 'monaco-editor/language/html/html.worker?worker';
-import CssWorker from 'monaco-editor/language/css/css.worker?worker';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import '../styles/styles.css';
@@ -42,19 +41,13 @@ import '../styles/design-theme.css';
 import '../styles/git.css';
 import '../styles/selects.css';
 
-self.MonacoEnvironment = { getWorker(_, label) {
-  if (label === 'json') return new JsonWorker();
-  if (label === 'typescript' || label === 'javascript') return new TsWorker();
-  if (label === 'html' || label === 'handlebars' || label === 'razor') return new HtmlWorker();
-  if (label === 'css' || label === 'scss' || label === 'less') return new CssWorker();
-  return new EditorWorker();
-} };
+setupEditorWorkers();
 
 import {uiQuery as $,eventElement,htmlChildren} from '../lib/dom.ts';
 import {createApi,ApiError,pendingApiWrites} from '../lib/api.ts';
 import {errorMessage} from '../components/contracts.ts';
 import type {OpenDocument,FileView} from '../features/files/documents.ts';
-import type {Workspace,SessionSnapshot,AgentSnapshot,TextFile,ImageFile,FileDiff,GitFileChange,TreeEntry} from '../../../shared/contracts.ts';
+import type {Workspace,SessionSnapshot,AgentSnapshot,TextFile,ImageFile,FileDiff,GitFileChange} from '../../../shared/contracts.ts';
 import type {TerminalAgent} from '../components/contracts.ts';
 import type {DraggedFile,DropZone} from '../features/layout/tab-drag.ts';
 import type {ExternalFilePane} from '../features/terminal/terminal-view.ts';
@@ -107,59 +100,6 @@ const previewRequests=new WeakMap<HTMLElement,number>();
 const pendingPreviews=new Set<OpenDocument>();
 const expanded = new Set<string>();
 let projects:Workspace[]=[],currentProject:Workspace|null=null,currentDocument:OpenDocument|null=null,mode:string='editor',previewGeneration=0,previewTimer:ReturnType<typeof setTimeout>|undefined,toastTimer:ReturnType<typeof setTimeout>|undefined;
-const paths:Record<string,string> = {
-  folder: 'M3 7V6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z',
-  edit: 'm16 3 5 5 M4 20l4-1 13-13-4-4L4 15Z',
-  write: 'M12 8v8 M8 12h8 M5 3h14v18H5Z',
-  run: 'm5 5 7 7-7 7 M13 19h6',
-  read: 'M4 5h6l2 2 2-2h6v14h-6l-2 2-2-2H4Z M12 7v14',
-  branch: 'M6 8v8 M18 8a6 6 0 0 1-6 6H6 M6 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M18 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M6 16a3 3 0 1 0 0 6 3 3 0 0 0 0-6',
-  file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z M14 2v6h6',
-  'file-plus':'M14 2H6a2 2 0 0 0-2 2v16h16V8Z M14 2v6h6 M12 11v6 M9 14h6',
-  'folder-plus':'M3 7V4h6l2 3h10v13H3Z M12 10v7 M8.5 13.5h7',
-  copy:'M8 8h13v13H8Z M16 8V3H3v13h5',
-  rename:'m15 4 5 5 M4 20l5-1L21 7l-5-5L4 14Z',
-  trash:'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7',
-  code: 'm8 8-4 4 4 4 m8-8 4 4-4 4 m-3-13-2 18',
-  image: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z m-2 13 5-5 4 4 3-3 6 6 M8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4',
-  markdown: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z M6 15V9l3 3 3-3v6 m5-6v6 m-2-2 2 2 2-2',
-  search: 'm21 21-4.3-4.3 M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16',
-  panel: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z M9 3v18',
-  'panel-right': 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z M15 3v18',
-  monitor: 'M5 3h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z M12 17v4 M8 21h8',
-  bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4',
-  settings: 'M10 2h4l.5 3 2 1 2.5-1.5 2 3.5-2.5 2v4l2.5 2-2 3.5-2.5-1.5-2 1-.5 3h-4l-.5-3-2-1L5 19.5 3 16l2.5-2v-4L3 8l2-3.5L7.5 6l2-1 .5-3Z M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
-  refresh: 'M20 7v5h-5 M4 17v-5h5 M6 6a8 8 0 0 1 13 2l1 4 M4 12l1 4a8 8 0 0 0 13 2',
-  plus: 'M12 5v14 M5 12h14',
-  globe: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M3 12h18 M12 3c5 5 5 13 0 18 M12 3c-5 5-5 13 0 18',
-  chart: 'M4 4v16h16 M8 16v-5 M13 16V7 M18 16v-8',
-  pet: 'M5 13V5l5 3h4l5-3v8a7 7 0 0 1-14 0Z M9 12h.01 M15 12h.01 M10 16h4',
-  stop: 'M7 7h10v10H7Z',
-  close: 'm6 6 12 12 M18 6 6 18',
-  terminal: 'M4 5h16v14H4Z M7 9l3 3-3 3 M12 15h4',
-  maximize: 'M8 3H3v5 M3 3l7 7 M16 21h5v-5 M21 21l-7-7',
-  'chevron-right': 'm9 5 7 7-7 7',
-  'chevron-up': 'm5 15 7-7 7 7',
-  'chevron-down': 'm5 9 7 7 7-7',
-  more: 'M5 12h.01 M12 12h.01 M19 12h.01',
-  help: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M9.5 9a2.5 2.5 0 1 1 4.2 1.8c-1.1.7-1.7 1.1-1.7 2.7 M12 17h.01',
-  arrow: 'M7 17 17 7 M7 7h10v10',
-};
-function icon(name = 'file') {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.65', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' })) svg.setAttribute(key, value);
-  const shape = document.createElementNS(svg.namespaceURI, 'path'); shape.setAttribute('d', paths[name] || paths.file); svg.append(shape);
-  svg.classList.add(`file-${name}`); return svg;
-}
-function kind(path:string) {
-  if (/\.(png|jpe?g|gif|webp|avif|ico|svg)$/i.test(path)) return 'image';
-  if (/\.(md|markdown)$/i.test(path)) return 'markdown';
-  return 'code';
-}
-function language(path:string) {
-  const ext = path.split('.').pop()!.toLowerCase();
-  return ({ js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', json: 'json', css: 'css', scss: 'scss', html: 'html', htm: 'html', md: 'markdown', py: 'python', rs: 'rust', go: 'go', java: 'java', c: 'c', cpp: 'cpp', cs: 'csharp', sh: 'shell', ps1: 'powershell', toml: 'ini', yml: 'yaml', yaml: 'yaml', sql: 'sql', xml: 'xml', svg: 'xml', txt: 'plaintext' } as Record<string,string>)[ext] || 'plaintext';
-}
 function status(message:string, error = false) { if (error) toast(message); }
 function toast(message:string) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').classList.add('visible');
@@ -316,6 +256,8 @@ $('#rename-form').onsubmit = async event => {
   finally { button.disabled = false; }
 };
 
+const {treeDirectory,filterTree}=createFileTree({api,tree:$('#tree'),filter:$('#filter'),expanded,getDocument:()=>currentDocument,icon,decorate:button=>fileGit.decorate(button),openFile,toast});
+
 async function refreshTree() {
   if (!currentProject) return;
   const project = currentProject;
@@ -339,44 +281,6 @@ async function fileActionChanged(project:string,action:FileAction,before:string,
  if(action==='create-file'||action==='create-folder'){const parent=after.includes('/')?after.slice(0,after.lastIndexOf('/')):'';if(currentProject?.id===project)expanded.add(parent);}
  if(currentProject?.id===project){await refreshTree();void changesView?.refresh();gitView?.projectChanged();if(action==='create-file')await openFile(project,after,{newTab:true});}
 }
-async function treeDirectory(project:Workspace,path:string,depth:number) {
-  const { entries } = await api<{entries:TreeEntry[]}>(`/api/tree?${new URLSearchParams({ project: project.id, path })}`);
-  const list = document.createElement('ul'); list.className = 'tree-list'; list.setAttribute('role', 'group');
-  for (const entry of entries) {
-    const item = document.createElement('li'); item.dataset.name = entry.name.toLowerCase();
-    const button = document.createElement('button'); button.className = 'file-row'; button.style.paddingLeft = `${8 + depth * 13}px`; button.title = entry.path;
-    button.dataset.path = entry.path; button.dataset.project = project.id; button.dataset.entryType=entry.type; button.setAttribute('role', 'treeitem');
-    button.setAttribute('aria-label', entry.name);
-    if (currentDocument?.project === project.id && currentDocument.path === entry.path) button.classList.add('active');
-    const arrow = document.createElement('span'); arrow.className = 'chevron'; if (entry.type === 'directory') arrow.append(icon('chevron-right')); button.append(arrow);
-    button.append(entry.type==='directory'?icon('folder'):fileIcon(entry.name,icon));
-    const label = document.createElement('span'); label.className='file-row-name'; label.textContent = entry.name; button.append(label);fileGit.decorate(button); item.append(button); list.append(item);
-    if (entry.type === 'directory') {
-      button.setAttribute('aria-expanded', expanded.has(entry.path) ? 'true' : 'false');
-      if (expanded.has(entry.path)) { arrow.replaceChildren(icon('chevron-down')); item.append(await treeDirectory(project, entry.path, depth + 1)); }
-      button.onclick = async () => {
-        const children = item.querySelector<HTMLElement>('ul')!;
-        if (children) { children.remove(); expanded.delete(entry.path); arrow.replaceChildren(icon('chevron-right')); button.setAttribute('aria-expanded', 'false'); }
-        else { try { button.disabled = true; item.append(await treeDirectory(project, entry.path, depth + 1)); expanded.add(entry.path); arrow.replaceChildren(icon('chevron-down')); button.setAttribute('aria-expanded', 'true'); } catch (error) { toast(errorMessage(error,'Operation failed.')); } finally { button.disabled = false; } }
-        filterTree();
-      };
-    } else if (entry.type === 'link') {
-      button.disabled = true; button.title = 'Linked entries are not browsed.';
-    } else {
-      button.draggable=true;button.dataset.draggableFile='true';
-      button.onclick = () => openFile(project.id, entry.path).catch(error => { status(errorMessage(error,'Operation failed.'), true); toast(errorMessage(error,'Operation failed.')); });
-    }
-  }
-  if (!entries.length) { const empty = document.createElement('li'); empty.className = 'tree-empty'; empty.textContent = 'This folder is empty.'; list.append(empty); }
-  return list;
-}
-function filterTree() {
-  const query = $('#filter').value.toLowerCase();
-  for (const item of [...$('#tree').querySelectorAll<HTMLElement>('li[data-name]')].reverse()) {
-    item.hidden = Boolean(query) && !(item.dataset.name||'').includes(query) && ![...item.querySelectorAll<HTMLElement>('li[data-name]')].some(child => !child.hidden);
-  }
-}
-
 async function openFile(project:string, path:string, {newTab=false,recovery=undefined as {draft:string;version?:string}|undefined}={}) {
   const replacement=!newTab&&fileOpenMode==='replace'?currentDocument:null;
   const key = `${project}:${path}`;
@@ -810,7 +714,7 @@ tabDrag=setupTabDrag({tabs:$('#tabs'),content:contentViews,onReorder:()=>{},canD
 notifications=createNotifications({icon,isViewing:agent=>!document.hidden&&document.hasFocus()&&(agent.terminalSession?Boolean(terminalAgents.find(item=>item.id===agent.id)?.selected):agentView.visible&&Boolean(agent.agent_session?.value?agentView.selected?.agent_session?.value===agent.agent_session.value:agent.pane_id&&agentView.selected?.pane_id===agent.pane_id)),onOpen:agent=>{if(agent.terminalSession){agentView.close();if(agent.id)openTerminalAgent(agent.id);}else{agentView.open(agent);agentView.focusLatest();}}});
 setupColorTheme();setupSettings({icon,api});
 setupFileActions({tree:$('#tree'),api,icon,getProject:()=>currentProject,guard:guardFileAction,changed:fileActionChanged,toast});
-const subWorkspaceDialog=createSubWorkspaceDialog({api,getProjects:()=>projects,onCreated:async (project,launch)=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);if(launch)terminalView.startSession(existing||project,launch);toast(`Opened ${project.branch||project.name}`);}});
+const subWorkspaceDialog=createWorktreeDialog({api,getProjects:()=>projects,onCreated:async (project,launch)=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);if(launch)terminalView.startSession(existing||project,launch);toast(`Opened ${project.branch||project.name}`);}});
 workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{void subWorkspaceDialog.open(project);},onSelect:project=>{if(Date.now()-lastProjectDrag>300)void selectProject(project);},onAgentSelect:openTerminalAgent,onMenu:showWorkspaceMenu,setupDrag:setupProjectDrag});
 changesView=setupChanges({api,icon,getProject:()=>currentProject,onOpenDiff:openDiff,onError:message=>toast(message),onStatuses:(id,data)=>fileGit.update(id,data)});
 devServers=setupDevServers({api,getProjects:()=>projects,onError:message=>toast(message)});

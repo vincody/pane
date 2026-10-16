@@ -8,16 +8,14 @@ import {leaves, removePane, splitPane, swapPanes, chooseBalancedSplit} from './t
 import {terminalName, threadTitle} from './terminal-name.ts';
 import {readTerminalActivity} from './terminal-activity.ts';
 import {trackPromptInput} from './terminal-input.ts';
-import {resumeCommand,validateResume} from '../history/history-session.ts';
+import {validateResume} from '../history/history-session.ts';
 import '@xterm/xterm/css/xterm.css';
-import type {Workspace,SessionRecord,TerminalServerMessage,SshConnection} from '../../../../shared/contracts.ts';
+import type {Workspace,SessionRecord,SshConnection} from '../../../../shared/contracts.ts';
 import type {PaneTree,SplitDirection} from './terminal-layout.ts';
 import type {TerminalActivity} from './terminal-activity.ts';
-export interface ExternalFilePane {id:string;project:Workspace;element:HTMLElement;paneHeader:HTMLElement;paneZoom:HTMLButtonElement;layout?:()=>void;onSelect?:()=>void;}
-export interface TerminalSnapshot {id:string;project:string;agent:string;name:string;status:string;completed:boolean;selected:boolean;}
-export interface TerminalViewOptions {token:string;icon:(name:string)=>SVGElement;onClose?:(visible:boolean)=>void;onSessionsChange?:(sessions:TerminalSnapshot[])=>void;onSelect?:()=>void;}
-interface PaneGroup {root:PaneTree<PaneSession>|null;manual?:boolean;}
-interface PaneSession extends ExternalFilePane {restorePending?:boolean;reconnect?:()=>void;replaying?:boolean;serverId?:string;ssh?:SshConnection;disposed?:boolean;reconnectTimer?:ReturnType<typeof setTimeout>;retries?:number;external?:boolean;name:string;shell:string;state:string;launch:string;lastUsed:number;group:PaneGroup;ready?:boolean;socket?:WebSocket|null;terminal?:Terminal;fit?:FitAddon;paneTitle?:HTMLElement;paneMark?:HTMLElement;paneProvider?:string|null;tab?:HTMLDivElement;renameInput?:HTMLInputElement|null;customName?:boolean;resume?:SessionRecord|null;cliTitle?:string;activityTitle?:string;agent?:string|null;agentStatus?:string;activity?:TerminalActivity;activityTimer?:ReturnType<typeof setTimeout>|null;turnSubmitted?:boolean;inputDraft?:string;observer?:ResizeObserver;paneAnimation?:Animation;}
+export type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions} from './terminal-types.ts';
+import type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions,PaneSession,PaneGroup} from './terminal-types.ts';
+import {createTerminalConnection} from './terminal-connection.ts';
 
 export function createTerminalView({token, icon, onClose, onSessionsChange, onSelect}:TerminalViewOptions) {
   const workspace = document.querySelector<HTMLElement>('#workspace')!;
@@ -366,79 +364,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     activate(session);
     renderTabs();
 
-    function connectSocket(){
-    if(session.disposed)return;
-    const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    session.socket = new WebSocket(`${scheme}//${location.host}/api/terminal`, ['ai-web-terminal', `token.${token}`]);
-    session.socket.addEventListener('open', () => {
-      fitSession(session);
-      if(session.serverId){terminal.reset();session.socket!.send(JSON.stringify({type:'attach',sessionId:session.serverId,cols:terminal.cols,rows:terminal.rows}));}else {session.serverId=id;journal();session.socket!.send(JSON.stringify({type:'start',sessionId:id,project:project.id,cols:terminal.cols,rows:terminal.rows,detachable:true,...(session.ssh?{ssh:session.ssh}:{})}));}
-    });
-    session.socket.addEventListener('message', event => {
-      let message:TerminalServerMessage;
-      try { message = JSON.parse(event.data) as TerminalServerMessage; } catch { return; }
-      if (message.type === 'ready') {
-        session.ready = true;session.retries=0;session.serverId=message.sessionId;
-        session.replaying=Boolean(message.attached);session.state=message.attached?'restoring':'running';session.element.dataset.connection=session.state;
-        journal();if(session===activeSession)$('#terminal-error').hidden=true;
-        session.shell = message.shell.includes('powershell') ? 'PowerShell' : message.shell;
-        if (session === activeSession) $('#terminal-state').textContent = 'Running';
-        renderTabs();
-        fitSession(session);
-        publish();
-        if (session === activeSession) terminal.focus();
-        if (!message.attached && launch !== 'shell' && launch!=='ssh') session.socket!.send(JSON.stringify({type:'input',data:resume?resumeCommand(resume,message.shell):`${launch}\r`}));
-      } else if (message.type === 'data') {
-        const finished=()=>{if(message.replay){session.replaying=false;session.state='running';session.element.dataset.connection='running';renderTabs();}scheduleActivity(session);};
-        if(message.replay)session.replaying=true;
-        if(!message.data)finished();else terminal.write(message.data,finished);
-      } else if (message.type === 'agent') {
-        session.agent = message.agent;
-        renderTabs();
-        session.agentStatus = 'idle';
-        inspectScreen(session);
-        publish();
-      } else if (message.type === 'error') {
-        session.state = 'error';
-        if(!session.ready||message.code==='SESSION_NOT_FOUND'||message.code==='SESSION_START_FAILED'){session.serverId=undefined;session.state='closed';}
-        publish();
-        if (session === activeSession) {
-          $('#terminal-state').textContent = 'Error';
-          $('#terminal-error').textContent = message.message;
-          $('#terminal-error').hidden = false;
-        }
-        renderTabs();
-      } else if (message.type === 'exit') {
-        session.ready = false;session.state='closed';session.serverId=undefined;
-        session.agent = null;
-        publish();
-        if (session === activeSession) $('#terminal-state').textContent = `Exited (${message.exitCode ?? 'unknown'})`;
-        renderTabs();
-      }
-    });
-    session.socket.addEventListener('error', () => {
-      session.state = 'error';
-        publish();
-      if (session === activeSession) {
-        $('#terminal-state').textContent = 'Connection error';
-        $('#terminal-error').textContent = 'Could not connect to the local terminal service.';
-        $('#terminal-error').hidden = false;
-      }
-      renderTabs();
-    });
-    session.socket.addEventListener('close',event=>{
-      session.ready=false;
-      if(session.disposed)return;
-      if(session.state==='closed'){renderTabs();publish();return;}
-      if(session.serverId&&event.code!==4001&&session.state!=='closed'){
-        session.state='reconnecting';session.retries=(session.retries||0)+1;
-        if(session.retries<=5)session.reconnectTimer=setTimeout(connectSocket,Math.min(8000,500*2**(session.retries-1)));
-        else session.state='disconnected';
-      }else if(session.state!=='closed')session.state='disconnected';
-      if(session===activeSession){$('#terminal-state').textContent=session.state;$('#terminal-error').textContent=event.code===4001?'This session is open in another browser tab.':session.state==='reconnecting'?'Reconnecting to the running terminal…':'Connection lost. Reload to reconnect.';$('#terminal-error').hidden=session.state==='closed';}
-      renderTabs();publish();
-    });
-    }
+    const connectSocket=createTerminalConnection({session,token,project,id,terminal,launch,resume,getActive:()=>activeSession,$,fitSession,journal,renderTabs,publish,scheduleActivity,inspectScreen});
     session.reconnect=()=>{if(session.disposed||!session.serverId||session.socket?.readyState===WebSocket.CONNECTING||session.socket?.readyState===WebSocket.OPEN)return;if(session.reconnectTimer)clearTimeout(session.reconnectTimer);session.retries=0;session.state='reconnecting';connectSocket();};
     if(restored?.ended){session.state='ended';terminal.writeln('This terminal ended when Pane last quit. Use Restart terminal to start a new session, or History to resume an existing AI conversation.');renderTabs();}else connectSocket();
 

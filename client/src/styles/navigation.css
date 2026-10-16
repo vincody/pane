@@ -1,0 +1,22 @@
+/* One navigation row: project toggle, scrollable tabs, file toggle. */
+#app main>.topbar,#app.agent-open main>.topbar,#app.new-session-open main>.topbar{display:flex;height:48px;padding:0 14px;gap:12px}
+#collapse,#close-files{display:none}
+#app main>.topbar .toolbar-actions{display:flex;align-items:center;gap:7px;padding-left:12px;border-left:1px solid var(--border);flex-shrink:0}
+#app main>.topbar .view-switch{display:flex;align-items:center}
+#app main>.topbar .save-button{white-space:nowrap}
+#app main>.topbar #tabs{display:flex;flex:1;min-width:0;height:100%;border:0;background:transparent}
+#app main>.topbar #tabs:empty{height:100%}
+#app main>.topbar .topbar-right{flex-shrink:0;gap:6px;padding-left:12px;border-left:1px solid var(--border)}
+#app main>.topbar #show-sidebar{width:30px;height:30px;margin:0}
+#app main>.topbar #toggle-files{background:transparent;border-color:transparent}
+#editor-stack>.editor-toolbar{display:none}
+.breadcrumb #project-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.breadcrumb #current-branch{flex-shrink:1;min-width:0;text-overflow:ellipsis}
+.workspace-group .project-button{font-weight:500}
+.workspace-group .project-button.active{font-weight:700}
+.workspace-group .project-button.active svg{color:var(--accent)}
+.sidebar #projects .workspace-group .project-button{font-weight:500;color:var(--muted)}
+.sidebar #projects .workspace-group.selected .project-button{font-weight:700;color:var(--strong);background:#d9775710;box-shadow:inset 2px 0 var(--accent)}
+.sidebar #projects .workspace-group.selected .project-button .project-text{font-weight:700;color:var(--strong)}
+.topbar .terminal-toggle{margin-left:3px}
+#app main>.topbar #tabs:empty{display:none}

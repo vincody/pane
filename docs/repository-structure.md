@@ -13,15 +13,21 @@ client/
       agents/                Agent transcript controller
       dev-servers/           Workspace server tracking UI
       files/                 Documents, previews, images and Git decorations
+                             File tree, file languages and Monaco worker setup
+      git/                   Git graph, sync, GitHub PRs and issues
       history/               CLI session history and resume
       layout/                Titlebar, tab order, drag/drop and sidebar resizing
       notifications/         Notification signals, titles and activity animation
       settings/              Settings UI
       terminal/              PTY view, pane layout, input, activity and naming
+                             Connection lifecycle and shared pane types
       usage/                 Account quota UI
       workspaces/            Workspace sidebar and selection helpers
+                             Worktree creation lives in worktree-dialog.ts
     lib/                     Browser HTTP and DOM utilities
-    styles/                  Application styles
+    styles/                  Ordered stylesheet entry and application styles
+      styles.css             Imports foundation, workspace-chat, navigation,
+                             then workbench; preserve this cascade order
 server/
   src/
     index.ts                 Server entry point
@@ -32,19 +38,24 @@ server/
       dev-servers/           Port collection and workspace attribution
       files/                 Workspace registry and safe file access
       git/                   Branch detection, changes and diffs
+                             Worktrees, sync and GitHub integration
+      integrations/          Local tool availability and authentication
       sessions/              Local CLI logs, lifecycle and runners
       terminal/              PTY transport and process discovery
       usage/                 Provider account quotas
     lib/                     CLI binary discovery
 shared/                      Browser/server API and terminal contracts
+desktop/                     Electron startup, preload bridge and native APIs
+                             Update controller and background check schedule
 config/
   typescript/                Client, server, desktop and test typecheck configs
   playwright/                Browser and desktop test runner configs
 tests/
   unit/                      Node test suite, including service integration checks
   e2e/                       Playwright browser checks and fixtures
+  desktop/                   Native Electron and packaged updater checks
   helpers/                   Shared server and Codex test helpers
-scripts/                     Windows background start/stop scripts
+scripts/                     Desktop build and Windows start/stop scripts
 docs/                        Architecture and implementation notes
 demo/                        File preview examples
 ```
@@ -56,6 +67,9 @@ demo/                        File preview examples
 - Keep browser/server payload definitions in `shared/contracts.ts`.
 - Keep Vite, npm commands and the shared `tsconfig.json` at the root. TypeScript environment configs live in `config/typescript/`; Playwright configs live in `config/playwright/`.
 - Keep generated `dist/`, runtime `.ai-web/`, screenshots, logs and reference checkouts out of source control.
+- Keep file tree rendering in `features/files/file-tree.ts` and terminal connection handling in `features/terminal/terminal-connection.ts`. Pass coordination callbacks from the application or view instead of importing their mutable state.
+- The `/api/sub-workspaces` route remains unchanged for compatibility; source and test filenames use worktree terminology.
+- The stylesheet split preserves existing overrides. Move rules between these files only after checking cascade order; feature-local styles such as Live Editor stay beside their modules.
 
 ## Checks
 
