@@ -451,6 +451,8 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .changed-file-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500}
 .changed-file-directory{flex:1 3 0;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:10px;color:var(--muted);opacity:.8}
 .changed-file>.shared-file-icon{width:16px;height:16px}
+.shared-file-icon>img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none}
+.file-row>.shared-file-icon{width:16px;height:16px}
 .change-status{font-size:10px;font-weight:600;width:12px;text-align:center;color:var(--git-modified)}
 .change-status[data-status=A],.change-status[data-status=U],.change-status[data-status="?"]{color:var(--git-untracked)}
 .change-status[data-status=D],.change-status[data-status="!"]{color:var(--git-conflict)}

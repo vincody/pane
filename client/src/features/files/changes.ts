@@ -45,7 +45,7 @@ export function setupChanges({api,icon,getProject,onOpenDiff,onError,onStatuses}
      if(!value)continue;const number=document.createElement('span');number.className=className;number.textContent=`${prefix}${value}`;stat.append(number);
     }
    }
-   button.append(fileIcon(file.path,icon),copy,stat,mark);
+   button.append(fileIcon(file.path),copy,stat,mark);
    button.title=`${file.path}${file.binary?' · Binary or unsupported text diff':''}`;button.setAttribute('aria-label',`View diff: ${file.path}`);
    button.onclick=async()=>{const project=getProject();if(!project||project.id!==projectId)return;button.disabled=true;try{await onOpenDiff(project,file);}catch(error){onError(errorMessage(error,'Could not open diff.'));}finally{button.disabled=false;}};rows.append(button);
    }

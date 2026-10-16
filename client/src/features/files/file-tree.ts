@@ -1,7 +1,7 @@
 import type {Workspace,TreeEntry} from '../../../../shared/contracts.ts';
 import type {OpenDocument} from './documents.ts';
 import type {createApi} from '../../lib/api.ts';
-import {fileIcon} from './file-icons.ts';
+import {fileIcon,folderIcon,setFolderIconOpen} from './file-icons.ts';
 import {errorMessage} from '../../components/contracts.ts';
 interface FileTreeOptions {
  api:ReturnType<typeof createApi>;
@@ -26,15 +26,15 @@ async function treeDirectory(project:Workspace,path:string,depth:number) {
     const currentDocument=getDocument();
     if (currentDocument?.project === project.id && currentDocument.path === entry.path) button.classList.add('active');
     const arrow = document.createElement('span'); arrow.className = 'chevron'; if (entry.type === 'directory') arrow.append(icon('chevron-right')); button.append(arrow);
-    button.append(entry.type==='directory'?icon('folder'):fileIcon(entry.name,icon));
+    const mark=entry.type==='directory'?folderIcon(entry.name,expanded.has(entry.path)):fileIcon(entry.name);button.append(mark);
     const label = document.createElement('span'); label.className='file-row-name'; label.textContent = entry.name; button.append(label);decorate(button); item.append(button); list.append(item);
     if (entry.type === 'directory') {
       button.setAttribute('aria-expanded', expanded.has(entry.path) ? 'true' : 'false');
       if (expanded.has(entry.path)) { arrow.replaceChildren(icon('chevron-down')); item.append(await treeDirectory(project, entry.path, depth + 1)); }
       button.onclick = async () => {
         const children = item.querySelector<HTMLElement>('ul')!;
-        if (children) { children.remove(); expanded.delete(entry.path); arrow.replaceChildren(icon('chevron-right')); button.setAttribute('aria-expanded', 'false'); }
-        else { try { button.disabled = true; item.append(await treeDirectory(project, entry.path, depth + 1)); expanded.add(entry.path); arrow.replaceChildren(icon('chevron-down')); button.setAttribute('aria-expanded', 'true'); } catch (error) { toast(errorMessage(error,'Operation failed.')); } finally { button.disabled = false; } }
+        if (children) { children.remove(); expanded.delete(entry.path); setFolderIconOpen(mark,entry.name,false); arrow.replaceChildren(icon('chevron-right')); button.setAttribute('aria-expanded', 'false'); }
+        else { try { button.disabled = true; item.append(await treeDirectory(project, entry.path, depth + 1)); expanded.add(entry.path); setFolderIconOpen(mark,entry.name,true); arrow.replaceChildren(icon('chevron-down')); button.setAttribute('aria-expanded', 'true'); } catch (error) { toast(errorMessage(error,'Operation failed.')); } finally { button.disabled = false; } }
         filterTree();
       };
     } else if (entry.type === 'link') {
