@@ -14,7 +14,7 @@ test('folders stay expanded and shortcut opens and acknowledges the correct sess
   const message=JSON.parse(raw.toString());if(message.type==='start'){sockets.set(message.project,socket);socket.send(JSON.stringify({type:'ready',shell:'powershell.exe'}));socket.send(JSON.stringify({type:'agent',agent:'codex'}));}
  }));
  await page.goto('/');
- for(const project of projects){await page.locator(`[data-project=${project.id}] .project-button`).click();await page.locator('#terminal-new').click();await page.locator('[data-launch=codex]').click();await expect(page.locator(`[data-project=${project.id}] .terminal-agent-card`)).toBeVisible();}
+ for(const project of projects){await page.locator(`[data-project=${project.id}] .project-button`).click();await page.route('**/api/integrations/tools',route=>route.fulfill({json:{tools:['claude','codex'].map(id=>({id,name:id,installed:true}))}}));await page.locator('#terminal-new').click();await expect(page.locator('[data-launch=codex]')).toBeEnabled();await page.locator('[data-launch=codex]').click();await expect(page.locator(`[data-project=${project.id}] .terminal-agent-card`)).toBeVisible();}
  const first=page.locator('[data-project=attention-a]');
  sockets.get('attention-a')!.send(JSON.stringify({type:'data',data:'\x1b[2J\x1b[H\x1b]0;action required\x07Would you like to run this command?\r\n1. Yes\r\n'}));
  await expect(first.locator('.terminal-agent-card')).toHaveAttribute('data-status','blocked');

@@ -28,7 +28,7 @@ test('an agent session starts without its command being typed into the terminal'
   const rows=page.locator('.terminal-screen.pane-focused .xterm-rows');
   await expect(rows).toContainText('FAKE_CLAUDE_RUNNING',{timeout:30000});
   const text=await rows.innerText();
-  expect(text).toContain(root);expect(text).not.toMatch(/PS [^\n]*> *claude/);expect(text).not.toMatch(/-EncodedCommand|Set-Location/);
+  expect(text.replace(/\s+/g,'')).toContain(root.replace(/\s+/g,''));expect(text).not.toMatch(/PS [^\n]*> *claude/);expect(text).not.toMatch(/-EncodedCommand|Set-Location/);
  });
 });
 

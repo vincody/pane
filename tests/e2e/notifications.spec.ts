@@ -29,7 +29,7 @@ test('background agent system notifications deduplicate and clicking opens the m
  await page.goto('/');await page.evaluate(()=>{
   const state={notices:[] as unknown[],click:(_id:string)=>{}};Reflect.set(window,'nativeNotificationState',state);document.documentElement.dataset.windowFocused='false';
   Reflect.set(window,'paneDesktop',{notificationVersion:1,onNotificationClick(callback:(id:string)=>void){state.click=callback;},async notify(value:unknown){state.notices.push(value);return {status:'sent'};}});
- });await page.locator('#terminal-new').click();await page.locator('[data-launch=codex]').click();await expect(page.locator('.terminal-agent-card')).toBeVisible();
+ });await page.route('**/api/integrations/tools',route=>route.fulfill({json:{tools:['claude','codex'].map(id=>({id,name:id,installed:true}))}}));await page.locator('#terminal-new').click();await expect(page.locator('[data-launch=codex]')).toBeEnabled();await page.locator('[data-launch=codex]').click();await expect(page.locator('.terminal-agent-card')).toBeVisible();
  const data='\x1b[2J\x1b[H\x1b]0;action required\x07Would you like to run this command?\r\n1. Yes\r\n';
  socket!.send(JSON.stringify({type:'data',data}));await expect.poll(()=>page.evaluate(()=>Reflect.get(window,'nativeNotificationState').notices.length)).toBe(1);await expect(page.locator('.agent-notification')).toHaveCount(0);
  socket!.send(JSON.stringify({type:'data',data}));await page.waitForTimeout(250);expect(await page.evaluate(()=>Reflect.get(window,'nativeNotificationState').notices.length)).toBe(1);
@@ -51,7 +51,7 @@ for(const scenario of [
    const state={notices:[] as unknown[]};Reflect.set(window,'nativeNotificationState',state);document.documentElement.dataset.windowFocused=String(focused);
    Reflect.set(window,'paneDesktop',{notificationVersion:1,onNotificationClick(){},async notify(value:unknown){state.notices.push(value);return delivery==='sent'?{status:'sent'}:{status:'unavailable',message:'Notifications are blocked.'};}});
   },[scenario.focused,scenario.delivery] as const);
-  await page.locator('#terminal-new').click();await page.locator('[data-launch=codex]').click();await expect(page.locator('.terminal-agent-card')).toBeVisible();
+  await page.route('**/api/integrations/tools',route=>route.fulfill({json:{tools:['claude','codex'].map(id=>({id,name:id,installed:true}))}}));await page.locator('#terminal-new').click();await expect(page.locator('[data-launch=codex]')).toBeEnabled();await page.locator('[data-launch=codex]').click();await expect(page.locator('.terminal-agent-card')).toBeVisible();
   socket!.send(JSON.stringify({type:'data',data:'\x1b[2J\x1b[H\x1b]0;action required\x07Would you like to run this command?\r\n1. Yes\r\n'}));
   await expect(page.locator('.terminal-agent-card')).toHaveAttribute('data-status','blocked');
   await expect.poll(()=>page.locator('.agent-notification').count()).toBe(scenario.cards);

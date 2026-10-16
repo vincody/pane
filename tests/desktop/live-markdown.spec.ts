@@ -26,8 +26,8 @@ test('Live Editor code blocks keep a Copy button that copies only the code and d
   const page=await application.firstWindow();await page.getByRole('treeitem',{name:'notes.md',exact:true}).click();await page.locator('.view-switch').getByRole('button',{name:'Live Editor',exact:true}).click();
   const rich=page.getByRole('textbox',{name:'Live Markdown editor',exact:true}),buttons=rich.getByRole('button',{name:'Copy code'});await expect(buttons).toHaveCount(2);
   await rich.locator('pre').first().hover();await buttons.first().click();await expect(rich.locator('.code-copy-button').first()).toHaveText('Copied');
-  expect(await application.evaluate(({clipboard})=>clipboard.readText())).toBe('const a = 1;');
-  await buttons.nth(1).click();expect(await application.evaluate(({clipboard})=>clipboard.readText())).toBe('plain');
+  await expect.poll(()=>application!.evaluate(({clipboard})=>clipboard.readText())).toBe('const a = 1;');
+  await buttons.nth(1).click();await expect.poll(()=>application!.evaluate(({clipboard})=>clipboard.readText())).toBe('plain');
   await rich.locator('pre code').first().click();await page.keyboard.press('End');await page.keyboard.type(' // x');await page.keyboard.press('Control+S');
   await expect.poll(()=>fs.readFile(file,'utf8')).toBe('# Notes\n\n```js\nconst a = 1; // x\n```\n\n```\nplain\n```\n');
  }finally{if(application){const pid=application.process().pid;if(pid)try{execFileSync('taskkill.exe',['/PID',String(pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});}catch{}}await fs.rm(data,{recursive:true,force:true,maxRetries:5,retryDelay:200});}
