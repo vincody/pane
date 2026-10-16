@@ -7,11 +7,12 @@ import {WebLinksAddon} from '@xterm/addon-web-links';
 import {createAddressDetector} from '../browser/local-address.ts';
 import {positionTab,forgetTabPosition} from '../layout/tab-position.ts';
 import {leaves, removePane, splitPane, swapPanes, chooseBalancedSplit} from './terminal-layout.ts';
-import {terminalName, threadTitle} from './terminal-name.ts';
+import {terminalName, terminalProvider, threadTitle} from './terminal-name.ts';
 import {readTerminalActivity} from './terminal-activity.ts';
 import {trackPromptInput} from './terminal-input.ts';
 import {isPasteShortcut,pasteIntoTerminal} from './terminal-paste.ts';
 import {createOsc52Handler} from './terminal-osc52.ts';
+import {MAX_TERMINAL_FONT_SIZE,MIN_TERMINAL_FONT_SIZE,normalizeTerminalFontSize,readTerminalFontSize,saveTerminalFontSize} from './terminal-font.ts';
 import {validateResume} from '../history/history-session.ts';
 import '@xterm/xterm/css/xterm.css';
 import type {Workspace,SessionRecord,SshConnection} from '../../../../shared/contracts.ts';
@@ -83,6 +84,11 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   const autoSetting=document.createElement('div');autoSetting.className='setting-row';autoSetting.innerHTML='<div><strong>Auto split terminals</strong><small>Add new sessions to the focused split group. Preserve adjusted layouts; use separate tabs in narrow windows.</small></div><input id="auto-split-terminal-setting" type="checkbox" aria-label="Auto split terminals">';
   document.querySelector<HTMLElement>('.settings-footnote')!.before(autoSetting);
   const autoCheckbox=autoSetting.querySelector<HTMLInputElement>('input')!;autoCheckbox.checked=autoSplit;autoCheckbox.onchange=()=>{autoSplit=autoCheckbox.checked;try{localStorage.setItem('ai-web.auto-split-terminals',String(autoSplit));}catch{}};
+  let terminalFontSize=readTerminalFontSize();
+  const fontSetting=document.createElement('div');fontSetting.className='setting-row';fontSetting.innerHTML=`<div><strong>Terminal text size</strong><small>Size of terminal text in pixels, ${MIN_TERMINAL_FONT_SIZE} to ${MAX_TERMINAL_FONT_SIZE}. Hidden terminals update when you open them.</small></div><input type="number" min="${MIN_TERMINAL_FONT_SIZE}" max="${MAX_TERMINAL_FONT_SIZE}" step="1" inputmode="numeric" aria-label="Terminal text size">`;
+  document.querySelector<HTMLElement>('.settings-footnote')!.before(fontSetting);
+  const fontInput=fontSetting.querySelector<HTMLInputElement>('input')!;fontInput.value=String(terminalFontSize);
+  fontInput.onchange=()=>{terminalFontSize=normalizeTerminalFontSize(fontInput.value,terminalFontSize);fontInput.value=String(terminalFontSize);saveTerminalFontSize(terminalFontSize);for(const session of sessions)fitSession(session);};
   const stash=document.createElement('div');stash.hidden=true;panel.append(stash);
   function renderLayout() {
     document.querySelector<HTMLElement>('#app')!.classList.toggle('terminal-pane-maximized',Boolean(visible && maximizedSession===activeSession && maximizedSession));
@@ -164,6 +170,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     if(session.external){session.layout?.();return;}
     if (!visible || session.element.hidden || session.group !== activeSession?.group || !session.element.isConnected) return;
     try {
+      // Changing the size repaints the whole terminal, so it waits until the pane can be measured.
+      if(session.terminal!.options.fontSize!==terminalFontSize)session.terminal!.options.fontSize=terminalFontSize;
       session.fit!.fit();
       if (session.ready && session.socket?.readyState === WebSocket.OPEN) {
         session.socket!.send(JSON.stringify({type: 'resize', cols: session.terminal!.cols, rows: session.terminal!.rows}));
@@ -222,7 +230,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       session.tab.title = `${session.shell} · ${session.project.name}`;
       session.tab.querySelector<HTMLElement>('.terminal-tab-status')!.dataset.state = session.state;
       const label = session.tab.querySelector<HTMLElement>('.terminal-tab-label')!;
-      const provider=session.agent || (session.launch!=='shell' && session.state!=='closed' ? session.launch : null);
+      const provider=terminalProvider(session);
       const name=terminalName(session);
       if (label) label.textContent = name;
       session.paneTitle!.textContent=name;session.paneTitle!.title=name;
@@ -295,7 +303,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       cursorBlink: true,
       cursorStyle: 'bar',
       fontFamily: '"JetBrains Mono", Consolas, monospace',
-      fontSize: 13,
+      fontSize: terminalFontSize,
       lineHeight: 1.1,
       scrollback: 5000,
       convertEol: true,

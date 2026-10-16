@@ -1,9 +1,13 @@
 import type {Workspace} from '../../../../shared/contracts.ts';
-export interface TerminalNaming {customName?:boolean;name:string;agent?:string|null;launch?:string;state:string;shell:string;cliTitle?:string}
+export interface TerminalNaming {customName?:boolean;name:string;agent?:string|null;launch?:string;state:string;shell:string;cliTitle?:string;agentEnded?:boolean}
+// A session opened as an agent is a plain shell again once that agent has exited.
+export function terminalProvider(session:Pick<TerminalNaming,'agent'|'launch'|'state'|'agentEnded'>) {
+  return session.agent || (session.launch!=='shell' && session.state!=='closed' && !session.agentEnded ? session.launch : null);
+}
 export function terminalName(session:TerminalNaming) {
   if (session.customName) return session.name;
   if (session.launch==='ssh'&&session.cliTitle)return session.cliTitle;
-  const provider=session.agent || (session.launch!=='shell' && session.state!=='closed' ? session.launch : null);
+  const provider=terminalProvider(session);
   if (provider && session.cliTitle) return session.cliTitle;
   return provider ? provider.charAt(0).toUpperCase()+provider.slice(1) : session.shell==='Shell'?'Terminal':session.shell;
 }

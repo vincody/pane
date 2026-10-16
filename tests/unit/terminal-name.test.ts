@@ -11,3 +11,11 @@ test('agent defaults and thread titles exclude workspace suffixes',()=>{
   assert.equal(threadTitle('C:\\Windows\\powershell.exe',project),'');
   assert.equal(terminalName({name:'My session',customName:true,state:'ready',shell:'powershell.exe',launch:'codex',cliTitle:'Other title'}),'My session');
 });
+
+test('a session opened as an agent is named after the shell once the agent exits',()=>{
+  const opened={name:'ai-web',launch:'claude',state:'running',shell:'PowerShell',cliTitle:'Claude Code'};
+  assert.equal(terminalName({...opened,agent:'claude'}),'Claude Code');
+  assert.equal(terminalName({...opened,agent:null}),'Claude Code');
+  assert.equal(terminalName({...opened,agent:null,agentEnded:true,cliTitle:undefined}),'PowerShell');
+  assert.equal(terminalName({...opened,agent:'claude',agentEnded:false}),'Claude Code');
+});

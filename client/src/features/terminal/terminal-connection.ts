@@ -38,6 +38,8 @@ export function createTerminalConnection({session,token,project,id,terminal,laun
         if(message.replay)session.replaying=true;
         if(!message.data)finished();else{if(!message.replay)onOutput?.(message.data);terminal.write(message.data,finished);}
       } else if (message.type === 'agent') {
+        if(message.agent)session.agentEnded=false;
+        else if(session.agent){session.agentEnded=true;session.cliTitle=undefined;session.activityTitle=undefined;session.activity=undefined;}
         session.agent = message.agent;
         renderTabs();
         session.agentStatus = 'idle';
