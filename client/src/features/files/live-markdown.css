@@ -40,3 +40,4 @@ html[data-theme=dark] .live-markdown{color-scheme:dark}
 .live-markdown-popover p{margin:4px 0;color:var(--error)}
 .live-markdown-block-menu{display:flex;flex-direction:column;align-items:stretch;width:180px}
 .live-markdown-block-menu button{text-align:left}
+.live-markdown-document pre.markdown-code-block{position:relative;padding-right:80px}

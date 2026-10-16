@@ -4,10 +4,12 @@ import {Markdown,MarkdownManager} from '@tiptap/markdown';
 import {TableKit} from '@tiptap/extension-table';
 import {TaskList,TaskItem} from '@tiptap/extension-list';
 import Image from '@tiptap/extension-image';
+import CodeBlock from '@tiptap/extension-code-block';
+import {LiveCodeBlock} from './live-code-block.ts';
 import {markdownMeaning,splitMarkdownSource} from './markdown-modes.ts';
 
 // Eligibility and the mounted editor must use the same schema and Markdown options.
-function markdownExtensions(image:AnyExtension=Image){return [StarterKit.configure({underline:false,link:{openOnClick:false,autolink:false},trailingNode:false}),TaskList,TaskItem.configure({nested:true,HTMLAttributes:{'data-type':'taskItem'}}),TableKit.configure({table:{resizable:false}}),image];}
+function markdownExtensions(image:AnyExtension=Image,codeBlock:AnyExtension=CodeBlock){return [StarterKit.configure({underline:false,link:{openOnClick:false,autolink:false},trailingNode:false,codeBlock:false}),codeBlock,TaskList,TaskItem.configure({nested:true,HTMLAttributes:{'data-type':'taskItem'}}),TableKit.configure({table:{resizable:false}}),image];}
 const codecExtensions=markdownExtensions(),codec=new MarkdownManager({extensions:codecExtensions}),schema=getSchema(codecExtensions);
 export function richMarkdownReason(source:string):string|null{
  const {body}=splitMarkdownSource(source);
@@ -27,7 +29,7 @@ export function createRichMarkdownEditor(options:Options){
   return {dom,destroy(){disposed=true;if(url)URL.revokeObjectURL(url);}};
  };}});
  let syncing=false,baselineSource=options.source,baselineDocument='';
- const editor=new Editor({element:content,extensions:[...markdownExtensions(LocalImage),Markdown],content:body,contentType:'markdown',editorProps:{attributes:{class:'live-markdown-document',role:'textbox','aria-label':'Live Markdown editor','aria-multiline':'true'},handleKeyDown:(_view,event)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();event.stopPropagation();options.save();return true;}return false;}},onUpdate:({transaction})=>{
+ const editor=new Editor({element:content,extensions:[...markdownExtensions(LocalImage,LiveCodeBlock),Markdown],content:body,contentType:'markdown',editorProps:{attributes:{class:'live-markdown-document',role:'textbox','aria-label':'Live Markdown editor','aria-multiline':'true'},handleKeyDown:(_view,event)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();event.stopPropagation();options.save();return true;}return false;}},onUpdate:({transaction})=>{
   if(syncing||!transaction.docChanged)return;if(JSON.stringify(editor.getJSON())===baselineDocument){options.onChange(baselineSource);return;}let value=editor.getMarkdown().replace(/\r\n/g,'\n');if(trailing&&!value.endsWith('\n'))value+='\n';if(!trailing)value=value.replace(/\n$/,'');options.onChange(frontmatter+value.replaceAll('\n',eol));
  }});
  try{if(markdownMeaning(body)!==markdownMeaning(editor.getMarkdown()))throw new Error('This Markdown contains formatting that Live Editor cannot preserve yet. Continue editing in Source.');}catch(error){editor.destroy();options.element.replaceChildren();throw error;}
