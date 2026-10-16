@@ -42,7 +42,7 @@ button:disabled{opacity:.55}
 .brand small,.section-head,.files-footer,.sidebar-footer,.workspace-branch,.agent-meta{color:var(--muted)}
 .section-head{font-size:11px;letter-spacing:.6px;font-weight:500}
 .sidebar-footer{border-top:0}
-#app .sidebar-footer{grid-template-columns:repeat(5,minmax(0,1fr))}
+#app .sidebar-footer{grid-template-columns:repeat(6,minmax(0,1fr))}
 .workspace-heading{gap:4px}
 .workspace-heading>span{flex:1}
 .workspace-heading #open-folder{flex:none;width:28px;height:28px;margin:0;padding:0;background:transparent;color:var(--muted);border:0;border-radius:var(--radius-sm)}

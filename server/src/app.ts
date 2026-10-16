@@ -4,6 +4,7 @@ import {createTokenUsage} from './features/usage/token-usage.ts';
 import {createLocalSessions} from './features/sessions/local-sessions.ts';
 import {createLocalRunner} from './features/sessions/local-runner.ts';
 import {attachTerminalPty} from './features/terminal/terminal-pty.ts';
+import {createResourceMonitor} from './features/resources/resources.ts';
 import {selectSshKey} from './features/terminal/ssh-key-picker.ts';
 import {selectWorkspaceFolder,defaultWorkspaceFolder} from './features/files/folder-picker.ts';
 import {createProjectFolder} from './features/files/new-project.ts';
@@ -154,6 +155,7 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
         if(req.method==='GET'&&url.pathname==='/api/integrations/github')return json(200,await github.integrationStatus(appRoot));
         if(req.method==='GET'&&url.pathname==='/api/integrations/tools')return json(200,{tools:await localTools()});
         if(req.method==='POST'&&url.pathname==='/api/close-terminal'){const data=await body(req);if(typeof data.sessionId!=='string')throw new FileError(400,'Provide a terminal session ID.');return json(200,{closed:closeTerminalPty.stop(data.sessionId)});}
+        if(req.method==='GET'&&url.pathname==='/api/resources')return json(200,await resources.read());
         if(req.method==='GET'&&url.pathname==='/api/dev-servers'){
           const project=url.searchParams.get('project')||'';if(!files.projects.has(project))throw new FileError(404,'Workspace not found.');
           return json(200,await devServers.read(project,{ownPort:req.socket.localPort}));
@@ -257,6 +259,7 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
     }
   });
   const closeTerminalPty=attachTerminalPty(server,{token,getProject:id=>files.projects.get(id),onStart:devServers.register,onStop:devServers.unregister,onOutput:devServers.output});
+  const resources=createResourceMonitor({listTerminals:closeTerminalPty.list});
   let closing: Promise<unknown> | undefined;const closeSessions=()=>{devServers.dispose();return closing ||= Promise.all([localRunner.close(),closeTerminalPty()]);};server.on('close',()=>{void closeSessions().catch(()=>{});});
   return { server, files, token, closeSessions };
 }

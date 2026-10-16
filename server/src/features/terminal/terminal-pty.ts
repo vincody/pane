@@ -7,6 +7,7 @@ import * as pty from 'node-pty';
 import type { Server } from 'node:http';
 import type { Workspace, TerminalServerMessage } from '../../../../shared/contracts.ts';
 import {agentInProcessTree, readProcesses} from './terminal-agents.ts';
+import {parseStartupLaunch,powerShellStartupArgs} from './terminal-startup.ts';
 
 const maxCols = 300;
 const maxRows = 150;
@@ -84,6 +85,13 @@ export function attachTerminalPty(server: Server, { token, getProject, ptyApi = 
         let shell=process.platform==='win32'?'powershell.exe':process.env.SHELL||'/bin/bash';let args=process.platform==='win32'?['-NoLogo']:['-l'];
         try{if(message.ssh!==undefined){const connection=validateSshConnection(message.ssh);args=sshArguments(connection);if(connection.identityFile){const key=connection.identityFile;if(!path.isAbsolute(key))throw new Error('Use an absolute SSH key file path.');try{if(!statSync(key).isFile())throw new Error();accessSync(key,constants.R_OK);}catch{throw new Error('SSH key file is missing or unreadable. Choose the key file again.');}}const windowsSsh=path.join(process.env.SystemRoot||'C:\Windows','System32','OpenSSH','ssh.exe');shell=process.platform==='win32'&&existsSync(windowsSsh)?windowsSsh:'ssh';}}
         catch(error){send({type:'error',message:error instanceof Error?error.message:'Invalid SSH connection.'});client.close(1008,'Invalid SSH connection');return;}
+        // On Windows PowerShell the agent starts from the shell's own arguments, so its command line is never typed into the terminal.
+        let startupDelivered=false;
+        if(message.launch!==undefined){
+          const launch=parseStartupLaunch(message.launch);
+          if(!launch||message.ssh!==undefined){send({type:'error',code:'SESSION_START_FAILED',message:'Invalid session launch.'});client.close(1008,'Invalid session launch');return;}
+          if(process.platform==='win32'){args=powerShellStartupArgs(launch);startupDelivered=true;}
+        }
         const env:NodeJS.ProcessEnv={...process.env,TERM:'xterm-256color',COLORTERM:'truecolor'};
         for(const key of Object.keys(env))if(['NO_COLOR','FORCE_COLOR','CLICOLOR','CLICOLOR_FORCE','TERM_PROGRAM','TERM_PROGRAM_VERSION'].includes(key.toUpperCase()))delete env[key];
         try{
@@ -92,7 +100,7 @@ export function attachTerminalPty(server: Server, { token, getProject, ptyApi = 
           session=owned;sessions.set(owned.id,owned);onStart?.(child.pid,project);
           child.onData(data=>{onOutput?.(child.pid,data);if(owned.detachable){owned.output.push(data);owned.outputSize+=Buffer.byteLength(data);while(owned.outputSize>524288&&owned.output.length>1)owned.outputSize-=Buffer.byteLength(owned.output.shift()!);if(owned.outputSize>524288){const bytes=Buffer.from(owned.output[0]);let start=bytes.length-524288;while(start<bytes.length&&(bytes[start]&0xc0)===0x80)start++;owned.output=[bytes.subarray(start).toString('utf8')];owned.outputSize=bytes.length-start;}}owned.send({type:'data',data});});
           child.onExit(({exitCode,signal})=>{if(owned.exited)return;owned.exited=true;sessions.delete(owned.id);onStop?.(child.pid);owned.send({type:'exit',exitCode,signal});});
-          send({type:'ready',shell,project:project.name,...(owned.detachable?{sessionId:owned.id}:{})});
+          send({type:'ready',shell,project:project.name,...(owned.detachable?{sessionId:owned.id}:{}),...(startupDelivered?{startupDelivered:true}:{})});
         }catch(error){send({type:'error',code:'SESSION_START_FAILED',message:error instanceof Error&&error.message?error.message:'Could not start the terminal.'});client.close(1011,'Terminal could not start');}
         return;
       }
@@ -113,5 +121,6 @@ export function attachTerminalPty(server: Server, { token, getProject, ptyApi = 
     sessions.clear();
     websocketServer.close(() => resolve());
   });
-  return Object.assign(close,{stop});
+  const list=()=>[...sessions.values()].filter(session=>!session.exited).map(session=>({id:session.id,project:session.project.id,pid:session.pty.pid,agent:session.agent,ssh:session.ssh}));
+  return Object.assign(close,{stop,list});
 }

@@ -117,3 +117,15 @@ TUIs such as Claude CLI copy a mouse selection with the OSC 52 escape sequence, 
 ## Terminal text size
 
 Settings → Terminal → **Terminal text size** sets the terminal font size (whole pixels, 8 to 32; other values are rounded or clamped) and is saved locally. xterm repaints the whole terminal when the size changes, so a terminal applies it only when it can be measured and fitted; hidden terminals pick it up when you open them, and the PTY is resized to the new columns and rows (`client/src/features/terminal/terminal-font.ts`).
+
+## Resources
+
+The **Resources** button in the sidebar footer opens a panel with Pane's total memory and CPU, split into Main, Renderer, GPU and Other, the system's used and total memory, and each running terminal (shell plus whatever it runs) with its own memory and CPU. **Close** (after a confirmation click) ends that terminal and all of its processes.
+
+Nothing is measured while the panel is closed; while it is open it samples about every 3 seconds. `GET /api/resources` builds the numbers from the process list already used for agent detection (`readProcesses()`, extended with working set and CPU times on Windows and resident memory elsewhere), taking everything under Pane's own process, and tells terminals apart by the process each one was started from. Memory is the working set, which counts shared pages in each process, so the Pane total can exceed what Task Manager attributes to Pane alone. CPU is a percentage of one core between two samples (it can exceed 100%), so it appears after the second reading; a baseline older than 15 seconds is discarded, and CPU is not reported on macOS or Linux. The terminal view (xterm) is part of Renderer, not of the terminal's own figure.
+
+## Starting agent sessions
+
+On Windows PowerShell, **Claude Code**, **Codex** and a resumed History session start from the shell's own arguments (`powershell.exe -NoLogo -NoExit -EncodedCommand <base64>`) instead of being typed into the terminal, so the terminal opens straight into the agent with no `claude` or `Set-Location … ; claude --resume …` line, and `-NoExit` keeps the shell once the agent exits. The client sends only `{agent, resume?:{id, cwd}}` in the terminal `start` message; `server/src/features/terminal/terminal-startup.ts` accepts just `claude` or `codex`, a UUID and a directory (no line breaks, at most 2048 characters) and builds the command itself, so a client cannot choose what runs. Other shells, SSH, and any case the server does not mark `startupDelivered` still fall back to typing the command.
+
+The **New session** (+) menu locks Claude Code and Codex, with a "Not installed" note, when the Local tools check used by Settings → Integrations (`GET /api/integrations/tools`, `where.exe`) reports the CLI missing; it checks again each time the menu opens, and an unknown result leaves the choice enabled. Other ways to start an agent (for example resuming from History) are not locked; the shell then prints its own "not recognized" error.

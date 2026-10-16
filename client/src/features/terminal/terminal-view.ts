@@ -15,7 +15,7 @@ import {createOsc52Handler} from './terminal-osc52.ts';
 import {MAX_TERMINAL_FONT_SIZE,MIN_TERMINAL_FONT_SIZE,normalizeTerminalFontSize,readTerminalFontSize,saveTerminalFontSize} from './terminal-font.ts';
 import {validateResume} from '../history/history-session.ts';
 import '@xterm/xterm/css/xterm.css';
-import type {Workspace,SessionRecord,SshConnection} from '../../../../shared/contracts.ts';
+import type {Workspace,SessionRecord,SshConnection,LocalToolStatus} from '../../../../shared/contracts.ts';
 import type {PaneTree,SplitDirection} from './terminal-layout.ts';
 import type {TerminalActivity} from './terminal-activity.ts';
 export type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions} from './terminal-types.ts';
@@ -52,6 +52,24 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     button.append(document.createTextNode(label));choices.append(button);
   }
   launcher.append(heading,description,choices);document.body.append(launcher);
+  // An agent whose CLI is missing (as Settings -> Integrations reports) cannot start a session, so its choice is locked.
+  let availability:AbortController|undefined;
+  async function refreshAgentAvailability(){
+    availability?.abort();const active=new AbortController();availability=active;
+    try{
+      const response=await fetch('/api/integrations/tools',{headers:{'X-AI-Web-Token':token},signal:active.signal});
+      if(!response.ok||active.signal.aborted)return;
+      const {tools}=await response.json() as {tools:LocalToolStatus[]};
+      for(const [kind,label] of [['claude','Claude Code'],['codex','Codex']] as const){
+        const button=choices.querySelector<HTMLButtonElement>(`[data-launch=${kind}]`);if(!button)continue;
+        const missing=tools.find(tool=>tool.id===kind)?.installed===false;
+        button.disabled=missing;button.title=missing?`${label} is not installed. Install it, then check Settings → Integrations.`:'';
+        button.querySelector('.terminal-launch-note')?.remove();
+        if(missing){const note=document.createElement('small');note.className='terminal-launch-note';note.textContent='Not installed';button.append(note);}
+      }
+    }catch{/* An unknown state leaves the choices as they are. */}
+  }
+  void refreshAgentAvailability();
   $('#terminal-new').setAttribute('aria-haspopup','dialog');$('#terminal-new').setAttribute('aria-expanded','false');$('#terminal-new').title='New session';$('#terminal-new').setAttribute('aria-label','New session');
   function closeLauncher(){launcher.hidden=true;$('#terminal-new').setAttribute('aria-expanded','false');}
   const sessions:PaneSession[] = [];
@@ -125,12 +143,12 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     pendingSplit=target?{target,direction}:null;
     heading.textContent=target?(direction==='right'?'Split right':'Split down'):'New session';
     launcher.setAttribute('aria-label',heading.textContent);
-    launcher.hidden=false;$('#terminal-new').setAttribute('aria-expanded','true');
+    launcher.hidden=false;$('#terminal-new').setAttribute('aria-expanded','true');void refreshAgentAvailability();
     const rect=$('#terminal-new').getBoundingClientRect();
     const x=anchor?.x??rect.left,y=anchor?.y??rect.bottom+8;
     launcher.style.left=`${Math.max(8,Math.min(x,innerWidth-launcher.offsetWidth-8))}px`;
     launcher.style.top=`${Math.max(8,Math.min(y,innerHeight-launcher.offsetHeight-8))}px`;
-    choices.querySelector<HTMLButtonElement>('button')!.focus();
+    choices.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
   }
   const publish = () => {journal();onSessionsChange?.(sessions.filter(session => !session.external && session.ready).map(session => ({id:session.id, project:session.project.id, agent:session.agent||session.launch, name:terminalName(session), status:session.state==='error'?'error':session.state==='closed'?'done':session.agentStatus || 'idle', completed:Boolean(session.activity?.completed), selected:visible && hasFocus && session===activeSession})));};
   function scheduleActivity(session:PaneSession) {
@@ -533,7 +551,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   document.addEventListener('keydown', event => {
     if(event.key==='Escape'&&!launcher.hidden){const target=pendingSplit?.target;pendingSplit=null;closeLauncher();if(target&&!target.external)target.terminal?.focus();else $('#terminal-new').focus();return;}
     if(!launcher.hidden && ['ArrowDown','ArrowUp','ArrowLeft','ArrowRight'].includes(event.key)){
-      event.preventDefault();const buttons=[...choices.querySelectorAll<HTMLButtonElement>('button')];const direction=['ArrowUp','ArrowLeft'].includes(event.key)?-1:1;buttons[(buttons.indexOf(document.activeElement as HTMLButtonElement)+direction+buttons.length)%buttons.length].focus();
+      event.preventDefault();const buttons=[...choices.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];const direction=['ArrowUp','ArrowLeft'].includes(event.key)?-1:1;buttons[(buttons.indexOf(document.activeElement as HTMLButtonElement)+direction+buttons.length)%buttons.length].focus();
     }
     if (event.key === 'Escape' && !$('#terminal-menu').hidden) {
       const session = menuSession;

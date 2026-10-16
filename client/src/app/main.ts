@@ -8,6 +8,7 @@ import {setupHistory} from '../features/history/History.tsx';
 import {setupChanges} from '../features/files/changes.ts';
 import {createGitPanel} from '../features/git/GitPanel.tsx';
 import {setupDevServers} from '../features/dev-servers/DevServers.tsx';
+import {setupResources} from '../features/resources/Resources.tsx';
 import {createFileGitDecorations} from '../features/files/file-git-status.ts';
 import {createWorkspaceSidebar} from '../features/workspaces/WorkspaceSidebar.tsx';
 import {createWorktreeDialog} from '../features/workspaces/worktree-dialog.ts';
@@ -769,6 +770,7 @@ setupFileActions({tree:$('#tree'),api,icon,getProject:()=>currentProject,guard:g
 const subWorkspaceDialog=createWorktreeDialog({api,getProjects:()=>projects,onCreated:async (project,launch)=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);if(launch)terminalView.startSession(existing||project,launch);toast(`Opened ${project.branch||project.name}`);}});
 workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{void subWorkspaceDialog.open(project);},onSelect:project=>{if(Date.now()-lastProjectDrag>300)void selectProject(project);},onAgentSelect:openTerminalAgent,onMenu:showWorkspaceMenu,setupDrag:setupProjectDrag});
 changesView=setupChanges({api,icon,getProject:()=>currentProject,onOpenDiff:openDiff,onError:message=>toast(message),onStatuses:(id,data)=>fileGit.update(id,data)});
+setupResources({api,getProjects:()=>projects,getTerminals:()=>terminalAgents,onError:message=>toast(message)});
 devServers=setupDevServers({api,getProjects:()=>projects,onError:message=>toast(message),...(window.paneDesktop?.browserVersion===1?{onOpenUrl:(projectId:string,url:string)=>{const target=projects.find(project=>project.id===projectId);if(!target)return;void (currentProject?.id===target.id?Promise.resolve():selectProject(target)).then(()=>openBrowser(target,url));}}:{})});
 setupHistory({api,getProjects:()=>projects,getCurrentProject:()=>currentProject,onResume:(record,project)=>{agentView.close();terminalView.resumeSession(record,project);}});
 gitView=createGitPanel({api,icon,getProject:()=>currentProject,onTabsChanged:renderTabs,onActivate:project=>{if(currentProject?.id!==project.id)void selectProject(project);agentView.suspend();(document.activeElement as HTMLElement|null)?.blur();terminalView.setFocused(false);},onDeactivate:()=>{if(terminalView.visible)terminalView.setFocused(true);},onStartIssue:(project,issue)=>{const parent=project.parentId?projects.find(item=>item.id===project.parentId):project;if(parent)void subWorkspaceDialog.open(parent,{name:`issue-${issue.number}-${worktreeSlug(issue.title)}`.replace(/-$/,'').slice(0,80),note:`Issue #${issue.number}: ${issue.title}\n${issue.url}\n\n${issue.body}`});},onChanged:()=>{void changesView?.refresh();void refreshTree();void refreshSessions();},onOpenDiff:async(project,hash,file)=>{await openDiff(project,{path:file.path,added:null,removed:null,binary:false},hash);}});
