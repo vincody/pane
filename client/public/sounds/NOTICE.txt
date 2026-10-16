@@ -2,3 +2,9 @@ Notification sounds: done.mp3 and request.mp3
 Source: https://github.com/herdrdev/herdr/tree/master/assets/sounds
 Copied unchanged from Herdr, licensed under Apache License 2.0.
 See HERDR-LICENSE.txt in this directory for the license text.
+
+Additional sounds: arcade, ping, shamisen, quick-ping, doo-wap, agent-is-done,
+code-complete, afrobeat, come-back, shabalaba (.mp3)
+Source: https://github.com/superset-sh/superset (apps/desktop/src/resources/sounds)
+Copied unchanged from Superset under the Elastic License 2.0 (ELv2).
+See SUPERSET-LICENSE.txt in this directory for the license text.

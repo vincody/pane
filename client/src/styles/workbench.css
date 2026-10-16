@@ -499,3 +499,4 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 @media(max-width:560px){#app main>.topbar .toolbar-actions{gap:4px}#app main>.topbar .view-switch button{padding-inline:6px;font-size:10px}#app main>.topbar #terminal-toggle,#app main>.topbar #save{padding-inline:6px}}
 
 .dev-server-description{margin:6px 0 12px;font-size:12px;line-height:1.5;color:var(--muted)}
+#settings-dialog .sound-picker{display:flex;align-items:center;gap:8px;flex:none}.sound-picker input[type=range]{width:120px;accent-color:var(--accent);padding:0}.sound-picker output{min-width:36px;text-align:right;font-size:12px;color:var(--muted)}.sound-picker select{max-width:150px}

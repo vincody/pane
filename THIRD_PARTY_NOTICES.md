@@ -90,6 +90,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 done.mp3 and request.mp3 are copied unchanged from https://github.com/herdrdev/herdr/tree/master/assets/sounds under Apache-2.0. License: client/public/sounds/HERDR-LICENSE.txt.
 
+## Superset notification sounds
+
+The optional notification sounds (arcade, ping, quick-ping, shamisen, doo-wap, agent-is-done, code-complete, afrobeat, come-back, shabalaba) are copied unchanged from https://github.com/superset-sh/superset (apps/desktop/src/resources/sounds) under the Elastic License 2.0. License: client/public/sounds/SUPERSET-LICENSE.txt.
+
 ## Inter
 
 Bundled Inter variable fonts from https://github.com/rsms/inter, licensed under SIL Open Font License 1.1. The complete copyright and license text are in `client/public/fonts/Inter-LICENSE.txt`.
