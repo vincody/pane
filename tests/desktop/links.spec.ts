@@ -51,13 +51,16 @@ test('web links ask where to open, remember the choice, and local servers in ter
   await page.keyboard.down('Control');await page.mouse.down();await page.mouse.up();await page.keyboard.up('Control');
   const dialog=page.locator('#link-choice');await expect(dialog).toBeVisible();await expect(dialog.locator('.link-choice-url')).toHaveText(`http://localhost:${port}/docs`);
   await page.keyboard.press('Escape');await expect(dialog).toBeHidden();expect((await opened(app)).length).toBe(1);
-  // A Markdown link asks too; the remembered choice skips the question next time.
+  // A Markdown link asks too; choosing In Pane in Settings skips the question.
   await page.locator('.file-row[data-path="README.md"]').click();await page.locator('.topbar [data-view=live]').click();
   const link=page.locator('.live-markdown-content a').first();await expect(link).toBeVisible();
   const before=await webviews(app);
-  await link.click({modifiers:['Control']});await expect(dialog).toBeVisible();await dialog.getByLabel('Remember my choice').check();await dialog.getByRole('button',{name:'Open in Pane'}).click();
+  await link.click({modifiers:['Control']});await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('Remember my choice')).toHaveCount(0);await expect(dialog.locator('.link-choice-note')).toContainText('Settings → Links');
+  await dialog.getByRole('button',{name:'Open in Pane'}).click();
   await expect.poll(()=>webviews(app)).toBe(before+1);
-  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('ai-web.links')||'{}'))).toMatchObject({open:'app'});
+  expect(await page.evaluate(()=>localStorage.getItem('ai-web.links'))).toBeNull();
+  await setLinks(page,'app');
   await page.locator('#tabs .file-tab').filter({hasText:'README.md'}).click();await expect(link).toBeVisible();
   await link.click({modifiers:['Control']});await expect(dialog).toBeHidden();await expect.poll(()=>webviews(app)).toBe(before+2);
   // Choosing the system browser in Settings opens links outside without asking.

@@ -28,7 +28,7 @@ Open **http://127.0.0.1:7317**. On Windows, `scripts/Start-AIWeb.ps1` and `scrip
 - **Git:** staged/unstaged/untracked changes with read-only diffs; branch status, fetch, fast-forward pull, push and publish (never force); a commit graph with branch filter, search and historical diffs.
 - **GitHub:** with the GitHub CLI signed in (`gh auth login`) and a github.com `origin`, browse pull requests and issues, read descriptions, files, patches and CI checks, comment, create draft PRs and issues, and start a worktree from an issue. Merging and reviewing stay on GitHub.
 - **Browser (desktop app):** open any http(s) page or a running dev server in a tab next to your terminals, with back, forward, reload, DevTools and an address bar. It runs in a separate session and cannot reach Pane itself.
-- **Links:** Ctrl+click a web link in the terminal or a Markdown file and choose Pane's Browser tab or your system browser (or remember the choice in Settings → Links). Pane also offers to open a dev server when its address shows up in the terminal.
+- **Links:** Ctrl+click a web link in the terminal or a Markdown file and choose Pane's Browser tab or your system browser (or set the default in Settings → Links). Pane also offers to open a dev server when its address shows up in the terminal.
 - **SSH:** connects through local OpenSSH. Only the host, user, port and key *path* are saved; credentials stay with OpenSSH.
 - **History:** read local Codex/Claude session logs and resume a conversation in a terminal.
 - **Usage:** quota remaining (warning below 20%) and locally recorded token totals for Codex and Claude.

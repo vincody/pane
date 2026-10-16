@@ -17,16 +17,16 @@ export function createLinkOpener({preferences,available,openInApp,openExternal}:
  const go=(choice:Choice,url:string,project?:Workspace)=>{if(choice==='app')openInApp(url,project);else openExternal(url);};
  function choose(url:string){
   dialog??=build();
-  const element=dialog,label=element.querySelector<HTMLElement>('.link-choice-url')!,remember=element.querySelector<HTMLInputElement>('input')!;
-  label.textContent=url;label.title=url;remember.checked=false;
-  return new Promise<{choice:Choice;remember:boolean}|null>(resolve=>{
-   element.addEventListener('close',()=>{const value=element.returnValue;resolve(value==='app'||value==='system'?{choice:value,remember:remember.checked}:null);},{once:true});
+  const element=dialog,label=element.querySelector<HTMLElement>('.link-choice-url')!;
+  label.textContent=url;label.title=url;
+  return new Promise<Choice|null>(resolve=>{
+   element.addEventListener('close',()=>{const value=element.returnValue;resolve(value==='app'||value==='system'?value:null);},{once:true});
    element.returnValue='';element.showModal();
   });
  }
  function build(){
   const element=document.createElement('dialog');element.id='link-choice';element.setAttribute('aria-labelledby','link-choice-title');
-  element.innerHTML='<form method="dialog"><h2 id="link-choice-title">Open this link</h2><p class="link-choice-url"></p><div class="link-choice-actions"><button type="submit" value="app" class="link-choice-primary" autofocus>Open in Pane</button><button type="submit" value="system">Open in system browser</button></div><label class="link-choice-remember"><input type="checkbox"> Remember my choice</label><button type="submit" value="cancel" class="link-choice-cancel">Cancel</button></form>';
+  element.innerHTML='<form method="dialog"><h2 id="link-choice-title">Open this link</h2><p class="link-choice-url"></p><div class="link-choice-actions"><button type="submit" value="app" class="link-choice-primary" autofocus>Open in Pane</button><button type="submit" value="system">Open in system browser</button></div><p class="link-choice-note">To skip this question, open Settings → Links and choose <em>In Pane</em> or <em>In system browser</em>. Choose <em>Ask every time</em> to see it again.</p><button type="submit" value="cancel" class="link-choice-cancel">Cancel</button></form>';
   document.body.append(element);return element;
  }
  async function open(raw:string,project?:Workspace){
@@ -38,8 +38,7 @@ export function createLinkOpener({preferences,available,openInApp,openExternal}:
   asking=true;
   try{
    const answer=await choose(url);if(!answer)return;
-   if(answer.remember)preferences.set({open:answer.choice});
-   go(answer.choice,url,project);
+   go(answer,url,project);
   }finally{asking=false;}
  }
  function announce(raw:string,project?:Workspace){
