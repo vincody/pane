@@ -5,7 +5,7 @@ import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 
 test('desktop isolates Node, restores drafts and splits, keeps hidden terminals alive, and stops them on quit',async()=>{
- const data=await fs.mkdtemp(path.join(os.tmpdir(),'pane-desktop-')),root=path.join(data,'project');await fs.mkdir(root);await fs.writeFile(path.join(root,'draft.txt'),'original\n');
+ const data=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'pane-desktop-'))),root=path.join(data,'project');await fs.mkdir(root);await fs.writeFile(path.join(root,'draft.txt'),'original\n');
  await fs.writeFile(path.join(data,'projects.json'),JSON.stringify({projects:[{root}]}));
  const env={...process.env,PANE_DESKTOP_DATA_DIR:data,PANE_DESKTOP_PORT:'17327'};
  let desktop:ElectronApplication|undefined;

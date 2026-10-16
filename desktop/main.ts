@@ -49,7 +49,11 @@ async function requestClose(allowHide:boolean,installUpdate=false){
    if(allowHide&&result.response===0){window?.hide();return;}
    if(result.response!==(allowHide?1:0))return;
   }
+  // Persist Chromium's pending localStorage writes before a fast native quit.
+  // Renderer setItem() is synchronous, but its disk flush is not.
+  window?.webContents.session.flushStorageData();
   quitting=true;updates?.dispose();await shutdown();
+  window?.webContents.session.flushStorageData();
   if(installUpdate){updates!.install();if(updates!.get().status==='error'){await dialog.showMessageBox(window!,{type:'error',message:'The update installer could not start.',detail:'Pane will reopen. Please try the update again.',buttons:['Reopen Pane']});app.relaunch();app.quit();}}
   else app.quit();
  }finally{confirming=false;}
