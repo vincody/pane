@@ -13,7 +13,7 @@ export function createNotifications({icon,isViewing,onOpen}: NotificationOptions
  const actionNotices=new Set<string>(),resumeTimers=new Map<string,ReturnType<typeof setTimeout>>();
  const stack=document.createElement('aside');stack.id='agent-notifications';stack.setAttribute('aria-label','Agent notifications');document.body.append(stack);
  function persist(){try{localStorage.setItem('ai-web.notifications',JSON.stringify({...preferences,sound:preferences.soundMode!=='off'}));}catch{}}
- const settings=document.createElement('div');settings.innerHTML='<div class="setting-row"><div><strong>Popup notifications</strong><small>Show completion, input requests and errors inside Pane</small></div><input type="checkbox" aria-label="Popup notifications"></div><div class="setting-row"><div><strong>Notification sound</strong><small>App sound uses different tones for completion and action requests</small></div><select aria-label="Notification sounds"><option value="app">App sound</option><option value="system">Windows default</option><option value="off">Off</option></select></div>';
+ const settings=document.createElement('div');settings.innerHTML='<div class="setting-row"><div><strong>Popup notifications</strong><small>Show completion, input requests and errors inside Pane while it is focused</small></div><input type="checkbox" aria-label="Popup notifications"></div><div class="setting-row"><div><strong>Notification sound</strong><small>App sound uses different tones for completion and action requests</small></div><select aria-label="Notification sounds"><option value="app">App sound</option><option value="system">Windows default</option><option value="off">Off</option></select></div>';
  const popupControl=settings.querySelector('input')!;popupControl.checked=preferences.popup;popupControl.onchange=()=>{preferences.popup=popupControl.checked;persist();if(!preferences.popup)for(const entry of cards.values())entry.dismiss();};
  const soundControl=settings.querySelector('select')!;soundControl.value=preferences.soundMode;soundControl.onchange=()=>{preferences.soundMode=soundControl.value as NotificationSoundMode;soundPlayer.stop();persist();};
  document.querySelector<HTMLElement>('.settings-footnote')!.before(settings);settings.id='notification-settings';
@@ -26,7 +26,7 @@ export function createNotifications({icon,isViewing,onOpen}: NotificationOptions
   try{const result=await system.send({id:'pane-notification-test',title:'Pane · Test notification',body:'App notifications are working. Click here to return to Pane.',silent:preferences.soundMode!=='system',allowFocused:true});const played=result.status==='sent'&&preferences.soundMode==='app'?await soundPlayer.play('done'):true;feedback.textContent=result.status==='sent'&&!played?'Notification sent, but the app sound could not play. Check your audio output.':result.status==='sent'?'System notification sent. If no banner appears, check your system’s notification and Do Not Disturb settings.':result.message||'The notification was suppressed by the system.';}finally{testButton.disabled=false;}
  };
  document.querySelector<HTMLDialogElement>('#settings-dialog')!.addEventListener('close',()=>document.body.append(stack));
- const focusedRow=document.createElement('div');focusedRow.className='setting-row';focusedRow.innerHTML='<div><strong>Notify while focused</strong><small>Also notify when Pane is focused or you are viewing the active session</small></div><input type="checkbox" aria-label="Notify while focused">';settings.append(focusedRow);
+ const focusedRow=document.createElement('div');focusedRow.className='setting-row';focusedRow.innerHTML='<div><strong>Notify while focused</strong><small>Also show the in-app notice when you are viewing the active session</small></div><input type="checkbox" aria-label="Notify while focused">';settings.append(focusedRow);
  const focusedControl=focusedRow.querySelector<HTMLInputElement>('input')!;focusedControl.checked=Boolean(preferences.focused);focusedControl.onchange=()=>{preferences.focused=focusedControl.checked;persist();};
  function key(agent: AgentSnapshot){return String(agent.agent_session?.value || agent.saved_session_id || agent.id || agent.pane_id);}
  function observe(agent: AgentSnapshot | null | undefined){if(!agent||agent.archived)return;const id=key(agent),state=agent.terminalSession&&agent.completed?'done':agent.agent_status||agent.status||'unknown';if(!['working','idle','done','blocked','error','failed'].includes(state))return;const previous=states.get(id);states.set(id,state);if(state==='working'){if(!resumeTimers.has(id))resumeTimers.set(id,setTimeout(()=>{resumeTimers.delete(id);if(states.get(id)==='working')actionNotices.delete(id);},1200));}else{clearTimeout(resumeTimers.get(id));resumeTimers.delete(id);}if(state==='done')actionNotices.delete(id);if(previous===state || previous===undefined&&state!=='blocked')return;const kind: NoticeKind | null=state==='blocked'?'blocked':['error','failed'].includes(state)?'error':(agent.terminalSession?state==='done':previous==='working'&&['idle','done'].includes(state))?'done':null;if(!kind)return;if(kind==='blocked'){if(actionNotices.has(id))return;actionNotices.add(id);}if(isNotificationWindowFocused()&&isViewing(agent)&&!preferences.focused)return;showNotice(agent,kind);
@@ -34,12 +34,16 @@ export function createNotifications({icon,isViewing,onOpen}: NotificationOptions
  function showNotice(agent:AgentSnapshot,kind:NoticeKind){
   const id=key(agent),provider=agent.agent?agent.agent.charAt(0).toUpperCase()+agent.agent.slice(1):'Agent';
   const title=kind==='blocked'?provider+' needs your action':kind==='done'?provider+' work completed':provider+' encountered an error';
-  if(preferences.system&&(preferences.focused||!isNotificationWindowFocused())){
+  // Focused: show the notice inside Pane. In the background: use the system notification, and fall back to the in-app notice only if it could not be sent.
+  const background=!isNotificationWindowFocused();
+  if(preferences.system&&background){
    if(nativeNotices.size>=64)nativeNotices.delete(nativeNotices.keys().next().value!);nativeNotices.set(id,agent);
-   void system.send({id,title,body:agent.name||provider,silent:preferences.soundMode!=='system',allowFocused:preferences.focused}).then(result=>{if(result.status!=='sent'&&result.status!=='suppressed')feedback.textContent=result.message||'System notification unavailable.';});
+   void system.send({id,title,body:agent.name||provider,silent:preferences.soundMode!=='system',allowFocused:false}).then(result=>{if(result.status==='sent')return;nativeNotices.delete(id);if(result.status!=='suppressed')feedback.textContent=result.message||'System notification unavailable.';if(preferences.popup)showCard();});
   }
   if(preferences.soundMode==='app')void soundPlayer.play(kind).then(played=>{if(!played)feedback.textContent='The app notification sound could not play. Check your audio output.';});
-  if(!preferences.popup)return;
+  if(!preferences.popup||preferences.system&&background)return;
+  showCard();
+  function showCard(){
   const dialog=document.querySelector<HTMLDialogElement>('#settings-dialog')!;(dialog.open?dialog:document.body).append(stack);
   cards.get(id)?.dismiss();if(cards.size>=3)cards.values().next().value?.dismiss();
   const card=document.createElement('section');card.className='agent-notification';card.dataset.kind=kind;
@@ -49,6 +53,7 @@ export function createNotifications({icon,isViewing,onOpen}: NotificationOptions
   const close=document.createElement('button');close.className='notification-dismiss';close.setAttribute('aria-label','Dismiss notification');close.append(icon('close'));card.append(open,close);
   let timer:ReturnType<typeof setTimeout>|undefined;const dismiss=()=>{clearTimeout(timer);card.remove();cards.delete(id);};cards.set(id,{dismiss});close.onclick=dismiss;open.onclick=()=>{dismiss();dialog.close();onOpen(agent);};stack.append(card);card.setAttribute('role','status');
   const schedule=()=>{clearTimeout(timer);if(kind!=='blocked')timer=setTimeout(dismiss,8000);};card.onmouseenter=()=>clearTimeout(timer);card.onmouseleave=schedule;card.addEventListener('focusin',()=>clearTimeout(timer));card.addEventListener('focusout',()=>{if(!card.contains(document.activeElement))schedule();});schedule();
+  }
  }
 
  return {observe,remove(value: unknown){const id=String(value);states.delete(id);nativeNotices.delete(id);actionNotices.delete(id);clearTimeout(resumeTimers.get(id));resumeTimers.delete(id);cards.get(id)?.dismiss();}};

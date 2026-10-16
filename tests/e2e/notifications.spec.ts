@@ -35,3 +35,28 @@ test('background agent system notifications deduplicate and clicking opens the m
  socket!.send(JSON.stringify({type:'data',data}));await page.waitForTimeout(250);expect(await page.evaluate(()=>Reflect.get(window,'nativeNotificationState').notices.length)).toBe(1);
  await page.getByRole('button',{name:'Settings',exact:true}).click();await page.evaluate(()=>Reflect.get(window,'nativeNotificationState').click(Reflect.get(window,'nativeNotificationState').notices[0].id));await expect(page.locator('#settings-dialog')).not.toBeVisible();await expect(page.locator('.terminal-agent-card')).toHaveClass(/selected/);
 });
+for(const scenario of [
+ {name:'focused window shows only the in-app notice',focused:true,delivery:'sent',native:0,cards:1},
+ {name:'background window sends only the system notification',focused:false,delivery:'sent',native:1,cards:0},
+ {name:'background window falls back to the in-app notice when the system notification cannot be sent',focused:false,delivery:'unavailable',native:1,cards:1},
+]){
+ test(scenario.name,async({page})=>{
+  const workspace={id:'notification-routing',name:'Routing',root:'C:\work\routing',branch:'main'};let socket:WebSocketRoute|undefined;
+  await page.addInitScript(focused=>{
+   document.hasFocus=()=>focused;localStorage.setItem('ai-web.notifications',JSON.stringify({popup:true,sound:false,system:true,focused}));
+  },scenario.focused);
+  await page.route('**/api/projects',route=>route.fulfill({json:{projects:[workspace],defaultProject:workspace.id}}));await page.route('**/api/tree?**',route=>route.fulfill({json:{entries:[]}}));await page.route('**/api/changes?**',route=>route.fulfill({json:{available:false,files:[]}}));await page.route('**/api/account-usage?**',route=>route.fulfill({json:{providers:[]}}));await page.route('**/api/local-sessions',route=>route.fulfill({json:{agents:[],sessions:[]}}));
+  await page.routeWebSocket('**/api/terminal',connection=>connection.onMessage(raw=>{if(JSON.parse(raw.toString()).type==='start'){socket=connection;connection.send(JSON.stringify({type:'ready',shell:'Test shell'}));connection.send(JSON.stringify({type:'agent',agent:'codex'}));}}));
+  await page.goto('/');await page.evaluate(([focused,delivery])=>{
+   const state={notices:[] as unknown[]};Reflect.set(window,'nativeNotificationState',state);document.documentElement.dataset.windowFocused=String(focused);
+   Reflect.set(window,'paneDesktop',{notificationVersion:1,onNotificationClick(){},async notify(value:unknown){state.notices.push(value);return delivery==='sent'?{status:'sent'}:{status:'unavailable',message:'Notifications are blocked.'};}});
+  },[scenario.focused,scenario.delivery] as const);
+  await page.locator('#terminal-new').click();await page.locator('[data-launch=codex]').click();await expect(page.locator('.terminal-agent-card')).toBeVisible();
+  socket!.send(JSON.stringify({type:'data',data:'\x1b[2J\x1b[H\x1b]0;action required\x07Would you like to run this command?\r\n1. Yes\r\n'}));
+  await expect(page.locator('.terminal-agent-card')).toHaveAttribute('data-status','blocked');
+  await expect.poll(()=>page.locator('.agent-notification').count()).toBe(scenario.cards);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(()=>Reflect.get(window,'nativeNotificationState').notices.length)).toBe(scenario.native);
+  await expect(page.locator('.agent-notification')).toHaveCount(scenario.cards);
+ });
+}
