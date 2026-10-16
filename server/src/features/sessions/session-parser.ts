@@ -39,7 +39,8 @@ export function parseSession(text: string, provider: string): ParsedSession {
       if (!item || (provider === 'codex' && item.type !== 'message')) continue;
       if ((item.role !== 'user' && item.role !== 'assistant') || item.phase === 'analysis') continue;
       const content = typeof item.content === 'string' ? item.content : (Array.isArray(item.content) ? item.content : []).map(record).filter(part => ['text','input_text','output_text'].includes(string(part.type) || '')).map(part => string(part.text) || '').join('\n');
-      if (!content.trim() || /^(<environment_context>|<user_instructions>|<permissions instructions>|<system-reminder>)/.test(content.trim())) continue;
+      if (!content.trim() || /^(<environment_context>|<user_instructions>|<permissions instructions>|<system-reminder>|<local-command-caveat>|<local-command-stdout>|<local-command-stderr>|<command-name>|<command-message>|\[Request interrupted)/.test(content.trim())) continue;
+      if (provider === 'claude' && row.isMeta === true) continue;
       if (provider === 'claude') { if(string(item.model))metadata.model=string(item.model);if(item.role==='user')startedAt=string(row.timestamp); }
       const timestamp=string(row.timestamp);
       const elapsed = startedAt && timestamp ? Math.max(0, Date.parse(timestamp)-Date.parse(startedAt)) : null;
