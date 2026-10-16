@@ -56,7 +56,7 @@ Recycle Bin and File Explorer use scoped Electron shell actions and are disabled
 
 ## Updates and releases
 
-Settings → **About & Updates** displays the actual runtime version, platform, stable channel, last check, release notes and download progress. The installed Windows x64 app checks GitHub Releases five seconds after a fresh launch, then every six hours; a recent successful check retains its remaining interval across restarts; automatic checks can be disabled in this page (saved to `updates.json`). Manual checks still work. Focus/wake triggers an overdue check; transient failures retry after 15 minutes with exponential backoff capped at six hours. Known available releases are retained across restarts and background network failures. Overlapping requests share one check. Downloads are explicit. A small titlebar button announces an available/downloaded update and opens this page.
+Settings → **About & Updates** displays the actual runtime version, platform, stable channel, last check, release notes and download progress. The installed Windows x64 app checks GitHub Releases five seconds after every launch, even if the last check was recent, then every six hours; a newly found release is offered once per version and session in a prompt with **View update** (which opens About & Updates) next to the titlebar **Update available** button; automatic checks can be disabled in this page (saved to `updates.json`). Manual checks still work. Focus/wake triggers an overdue check; transient failures retry after 15 minutes with exponential backoff capped at six hours. Known available releases are retained across restarts and background network failures. Overlapping requests share one check. Downloads are explicit. A small titlebar button announces an available/downloaded update and opens this page.
 
 Updates use `electron-updater` with the public `vincody/pane` GitHub release feed, generated `latest.yml`, installer and blockmap. Drafts and prereleases are excluded; downgrades are disabled. No GitHub CLI or user GitHub token is required. The feed must remain publicly readable; if source becomes private, move releases to a public distribution repository and change `publish` before distributing builds. Never embed a GitHub token in the app.
 
@@ -113,3 +113,7 @@ Paste works only in the desktop app; there is no browser fallback.
 ## Terminal copy (OSC 52)
 
 TUIs such as Claude CLI copy a mouse selection with the OSC 52 escape sequence, which xterm.js does not implement. The terminal registers a handler (`client/src/features/terminal/terminal-osc52.ts`) that writes the decoded text to the system clipboard through `pane:clipboard-write`. Clipboard queries (`?`) are ignored, payloads are capped at 128 KB of base64, only the last write of a burst is applied, and output replayed on reattach never writes to the clipboard.
+
+## Terminal text size
+
+Settings → Terminal → **Terminal text size** sets the terminal font size (whole pixels, 8 to 32; other values are rounded or clamped) and is saved locally. xterm repaints the whole terminal when the size changes, so a terminal applies it only when it can be measured and fitted; hidden terminals pick it up when you open them, and the PTY is resized to the new columns and rows (`client/src/features/terminal/terminal-font.ts`).
