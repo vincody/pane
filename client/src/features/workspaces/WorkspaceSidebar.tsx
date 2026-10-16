@@ -5,6 +5,7 @@ import {Icon} from '../../components/bridge';
 import type {NativeIcon,TerminalAgent,Workspace} from '../../components/contracts';
 import {needsAttention,workspaceLead,type WorkspaceLead} from './session-attention';
 import type {DiffStat} from './workspace-diff';
+import {avatarHue,avatarLetter} from './project-avatar';
 interface Options {
  icon:NativeIcon;
  onSelect:(project:Workspace)=>void;
@@ -15,7 +16,6 @@ interface Options {
 }
 interface State {projects:Workspace[];currentProjectId:string|null;agents:TerminalAgent[];diffs:ReadonlyMap<string,DiffStat>}
 const LEAD_LABEL:Record<WorkspaceLead,string>={failed:'Agent failed',blocked:'Needs your input',working:'Agent working',review:'Ready for review',idle:''};
-const avatarHue=(name:string)=>[...name].reduce((hash,char)=>(hash*31+char.charCodeAt(0))%360,7);
 /** Status glyph at the start of a workspace row; the badge overlays the base glyph. */
 function Lead({kind,local,icon}:{kind:WorkspaceLead;local:boolean;icon:NativeIcon}){
  const label=LEAD_LABEL[kind];
@@ -30,7 +30,7 @@ function WorkspaceCard({project,contexts,currentProjectId,agents,diffs,options}:
  useLayoutEffect(()=>{options.setupDrag(project,button.current!,group.current!);},[project,options]);
  const attention=agents.filter(needsAttention).length;
  return <section ref={group} className={`workspace-group${groupSelected?' selected':''}`} data-project={project.id}><div className="project-row">
-  <button ref={button} className={`project-button${selected?' active':''}`} aria-current={selected?'page':undefined} title={project.root} onClick={()=>options.onSelect(project)} onContextMenu={event=>{event.preventDefault();options.onMenu(project,event.clientX,event.clientY,event.currentTarget);}} onKeyDown={event=>{if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();const rect=event.currentTarget.getBoundingClientRect();options.onMenu(project,rect.left+20,rect.bottom,event.currentTarget);}}}><span className="project-avatar" style={{'--hue':avatarHue(project.name)} as CSSProperties} aria-hidden="true">{project.name.trim().charAt(0).toUpperCase()||'?'}</span><span className="project-text">{project.name}</span>{attention>0&&<span className="workspace-attention" title={`${attention} ${attention===1?'session requires':'sessions require'} your input or review`}><b>{attention}</b><span className="workspace-attention-label"> {attention===1?'needs':'need'} attention</span></span>}</button>
+  <button ref={button} className={`project-button${selected?' active':''}`} aria-current={selected?'page':undefined} title={project.root} onClick={()=>options.onSelect(project)} onContextMenu={event=>{event.preventDefault();options.onMenu(project,event.clientX,event.clientY,event.currentTarget);}} onKeyDown={event=>{if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();const rect=event.currentTarget.getBoundingClientRect();options.onMenu(project,rect.left+20,rect.bottom,event.currentTarget);}}}><span className="project-avatar" style={{'--hue':avatarHue(project.name)} as CSSProperties} aria-hidden="true">{avatarLetter(project.name)}</span><span className="project-text">{project.name}</span>{attention>0&&<span className="workspace-attention" title={`${attention} ${attention===1?'session requires':'sessions require'} your input or review`}><b>{attention}</b><span className="workspace-attention-label"> {attention===1?'needs':'need'} attention</span></span>}</button>
   <button type="button" className="project-add" aria-label={`New worktree in ${project.name}`} title="New worktree" onClick={()=>options.onCreateSubWorkspace(project)}><Icon name="plus" icon={options.icon}/></button>
   <button className="project-more" aria-label={`Actions for ${project.name}`} aria-haspopup="menu" onClick={event=>{const rect=event.currentTarget.getBoundingClientRect();options.onMenu(project,rect.left,rect.bottom,event.currentTarget);}}><Icon name="more" icon={options.icon}/></button>
  </div><div id={`workspace-children-${project.id}`} className="workspace-children">{contexts.map(context=><div key={context.id} className={`workspace-context${currentProjectId===context.id?' selected':''}`} data-context={context.id}>

@@ -1,0 +1,33 @@
+/* Browser tab: address bar, embedded page, start page and error screen. Uses root tokens because .file-layout-code switches to the dark code palette. */
+.browser-pane #terminal-screens,.browser-pane .file-layout-code{background:var(--canvas)}
+.browser-pane .file-layout-code{display:flex;flex-direction:column;overflow:hidden}
+.browser-host{display:flex;flex:1;flex-direction:column;min-height:0;color:var(--ink)}
+.browser-toolbar{display:flex;flex:none;align-items:center;gap:4px;height:40px;padding:0 8px;border-bottom:1px solid var(--hairline)}
+.browser-button{display:grid;place-items:center;flex:none;width:28px;height:28px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--ui-muted);cursor:pointer}
+.browser-button svg{width:15px;height:15px}
+.browser-button:hover:not(:disabled){background:var(--workspace-hover);color:var(--ink)}
+.browser-button:disabled{opacity:.35;cursor:default}
+.browser-address{flex:1;min-width:0;margin:0 4px}
+.browser-address input{width:100%;height:28px;padding:0 12px;border:1px solid var(--hairline);border-radius:14px;outline:0;background:var(--surface-soft);color:var(--ink);font:12px var(--font-ui)}
+.browser-address input:focus{border-color:color-mix(in srgb,var(--primary) 55%,var(--hairline))}
+.browser-progress{height:2px;flex:none;background:linear-gradient(90deg,transparent,var(--primary),transparent) no-repeat;background-size:40% 100%}
+@media(prefers-reduced-motion:no-preference){.browser-progress{animation:browser-load 1.1s linear infinite}}
+@keyframes browser-load{from{background-position:-40% 0}to{background-position:140% 0}}
+.browser-viewport{position:relative;flex:1;min-height:0}
+.browser-view{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.browser-start,.browser-error{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;background:var(--canvas);text-align:center}
+.browser-error{z-index:1}
+.browser-start h2,.browser-error strong{margin:0;color:var(--ink);font:400 22px/1.2 var(--font-display)}
+.browser-start p,.browser-error p{margin:0;max-width:420px;color:var(--ui-muted);font-size:13px;line-height:1.5;word-break:break-word}
+.browser-servers{display:flex;flex-direction:column;gap:6px;width:min(440px,100%);margin:10px 0 0;padding:0;list-style:none}
+.browser-server,.browser-error-actions button{padding:8px 12px;border:1px solid var(--hairline);border-radius:8px;background:var(--surface-soft);color:var(--ink);font:12px var(--font-ui);cursor:pointer}
+.browser-server{width:100%;overflow:hidden;font-family:var(--font-code);text-align:left;text-overflow:ellipsis;white-space:nowrap}
+.browser-server:hover,.browser-error-actions button:hover{background:var(--surface-card)}
+.browser-error-actions{display:flex;gap:8px;margin-top:8px}
+.browser-start[hidden],.browser-error[hidden],.browser-progress[hidden],.browser-servers[hidden]{display:none}
+/* The pane title bar follows the toolbar below it instead of the dark code palette. */
+#terminal-screens .browser-pane>.terminal-pane-header,#terminal-screens .browser-pane.pane-focused>.terminal-pane-header{background:var(--canvas);border-bottom:1px solid var(--hairline)}
+#terminal-screens .browser-pane .terminal-pane-title{color:var(--ink);font-weight:500}
+#terminal-screens .browser-pane .terminal-pane-zoom,#terminal-screens .browser-pane .terminal-pane-close{color:var(--ui-muted)}
+#terminal-screens .browser-pane .terminal-pane-zoom:hover,#terminal-screens .browser-pane .terminal-pane-close:hover{background:var(--workspace-hover);color:var(--ink)}
+.browser-toolbar{border-bottom:0}

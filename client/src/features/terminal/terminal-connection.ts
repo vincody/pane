@@ -3,14 +3,14 @@ import type {Workspace,SessionRecord,TerminalServerMessage} from '../../../../sh
 import type {PaneSession} from './terminal-types.ts';
 import {resumeCommand} from '../history/history-session.ts';
 interface ConnectionOptions {
- session:PaneSession; token:string; project:Workspace; id:string; terminal:Terminal; launch:string; resume:SessionRecord|null;
+ session:PaneSession; token:string; project:Workspace; id:string; terminal:Terminal; launch:string; resume:SessionRecord|null; onOutput?:(data:string)=>void;
  getActive:()=>PaneSession|null|undefined;
  $:(selector:string)=>HTMLElement;
  fitSession:(session:PaneSession)=>void;
  journal:()=>unknown; renderTabs:()=>void; publish:()=>void;
  scheduleActivity:(session:PaneSession)=>void; inspectScreen:(session:PaneSession)=>void;
 }
-export function createTerminalConnection({session,token,project,id,terminal,launch,resume,getActive,$,fitSession,journal,renderTabs,publish,scheduleActivity,inspectScreen}:ConnectionOptions){
+export function createTerminalConnection({session,token,project,id,terminal,launch,resume,onOutput,getActive,$,fitSession,journal,renderTabs,publish,scheduleActivity,inspectScreen}:ConnectionOptions){
     function connectSocket(){
     if(session.disposed)return;
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -36,7 +36,7 @@ export function createTerminalConnection({session,token,project,id,terminal,laun
       } else if (message.type === 'data') {
         const finished=()=>{if(message.replay){session.replaying=false;session.state='running';session.element.dataset.connection='running';renderTabs();}scheduleActivity(session);};
         if(message.replay)session.replaying=true;
-        if(!message.data)finished();else terminal.write(message.data,finished);
+        if(!message.data)finished();else{if(!message.replay)onOutput?.(message.data);terminal.write(message.data,finished);}
       } else if (message.type === 'agent') {
         session.agent = message.agent;
         renderTabs();

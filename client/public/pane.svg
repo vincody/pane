@@ -1,7 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="16" fill="#d97757"/>
-  <g fill="none" stroke="#211f1c" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="13" y="13" width="38" height="38" rx="5"/>
-    <path d="M35 13v38M13 32h22"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="pane-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2823"/><stop offset="1" stop-color="#11100e"/></linearGradient>
+    <linearGradient id="pane-gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".10"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="pane-coral" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f0957a"/><stop offset="1" stop-color="#cf7357"/></linearGradient>
+    <linearGradient id="pane-cream" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4efe6"/><stop offset="1" stop-color="#d6cfc2"/></linearGradient>
+    <filter id="pane-lift" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000" flood-opacity=".38"/></filter>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#pane-bg)"/>
+  <rect x="8.5" y="8.5" width="239" height="239" rx="57.5" fill="url(#pane-gloss)" stroke="#fff" stroke-opacity=".13"/>
+  <g filter="url(#pane-lift)">
+    <rect x="60" y="60" width="60" height="60" rx="13" fill="url(#pane-cream)"/>
+    <rect x="60" y="136" width="60" height="60" rx="13" fill="url(#pane-cream)"/>
+    <rect x="136" y="60" width="60" height="136" rx="13" fill="url(#pane-coral)"/>
   </g>
 </svg>

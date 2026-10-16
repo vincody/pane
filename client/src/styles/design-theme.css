@@ -34,7 +34,7 @@ button{transition:background-color 120ms,color 120ms,border-color 120ms}
 button:disabled{opacity:.55}
 :where(button,input,select,textarea,a,summary,[tabindex]):focus-visible{outline:2px solid var(--primary-active);outline-offset:3px}
 ::selection{background:color-mix(in srgb,var(--primary) 25%,transparent)}
-.sidebar,.files-sidebar{background:var(--surface-soft);border-color:var(--hairline)}
+.sidebar,.files-sidebar{background:var(--canvas);border-color:var(--hairline)}
 #app .sidebar{border-right:0}
 #app .files-sidebar{border-left:0}
 .brand{color:var(--ink);border-color:var(--hairline);font-weight:600;letter-spacing:-.3px}
@@ -48,9 +48,6 @@ button:disabled{opacity:.55}
 .workspace-heading #open-folder{flex:none;width:28px;height:28px;margin:0;padding:0;background:transparent;color:var(--muted);border:0;border-radius:var(--radius-sm)}
 .workspace-heading #open-folder svg{width:15px;height:15px}
 .workspace-heading .refresh-git{flex:none;margin-left:0}
-.workspace-actions #terminal-new{height:36px;background:var(--primary-active);color:var(--on-primary);border-color:var(--primary-active);border-radius:var(--radius-md);font-size:12px}
-.workspace-actions #terminal-new{flex:1;white-space:nowrap;padding-inline:12px}
-.workspace-actions #terminal-new:hover,.workspace-actions #terminal-new[aria-expanded=true]{background:var(--primary-hover);color:var(--on-primary-hover);border-color:var(--primary-hover)}
 .workspace-heading #open-folder:hover{background:var(--surface-card);color:var(--ink)}
 .sidebar #projects .workspace-group .project-button{color:var(--body);font-weight:500}
 .sidebar #projects .workspace-group.selected .project-button{background:transparent;color:var(--ink);box-shadow:none;border-radius:var(--radius-sm)}
@@ -96,7 +93,7 @@ button:disabled{opacity:.55}
 .primary-button:hover{background:var(--primary-hover);color:var(--on-primary-hover);border-color:var(--primary-hover)}
 .secondary-button{background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);border-radius:var(--radius-md)}
 .secondary-button:hover{background:var(--surface-card)}
-.file-filter{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--radius-md)}
+.file-filter{background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--radius-md)}
 .file-filter input,.project-search input{color:var(--body);background:transparent}
 .file-filter input::placeholder,.project-search input::placeholder{color:var(--muted)}
 .file-row{color:var(--body);font-size:12px}

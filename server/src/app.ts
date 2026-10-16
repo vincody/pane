@@ -156,7 +156,13 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
         if(req.method==='POST'&&url.pathname==='/api/close-terminal'){const data=await body(req);if(typeof data.sessionId!=='string')throw new FileError(400,'Provide a terminal session ID.');return json(200,{closed:closeTerminalPty.stop(data.sessionId)});}
         if(req.method==='GET'&&url.pathname==='/api/dev-servers'){
           const project=url.searchParams.get('project')||'';if(!files.projects.has(project))throw new FileError(404,'Workspace not found.');
-          return json(200,await devServers.read(project));
+          return json(200,await devServers.read(project,{ownPort:req.socket.localPort}));
+        }
+        if(req.method==='POST'&&url.pathname==='/api/dev-servers/terminate'){
+          const data=await body(req),project=typeof data.project==='string'?data.project:'';
+          if(!files.projects.has(project))throw new FileError(404,'Workspace not found.');
+          if(typeof data.id!=='string'||!data.id)throw new FileError(400,'Provide a server ID.');
+          return json(200,await devServers.terminate(project,data.id));
         }
         if(req.method==='GET'&&url.pathname==='/api/local-sessions')return json(200,await localRunner.snapshot());
         if(url.pathname==='/api/sessions'){const id=(url.searchParams.get('id')||'');if(req.method==='PATCH'){const data=await body(req);return json(200,await local.rename(id,data.name));}if(req.method==='DELETE'){await local.remove(id);return json(200,{removed:id});}}

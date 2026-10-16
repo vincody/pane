@@ -1,0 +1,5 @@
+/* Every region shares one background tone, so thin hairlines mark where one region ends and the next begins. */
+#app .sidebar{border-right:1px solid var(--hairline)}
+#app .files-sidebar{border-left:1px solid var(--hairline)}
+#app .sidebar>.brand,#app main>.topbar,#app .files-sidebar>.files-head{border-bottom:1px solid var(--hairline)}
+#app .sidebar>.sidebar-footer{border-top:1px solid var(--hairline)}

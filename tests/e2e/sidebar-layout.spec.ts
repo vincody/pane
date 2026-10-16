@@ -15,7 +15,7 @@ test('saved sidebar geometry is correct before the app bundle starts and remains
   expect(await page.locator('.sidebar').evaluate(node=>getComputedStyle(node).transitionDuration)).toBe('0s');
  }finally{release();}
  await expect(page.getByRole('separator',{name:'Resize workspace sidebar'})).toBeVisible();expect(await widths()).toEqual([312,0]);
- await expect(page.getByRole('button',{name:'New session',exact:true})).toHaveText('New session');
+ await expect(page.locator('.topbar').getByRole('button',{name:'New session',exact:true})).toBeVisible();await expect(page.locator('.sidebar').getByRole('button',{name:'New session',exact:true})).toHaveCount(0);
  await expect(page.locator('html')).toHaveAttribute('data-layout-ready','true');
  expect(await page.locator('.sidebar').evaluate(node=>getComputedStyle(node).transitionDuration)).not.toBe('0s');
  await page.getByRole('button',{name:'Toggle files',exact:true}).click();await expect.poll(widths).toEqual([312,334]);

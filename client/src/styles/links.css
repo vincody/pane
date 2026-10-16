@@ -1,0 +1,26 @@
+/* Link choice dialog and the local-server prompts. Root tokens only, so both themes work. */
+#link-choice{width:min(440px,calc(100vw - 32px));padding:20px 22px;border:1px solid var(--hairline);border-radius:var(--radius-lg);background:var(--canvas);color:var(--ink);box-shadow:0 24px 70px #0006}
+#link-choice::backdrop{background:#0006}
+#link-choice form{display:flex;flex-direction:column;gap:12px}
+#link-choice h2{margin:0;font:400 20px/1.2 var(--font-display)}
+.link-choice-url{margin:0;padding:8px 10px;border:1px solid var(--hairline);border-radius:var(--radius-md);background:var(--surface-soft);font:12px/1.5 var(--font-code);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link-choice-actions{display:flex;gap:8px}
+.link-choice-actions button{display:flex;flex:1;align-items:center;justify-content:center;min-height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:var(--radius-md);background:var(--surface-soft);color:var(--ink);font:500 13px/1 var(--font-ui);text-align:center;cursor:pointer}
+.link-choice-actions .link-choice-primary{border-color:var(--primary-active);background:var(--primary-active);color:var(--on-primary);font-weight:600}
+.link-choice-actions button:focus-visible,.link-choice-cancel:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.link-choice-actions button:hover{filter:brightness(1.06)}
+.link-choice-remember{display:flex;align-items:center;gap:8px;width:fit-content;color:var(--ui-muted);font-size:12px;cursor:pointer}
+.link-choice-remember input{flex:none;width:16px;height:16px;margin:0;padding:0;accent-color:var(--primary-active)}
+.link-choice-cancel{align-self:flex-end;padding:4px 8px;border:0;background:transparent;color:var(--ui-muted);font:12px var(--font-ui);cursor:pointer}
+.link-choice-cancel:hover{color:var(--ink)}
+#link-prompts{position:fixed;left:50%;bottom:72px;z-index:130;display:flex;flex-direction:column;gap:8px;width:min(460px,calc(100vw - 32px));transform:translateX(-50%);pointer-events:none}
+.link-prompt{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--hairline);border-radius:var(--radius-lg);background:var(--canvas);color:var(--ink);box-shadow:0 14px 40px #0004;pointer-events:auto}
+.link-prompt-copy{display:flex;flex:1;flex-direction:column;gap:2px;min-width:0}
+.link-prompt-copy strong{font-size:12px;font-weight:600}
+.link-prompt-copy span{overflow:hidden;color:var(--ui-muted);font:11px var(--font-code);text-overflow:ellipsis;white-space:nowrap}
+.link-prompt-actions{display:flex;flex:none;gap:6px}
+.link-prompt-actions button{padding:5px 10px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--surface-soft);color:var(--ink);font:500 12px var(--font-ui);cursor:pointer}
+.link-prompt-actions button:first-child{border-color:var(--primary-active);background:var(--primary-active);color:var(--on-primary)}
+.link-prompt-dismiss{flex:none;width:22px;height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--ui-muted);font:16px/1 var(--font-ui);cursor:pointer}
+.link-prompt-dismiss:hover{background:var(--workspace-hover);color:var(--ink)}
+@media(prefers-reduced-motion:no-preference){.link-prompt{animation:link-prompt-in .16s ease-out}@keyframes link-prompt-in{from{opacity:0;transform:translateY(8px)}}}

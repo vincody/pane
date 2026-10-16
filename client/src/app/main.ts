@@ -23,6 +23,11 @@ import {setupColorTheme} from '../features/settings/color-theme.ts';
 import {setupTabDrag} from '../features/layout/tab-drag.ts';
 import {icon} from '../lib/icons.ts';
 import {fileIcon} from '../features/files/file-icons.ts';
+import {diffEditorOptions,setupDiffHeader,updateDiffStat} from '../features/files/diff-view.ts';
+import {setupBrowserPane,type BrowserServer} from '../features/browser/browser-pane.ts';
+import {createLinkPreferences} from '../features/browser/link-preferences.ts';
+import {createLinkOpener} from '../features/browser/link-opener.ts';
+import {setupLinkSettings} from '../features/browser/link-settings.ts';
 import {kind,language} from '../features/files/file-language.ts';
 import {createFileTree} from '../features/files/file-tree.ts';
 import {setupFileActions} from '../features/files/file-actions.ts';
@@ -42,6 +47,9 @@ import '../styles/design-theme.css';
 import '../styles/git.css';
 import '../styles/selects.css';
 import '../styles/workspace-sidebar.css';
+import '../styles/dividers.css';
+import '../styles/browser.css';
+import '../styles/links.css';
 
 setupEditorWorkers();
 
@@ -49,11 +57,11 @@ import {uiQuery as $,eventElement,htmlChildren} from '../lib/dom.ts';
 import {createApi,ApiError,pendingApiWrites} from '../lib/api.ts';
 import {errorMessage} from '../components/contracts.ts';
 import type {OpenDocument,FileView} from '../features/files/documents.ts';
-import type {Workspace,SessionSnapshot,AgentSnapshot,TextFile,ImageFile,FileDiff,GitFileChange} from '../../../shared/contracts.ts';
+import type {Workspace,SessionSnapshot,AgentSnapshot,TextFile,ImageFile,FileDiff,GitFileChange,DevServerSnapshot} from '../../../shared/contracts.ts';
 import type {TerminalAgent} from '../components/contracts.ts';
 import type {DraggedFile,DropZone} from '../features/layout/tab-drag.ts';
 import type {ExternalFilePane} from '../features/terminal/terminal-view.ts';
-type FilePane=ExternalFilePane&{preview:HTMLElement;editor:monaco.editor.IStandaloneCodeEditor|monaco.editor.IStandaloneDiffEditor|null;live?:ReturnType<typeof createLiveMarkdownSurface>};
+type FilePane=ExternalFilePane&{preview:HTMLElement;editor:monaco.editor.IStandaloneCodeEditor|monaco.editor.IStandaloneDiffEditor|null;live?:ReturnType<typeof createLiveMarkdownSurface>;dispose?:()=>void};
 const token = $('meta[name="ai-web-token"]').content;
 const api=createApi(token);
 $('#app').classList.toggle('sidebar-hidden',document.documentElement.dataset.workspacesHidden==='true');
@@ -120,7 +128,7 @@ const mainLive=createLiveMarkdownSurface(mainLiveElement,{save:doc=>{void saveFi
 monaco.editor.defineTheme('ai-web', {
   base: 'vs-dark', inherit: true,
   rules: [{ token: 'comment', foreground: '9B9183', fontStyle: 'italic' }, { token: 'keyword', foreground: 'E8875F' }, { token: 'string', foreground: 'A8C17C' }, { token: 'number', foreground: 'D6A0C9' }, { token: 'type', foreground: '6CB8D6' }, { token: 'delimiter', foreground: '8F859D' }],
-  colors: { 'editor.background': '#1F1E1B', 'editor.foreground': '#E9E5DC', 'editorLineNumber.foreground': '#61594F', 'editorLineNumber.activeForeground': '#E9E5DC', 'editor.lineHighlightBackground': '#FFFFFF04', 'editor.selectionBackground': '#D9775722', 'editorCursor.foreground': '#D97757', 'editorIndentGuide.background1': '#FFFFFF08', 'editorIndentGuide.activeBackground1': '#D9775722', 'editorWidget.background': '#2B2925', 'editorWidget.border': '#49443C' },
+  colors: { 'editor.background': '#1F1E1B', 'editor.foreground': '#E9E5DC', 'editorLineNumber.foreground': '#61594F', 'editorLineNumber.activeForeground': '#E9E5DC', 'editor.lineHighlightBackground': '#FFFFFF04', 'editor.selectionBackground': '#D9775722', 'editorCursor.foreground': '#D97757', 'editorIndentGuide.background1': '#FFFFFF08', 'editorIndentGuide.activeBackground1': '#D9775722', 'editorWidget.background': '#2B2925', 'editorWidget.border': '#49443C', 'diffEditor.insertedLineBackground': '#7FB77E14', 'diffEditor.removedLineBackground': '#E5736B14', 'diffEditor.insertedTextBackground': '#7FB77E2E', 'diffEditor.removedTextBackground': '#E5736B2E', 'diffEditorGutter.insertedLineBackground': '#7FB77E22', 'diffEditorGutter.removedLineBackground': '#E5736B22', 'diffEditor.diagonalFill': '#00000000', 'diffEditor.border': '#00000000', 'diffEditor.unchangedRegionBackground': '#26241F', 'diffEditor.unchangedRegionForeground': '#9B9183', 'diffEditor.unchangedRegionShadow': '#00000000' },
 });
 const editor = monaco.editor.create($('#editor'), {
   theme: 'ai-web', model: null, automaticLayout: true, fontSize: 13, lineHeight: 23,
@@ -313,8 +321,8 @@ async function openDiff(project:Workspace,file:GitFileChange,revision?:string){
  const result=await api<FileDiff>(revision?`/api/git/commit-diff?${new URLSearchParams({project:project.id,hash:revision,path:file.path})}`:fileUrl('diff',{project:project.id,path:file.path})),key=revision?`diff:${project.id}:${revision}:${file.path}`:`diff:${project.id}:${file.path}`;
  gitView?.deactivate();
  let doc=documents.get(key);
- if(doc?.kind==='diff'){doc.diffModels[0].setValue(result.original);doc.diffModels[1].setValue(result.modified);terminalView.select(`file:${key}`);return;}
- doc={key,project:project.id,path:file.path,name:`${file.path.split('/').pop()} · ${revision?revision.slice(0,8):'Diff'}`,kind:'diff',dirty:false,baseline:result.baseline,diffModels:[monaco.editor.createModel(result.original,language(file.path),monaco.Uri.parse(`git-base://${project.id}/${revision||'HEAD'}/${file.path}`)),monaco.editor.createModel(result.modified,language(file.path),monaco.Uri.parse(`git-current://${project.id}/${revision||'working'}/${file.path}`))]};
+ if(doc?.kind==='diff'){doc.diffModels[0].setValue(result.original);doc.diffModels[1].setValue(result.modified);doc.diffStat={added:file.added,removed:file.removed};updateDiffStat(filePanes.get(key)?.element,doc.diffStat);terminalView.select(`file:${key}`);return;}
+ doc={key,project:project.id,path:file.path,name:`${file.path.split('/').pop()} · ${revision?revision.slice(0,8):'Diff'}`,kind:'diff',dirty:false,baseline:result.baseline,diffStat:{added:file.added,removed:file.removed},diffModels:[monaco.editor.createModel(result.original,language(file.path),monaco.Uri.parse(`git-base://${project.id}/${revision||'HEAD'}/${file.path}`)),monaco.editor.createModel(result.modified,language(file.path),monaco.Uri.parse(`git-current://${project.id}/${revision||'working'}/${file.path}`))]};
  documents.set(key,doc);mountFilePane(doc,null);renderTabs();
 }
 function selectDocument(doc:OpenDocument,{keepChat=false}={}) {
@@ -345,8 +353,8 @@ function renderTabs() {
   if(selectedAgent){const tab=document.createElement('div');tab.dataset.tabKey='ai';tab.className=`file-tab ai-session-tab${chatActive?' active':''}`;tab.tabIndex=0;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(chatActive));const title=selectedAgent.display_agent || selectedAgent.name || selectedAgent.terminal_title_stripped || 'AI';tab.setAttribute('aria-label',`AI · ${title}`);const mark=document.createElement('span');mark.className='ai-tab-mark';if(['codex','claude','opencode'].includes(selectedAgent.agent)){const image=document.createElement('img');image.src=`/agents/${selectedAgent.agent}.svg`;image.alt='';mark.append(image);}else mark.append(icon('code'));const indicator=document.createElement('span');indicator.className='ai-tab-indicator';mark.append(indicator);tab.append(mark);const label=document.createElement('span');label.className='ai-tab-name';label.textContent=title;tab.append(label);const close=document.createElement('button');close.className='tab-close';close.setAttribute('aria-label','Close AI tab');close.append(icon('close'));close.onclick=event=>{event.stopPropagation();agentView.close();};tab.append(close);tab.onclick=()=>{gitView?.deactivate();endFileSplit();if(!agentView.visible||split){$('#app').classList.remove('chat-file-split');agentView.resume();}};tab.onkeydown=event=>{if(event.target===tab&&['Enter',' '].includes(event.key)){event.preventDefault();tab.click();}};$('#tabs').append(tab);}
   for (const doc of documents.values()) {
     if(doc.project!==currentProject?.id)continue;
-    const tab = document.createElement('div'); tab.dataset.tabKey=doc.key;tab.dataset.project=doc.project;tab.dataset.path=doc.path;tab.className = `file-tab${activeFileKey===doc.key&&!chatActive&&!gitActive ? ' active' : ''}`; tab.title = `${projects.find(p => p.id === doc.project)?.name}/${doc.path}`; tab.tabIndex = 0; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(activeFileKey===doc.key&&!chatActive&&!gitActive));
-    tab.append(fileIcon(doc.path)); const name = document.createElement('span'); name.className = 'tab-name'; name.textContent = doc.name; tab.append(name);
+    const tab = document.createElement('div'); tab.dataset.tabKey=doc.key;tab.dataset.project=doc.project;tab.dataset.path=doc.path;tab.className = `file-tab${activeFileKey===doc.key&&!chatActive&&!gitActive ? ' active' : ''}`; tab.title = doc.kind==='browser'?(doc.url||'New tab'):`${projects.find(p => p.id === doc.project)?.name}/${doc.path}`; tab.tabIndex = 0; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(activeFileKey===doc.key&&!chatActive&&!gitActive));
+    tab.append(doc.kind==='browser'?browserTabIcon(doc.favicon):fileIcon(doc.path)); const name = document.createElement('span'); name.className = 'tab-name'; name.textContent = doc.name; tab.append(name);
     if (doc.dirty) { const dot = document.createElement('span'); dot.className = 'tab-dirty'; dot.setAttribute('aria-label', 'Unsaved changes'); tab.append(dot); }
     const close = document.createElement('button'); close.className = 'tab-close'; close.append(icon('close')); close.setAttribute('aria-label', `Close ${doc.name}`); close.onclick = event => { event.stopPropagation(); closeDocument(doc); }; tab.append(close);
     tab.onclick = () => selectDocument(doc); tab.onkeydown = event => { if (event.target === tab && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); tab.click(); } }; $('#tabs').append(tab);
@@ -383,7 +391,7 @@ async function closeDocument(doc:OpenDocument) {
     const pane=filePanes.get(doc.key)!;filePanes.delete(doc.key);
     documents.delete(doc.key);forgetTabPosition(`file:${doc.key}`);
     if(currentDocument===doc)currentDocument=null;
-    terminalView.removeFilePane(`file:${doc.key}`);pane.live?.dispose();pane.editor?.dispose();for(const model of doc.diffModels||[])model.dispose();
+    terminalView.removeFilePane(`file:${doc.key}`);pane.dispose?.();pane.live?.dispose();pane.editor?.dispose();for(const model of doc.diffModels||[])model.dispose();
     previewRequests.set(pane.preview,(previewRequests.get(pane.preview)||0)+1);
     doc.subscription?.dispose();doc.model?.dispose();if(doc.imageUrl)URL.revokeObjectURL(doc.imageUrl);
     if(!terminalView.visible){const next=[...documents.values()].filter(doc=>doc.project===currentProject?.id).at(-1);if(next)selectDocument(next);}
@@ -470,7 +478,7 @@ async function renderPreview({doc=currentDocument,target=$('#preview-content'),s
     const markup=await marked.parse(content);if(generation!==previewRequests.get(target))return;
     target.innerHTML = DOMPurify.sanitize(markup, { USE_PROFILES: { html: true }, FORBID_TAGS: ['style', 'form', 'input', 'button', 'iframe'], FORBID_ATTR: ['style'] });
     addCodeCopyButtons(target);
-    for (const link of target.querySelectorAll<HTMLAnchorElement>('a')) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+    for (const link of target.querySelectorAll<HTMLAnchorElement>('a')) { link.target = '_blank'; link.rel = 'noopener noreferrer'; link.addEventListener('click',event=>{const written=link.getAttribute('href')||'';if(linkOpener.enabled&&/^https?:\/\//i.test(written)){event.preventDefault();void linkOpener.open(written,currentProject||undefined);}}); }
     for (const img of target.querySelectorAll<HTMLImageElement>('img')) {
       const source = img.getAttribute('src') || '';
       img.removeAttribute('src');
@@ -632,7 +640,16 @@ $('.topbar').insertBefore($('#tabs'),$('.toolbar-actions'));
 $('.topbar .toolbar-actions').append($('.view-switch'), $('#save'), $('#terminal-toggle'));
 $('#terminal-toggle-icon').append(icon('terminal'));
 const contentViews=document.createElement('div');contentViews.id='content-views';const editorStack=document.createElement('section');editorStack.id='editor-stack';editorStack.setAttribute('aria-label','File editor');contentViews.append($('#agent-panel'),editorStack);editorStack.append($('#workspace'));document.querySelector<HTMLElement>('main')!.append(contentViews);
-const terminalView=createTerminalView({token,icon,onSelect:()=>{if(restoringWorkbench)return;const context=projects.find(project=>project.id===terminalView.focusedProjectId);if(context&&context.id!==currentProject?.id)void selectProject(context);else gitView?.deactivate();activeFileKey=null;document.querySelector<HTMLElement>("#app")!.dataset.fileFocused="false";agentView.close();},onSessionsChange:agents=>{for(const old of terminalAgents)if(!agents.some(agent=>agent.id===old.id))notifications?.remove(old.id);terminalAgents=sessionAttention.update(agents,!document.hidden&&document.hasFocus());for(const agent of agents)notifications?.observe({...agent,terminalSession:true});usagePanel.setAgents([...sessionData.agents,...terminalAgents]);if(!draggedProject&&!reorderingProjects)renderProjects();},onClose:visible=>{ $('#terminal-toggle').setAttribute('aria-pressed',String(visible)); $('.topbar').classList.toggle('terminal-active',visible); }});editorStack.append(terminalView.element);$('#terminal-toggle').title='New terminal';$('#terminal-toggle').setAttribute('aria-label','New terminal');$('#terminal-toggle').onclick=()=>{agentView.close();endFileSplit();terminalView.newSession(currentProject);};
+const linkPreferences=createLinkPreferences(),linkOpener=createLinkOpener({preferences:linkPreferences,available:()=>window.paneDesktop?.browserVersion===1,openInApp:(url,project)=>{const target=project||currentProject;if(target)openBrowser(target,url);},openExternal:url=>{window.open(url,'_blank','noopener');}});
+// Ctrl/Cmd+click on a web link in the source editor goes through the same choice.
+monaco.editor.registerLinkOpener({open:resource=>{if(resource.scheme!=='http'&&resource.scheme!=='https')return false;void linkOpener.open(resource.toString(),currentProject||undefined);return true;}});
+// Links in the Live Markdown editor open with Ctrl or Cmd held, as in most editors; only absolute web links, never relative paths.
+document.addEventListener('click',event=>{
+ if(!(event.ctrlKey||event.metaKey)||!(event.target instanceof Element))return;
+ const link=event.target.closest<HTMLAnchorElement>('.live-markdown-content a[href]'),written=link?.getAttribute('href')||'';
+ if(link&&/^https?:\/\//i.test(written)){event.preventDefault();void linkOpener.open(written,currentProject||undefined);}
+},true);
+const terminalView=createTerminalView({token,icon,onOpenBrowser:project=>openBrowser(project),onOpenLink:(url,project)=>void linkOpener.open(url,project),onLocalAddress:(url,project)=>{if(linkPreferences.get().detect)linkOpener.announce(url,project);},onSelect:()=>{if(restoringWorkbench)return;const context=projects.find(project=>project.id===terminalView.focusedProjectId);if(context&&context.id!==currentProject?.id)void selectProject(context);else gitView?.deactivate();activeFileKey=null;document.querySelector<HTMLElement>("#app")!.dataset.fileFocused="false";agentView.close();},onSessionsChange:agents=>{for(const old of terminalAgents)if(!agents.some(agent=>agent.id===old.id))notifications?.remove(old.id);terminalAgents=sessionAttention.update(agents,!document.hidden&&document.hasFocus());for(const agent of agents)notifications?.observe({...agent,terminalSession:true});usagePanel.setAgents([...sessionData.agents,...terminalAgents]);if(!draggedProject&&!reorderingProjects)renderProjects();},onClose:visible=>{ $('#terminal-toggle').setAttribute('aria-pressed',String(visible)); $('.topbar').classList.toggle('terminal-active',visible); }});editorStack.append(terminalView.element);$('#terminal-toggle').title='New terminal';$('#terminal-toggle').setAttribute('aria-label','New terminal');$('#terminal-toggle').onclick=()=>{agentView.close();endFileSplit();terminalView.newSession(currentProject);};
 new ResizeObserver(()=>editor.layout()).observe(editorStack);
 const secondaryPane=document.createElement('section');secondaryPane.id='secondary-file';secondaryPane.hidden=true;secondaryPane.setAttribute('aria-label','Second file editor');secondaryPane.innerHTML='<header><span class="secondary-file-title"></span><button type="button" class="icon-button" aria-label="Merge split panes" title="Merge split panes"></button></header><div class="secondary-code"></div><div class="secondary-image" hidden></div>';contentViews.append(secondaryPane);secondaryPane.querySelector<HTMLButtonElement>('button')!.append(icon('close'));secondaryPane.querySelector<HTMLButtonElement>('button')!.onclick=()=>{if(secondaryDocument)closeDocument(secondaryDocument);};
 const secondaryLiveElement=document.createElement('div');secondaryPane.append(secondaryLiveElement);
@@ -668,7 +685,7 @@ const defaultViewRow=document.createElement('div');defaultViewRow.className='set
 function endFileSplit(){secondaryLive.hide();fileZoomAnimation?.cancel();$('#app').classList.remove('file-pane-maximized','file-pane-first');fileZoom.setAttribute('aria-label','Maximize file pane');fileZoom.setAttribute('aria-pressed','false');if(secondaryDocument&&secondaryEditor)secondaryDocument.secondaryViewState=secondaryEditor.saveViewState();secondaryDocument=null;secondaryEditor?.setModel(null);$('#secondary-file')?.setAttribute('hidden','');$('#app').classList.remove('file-file-split');}
 function showSecondary(doc:OpenDocument){if(secondaryDocument&&secondaryEditor)secondaryDocument.secondaryViewState=secondaryEditor.saveViewState();secondaryDocument=doc;const handle=secondaryPane.querySelector<HTMLElement>("header")!;handle.dataset.project=doc.project;handle.dataset.path=doc.path;secondaryPane.hidden=false;secondaryPane.querySelector<HTMLElement>('.secondary-file-title')!.textContent=doc.name;const code=secondaryPane.querySelector<HTMLElement>('.secondary-code')!,image=secondaryPane.querySelector<HTMLElement>('.secondary-image')!;code.hidden=doc.kind==='image';image.hidden=doc.kind!=='image';if(!secondaryEditor)secondaryEditor=monaco.editor.create(code,{model:null,theme:'ai-web',fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false});secondaryEditor.setModel(doc.model || null);if(doc.secondaryViewState)secondaryEditor.restoreViewState(doc.secondaryViewState);image.replaceChildren();if(doc.kind==='image')showImage(image,doc);setSecondaryView(defaultFileView);requestAnimationFrame(()=>secondaryEditor?.layout());}
 function dropTab(key:string,zone:DropZone){
- if(documents.get(key)?.kind==='diff'){const doc=documents.get(key)!;mountFilePane(doc,typeof zone==='object'?zone.id:terminalView.activePaneId,typeof zone==='object'?zone.direction:zone==='bottom'?'down':'right');return;}
+ const droppedKind=documents.get(key)?.kind;if(droppedKind==='diff'||droppedKind==='browser'){const doc=documents.get(key)!;mountFilePane(doc,typeof zone==='object'?zone.id:terminalView.activePaneId,typeof zone==='object'?zone.direction:zone==='bottom'?'down':'right');return;}
  if(key!=='ai'&&(typeof zone==='object'||zone==='right'||zone==='bottom')){const doc=documents.get(key);if(doc)void dropFile({project:doc.project,path:doc.path},zone);return;}
  const doc=documents.get(key),isAI=key==='ai',edge=zone==='right'||zone==='bottom',app=$('#app');
  if(isAI&&app.classList.contains('file-file-split'))endFileSplit();
@@ -691,7 +708,35 @@ async function dropFile(file:DraggedFile,zone:DropZone){
     mountFilePane(doc,target,direction);renderTabs();return;
   }catch(error){toast(errorMessage(error,'Operation failed.'));return;}
 }
+let browserCounter=0;
+function browserTabIcon(favicon?:string){
+ if(!favicon)return icon('globe');
+ const wrapper=document.createElement('span'),image=new Image();wrapper.className='shared-file-icon';image.alt='';image.referrerPolicy='no-referrer';image.src=favicon;image.onerror=()=>wrapper.replaceChildren(icon('globe'));wrapper.append(image);return wrapper;
+}
+async function loadBrowserServers():Promise<BrowserServer[]>{
+ const results=await Promise.allSettled(projects.map(project=>api<DevServerSnapshot>(`/api/dev-servers?${new URLSearchParams({project:project.id})}`).then(snapshot=>snapshot.rows.filter(row=>row.projectId===project.id&&row.status==='running'&&row.url).map(row=>({url:row.url!,label:`${row.url} · ${project.name}${project.branch?` · ${project.branch}`:''}`})))));
+ return results.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+}
+function openBrowser(project:Workspace,url=''){
+ if(window.paneDesktop?.browserVersion!==1)return;
+ const doc:OpenDocument={key:`browser:${project.id}:${Date.now().toString(36)}${++browserCounter}`,project:project.id,path:url,name:'New tab',kind:'browser',url,dirty:false};
+ documents.set(doc.key,doc);gitView?.deactivate();mountBrowserPane(doc,null);renderTabs();
+}
+function mountBrowserPane(doc:OpenDocument&{kind:'browser'},target:string|null|undefined,direction:'right'|'down'|'swap'='right'){
+ const element=document.createElement('section');element.className='terminal-screen file-layout-pane browser-pane';
+ element.innerHTML='<header class="terminal-pane-header"><span class="terminal-pane-title"></span><button class="terminal-pane-zoom" aria-label="Maximize browser pane"></button><button class="terminal-pane-close" aria-label="Close browser pane"></button></header><div class="file-layout-code"></div>';
+ const header=element.querySelector<HTMLElement>('header')!,host=element.querySelector<HTMLElement>('.file-layout-code')!,zoom=element.querySelector<HTMLButtonElement>('.terminal-pane-zoom')!,title=header.querySelector<HTMLElement>('.terminal-pane-title')!;
+ title.textContent=doc.name;zoom.innerHTML=fileZoom.innerHTML;
+ header.querySelector<HTMLButtonElement>('.terminal-pane-close')!.append(icon('close'));header.querySelector<HTMLButtonElement>('.terminal-pane-close')!.onclick=()=>closeDocument(doc);
+ const browser=setupBrowserPane({host,icon,initialUrl:doc.url,loadServers:loadBrowserServers,openExternal:url=>{window.open(url,'_blank','noopener');},onFocus:()=>element.dispatchEvent(new Event('pointerdown',{bubbles:true})),onState:state=>{
+  doc.url=state.url;doc.path=state.url;doc.favicon=state.favicon;doc.name=state.title||(state.url?new URL(state.url).host:'New tab');title.textContent=doc.name;renderTabs();
+ }});
+ const pane:FilePane={id:`file:${doc.key}`,project:projects.find(project=>project.id===doc.project)!,element,paneHeader:header,paneZoom:zoom,preview:element,editor:null,layout:()=>{},dispose:browser.destroy,onSelect:()=>{activeFileKey=doc.key;$('#app').dataset.fileFocused='true';agentView.close();renderTabs();}};
+ filePanes.set(doc.key,pane);terminalView.placeFilePane(pane,target,direction);
+ if(!doc.url)browser.focusAddress();
+}
 function mountFilePane(doc:OpenDocument,target:string|null|undefined,direction:'right'|'down'|'swap'='right'){
+  if(doc.kind==='browser'){mountBrowserPane(doc,target,direction);return;}
   let pane=filePanes.get(doc.key);
   if(!pane){
     const element=document.createElement('section');element.className='terminal-screen file-layout-pane';
@@ -699,29 +744,32 @@ function mountFilePane(doc:OpenDocument,target:string|null|undefined,direction:'
     const header=element.querySelector<HTMLElement>('header')!,preview=element.querySelector<HTMLElement>('.file-layout-preview')!,code=element.querySelector<HTMLElement>('.file-layout-code')!,image=element.querySelector<HTMLElement>('.file-layout-image')!,zoom=element.querySelector<HTMLButtonElement>('.terminal-pane-zoom')!;
     header.querySelector<HTMLElement>('.terminal-pane-title')!.textContent=doc.name;zoom.innerHTML=fileZoom.innerHTML;
     header.querySelector<HTMLButtonElement>('.terminal-pane-close')!.append(icon('close'));header.querySelector<HTMLButtonElement>('.terminal-pane-close')!.onclick=()=>closeDocument(doc);
-    const paneEditor=doc.kind==='diff'?monaco.editor.createDiffEditor(code,{theme:'ai-web',readOnly:true,originalEditable:false,fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false,renderSideBySide:true}):doc.model?monaco.editor.create(code,{model:doc.model,theme:'ai-web',fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false}):null;
-    if(doc.kind==='diff'){(paneEditor as monaco.editor.IStandaloneDiffEditor).setModel({original:doc.diffModels[0],modified:doc.diffModels[1]});header.querySelector<HTMLElement>('.pane-file-view')!.hidden=true;const badge=document.createElement('span');badge.className='diff-baseline';badge.textContent='Git → Working tree';badge.title=doc.baseline?'HEAD compared with the file on disk':'New file compared with an empty Git baseline';header.insertBefore(badge,zoom);}
+    let diffHeader:ReturnType<typeof setupDiffHeader>|undefined;
+    const paneEditor=doc.kind==='diff'?monaco.editor.createDiffEditor(code,{theme:'ai-web',readOnly:true,originalEditable:false,fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false,...diffEditorOptions()}):doc.model?monaco.editor.create(code,{model:doc.model,theme:'ai-web',fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false}):null;
+    if(doc.kind==='diff'){(paneEditor as monaco.editor.IStandaloneDiffEditor).setModel({original:doc.diffModels[0],modified:doc.diffModels[1]});header.querySelector<HTMLElement>('.pane-file-view')!.hidden=true;diffHeader=setupDiffHeader({header,anchor:zoom,diff:paneEditor as monaco.editor.IStandaloneDiffEditor,doc:{path:doc.path,name:doc.name,baseline:doc.baseline,stat:doc.diffStat},icon});}
     if(doc.kind!=='diff')paneEditor?.addCommand(monaco.KeyMod.CtrlCmd|monaco.KeyCode.KeyS,()=>saveFile(doc));
     header.querySelector<HTMLElement>('.pane-file-view')!.hidden=doc.kind==='image'||doc.kind==='diff';
     const liveElement=document.createElement('div');element.append(liveElement);
     const live=createLiveMarkdownSurface(liveElement,{save:doc=>{void saveFile(doc);},loadImage:loadLiveImage,fallback:reason=>{doc.liveError=reason;setMode('editor');toast(reason);}});
     const setMode=(view:FileView)=>{view=chooseFileView(doc,view);element.dataset.fileView=view;code.hidden=view!=='editor'||doc.kind==='image';image.hidden=true;preview.hidden=view!=='preview';syncFileModeButtons(header.querySelector<HTMLElement>('.pane-file-view')!,doc,view,setMode);if(view==='live')void live.show(doc);else live.hide();void renderPreview({doc,target:preview,secondary:true,view});requestAnimationFrame(()=>paneEditor?.layout());};
-    pane={id:`file:${doc.key}`,project:projects.find(project=>project.id===doc.project)!,element,paneHeader:header,paneZoom:zoom,preview,live,editor:paneEditor,layout:()=>{if(doc.kind==='diff')(paneEditor as monaco.editor.IStandaloneDiffEditor).updateOptions({renderSideBySide:element.clientWidth>=680});paneEditor?.layout();},onSelect:()=>{currentDocument=doc;activeFileKey=doc.key;$('#app').dataset.fileFocused='true';agentView.close();renderTabs();},};
+    pane={id:`file:${doc.key}`,project:projects.find(project=>project.id===doc.project)!,element,paneHeader:header,paneZoom:zoom,preview,live,editor:paneEditor,layout:()=>{diffHeader?.layout(element.clientWidth);paneEditor?.layout();},onSelect:()=>{currentDocument=doc;activeFileKey=doc.key;$('#app').dataset.fileFocused='true';agentView.close();renderTabs();},};
     const initialView:FileView=doc.kind==='diff'?'editor':doc===secondaryDocument?secondaryMode:doc===currentDocument?chooseFileView(doc,mode):defaultFileView;
     filePanes.set(doc.key,pane);setMode(initialView);
   }
   terminalView.placeFilePane(pane,target,direction);
 }
 setupUnifiedTabOrder($('#unified-tabs'),order=>{tabOrder=order;});
+window.paneDesktop?.onBrowserOpen?.(url=>{if(currentProject)openBrowser(currentProject,url);});
 tabDrag=setupTabDrag({tabs:$('#tabs'),content:contentViews,onReorder:()=>{},canDrop:(key,zone)=>{if(!key||!zone)return false;if(typeof zone==='object')return documents.has(key);const split=$('#app').classList.contains('chat-file-split')||$('#app').classList.contains('file-file-split');if(zone!=='right'&&zone!=='bottom')return split;if(key==='ai')return Boolean(agentView.selected&&currentDocument);return Boolean(documents.has(key)&&(terminalView.visible||agentView.visible||agentView.selected&&split||currentDocument&&currentDocument.key!==key));},onDrop:dropTab,onFileDrop:dropFile});
 
 notifications=createNotifications({icon,isViewing:agent=>!document.hidden&&document.hasFocus()&&(agent.terminalSession?Boolean(terminalAgents.find(item=>item.id===agent.id)?.selected):agentView.visible&&Boolean(agent.agent_session?.value?agentView.selected?.agent_session?.value===agent.agent_session.value:agent.pane_id&&agentView.selected?.pane_id===agent.pane_id)),onOpen:agent=>{if(agent.terminalSession){agentView.close();if(agent.id)openTerminalAgent(agent.id);}else{agentView.open(agent);agentView.focusLatest();}}});
+if(window.paneDesktop?.browserVersion===1)setupLinkSettings(linkPreferences);
 setupColorTheme();setupSettings({icon,api});
 setupFileActions({tree:$('#tree'),api,icon,getProject:()=>currentProject,guard:guardFileAction,changed:fileActionChanged,toast});
 const subWorkspaceDialog=createWorktreeDialog({api,getProjects:()=>projects,onCreated:async (project,launch)=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);if(launch)terminalView.startSession(existing||project,launch);toast(`Opened ${project.branch||project.name}`);}});
 workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{void subWorkspaceDialog.open(project);},onSelect:project=>{if(Date.now()-lastProjectDrag>300)void selectProject(project);},onAgentSelect:openTerminalAgent,onMenu:showWorkspaceMenu,setupDrag:setupProjectDrag});
 changesView=setupChanges({api,icon,getProject:()=>currentProject,onOpenDiff:openDiff,onError:message=>toast(message),onStatuses:(id,data)=>fileGit.update(id,data)});
-devServers=setupDevServers({api,getProjects:()=>projects,onError:message=>toast(message)});
+devServers=setupDevServers({api,getProjects:()=>projects,onError:message=>toast(message),...(window.paneDesktop?.browserVersion===1?{onOpenUrl:(projectId:string,url:string)=>{const target=projects.find(project=>project.id===projectId);if(!target)return;void (currentProject?.id===target.id?Promise.resolve():selectProject(target)).then(()=>openBrowser(target,url));}}:{})});
 setupHistory({api,getProjects:()=>projects,getCurrentProject:()=>currentProject,onResume:(record,project)=>{agentView.close();terminalView.resumeSession(record,project);}});
 gitView=createGitPanel({api,icon,getProject:()=>currentProject,onTabsChanged:renderTabs,onActivate:project=>{if(currentProject?.id!==project.id)void selectProject(project);agentView.suspend();(document.activeElement as HTMLElement|null)?.blur();terminalView.setFocused(false);},onDeactivate:()=>{if(terminalView.visible)terminalView.setFocused(true);},onStartIssue:(project,issue)=>{const parent=project.parentId?projects.find(item=>item.id===project.parentId):project;if(parent)void subWorkspaceDialog.open(parent,{name:`issue-${issue.number}-${worktreeSlug(issue.title)}`.replace(/-$/,'').slice(0,80),note:`Issue #${issue.number}: ${issue.title}\n${issue.url}\n\n${issue.body}`});},onChanged:()=>{void changesView?.refresh();void refreshTree();void refreshSessions();},onOpenDiff:async(project,hash,file)=>{await openDiff(project,{path:file.path,added:null,removed:null,binary:false},hash);}});
 titlebar=setupTitlebar({getProject:()=>projects.find(project=>project.id===(activeFileKey?documents.get(activeFileKey)?.project:terminalView.visible?terminalView.focusedProjectId:null))||currentProject,getAttention:()=>terminalAgents.map(agent=>({...agent,open:()=>openTerminalAgent(agent.id)}))});

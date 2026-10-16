@@ -6,6 +6,7 @@ import electronUpdater from 'electron-updater';
 import type {NotificationDelivery} from '../shared/desktop-notifications.ts';
 import {createUpdates} from './updates.ts';
 import {createApp} from '../server/src/app.ts';
+import {installBrowserGuards} from './browser-guard.ts';
 
 const dataOverride=process.env.PANE_DESKTOP_DATA_DIR;
 if(dataOverride)app.setPath('userData',path.resolve(dataOverride));
@@ -92,7 +93,7 @@ async function boot(){
  origin=`http://127.0.0.1:${port}`;await log(`Backend ready on port ${port}.`);
  let bounds:{width:number;height:number;x?:number;y?:number}={width:1440,height:950};
  try{const saved=JSON.parse(await fs.readFile(path.join(stateDir,'window.json'),'utf8'));if(Number.isFinite(saved.width)&&Number.isFinite(saved.height)){bounds={width:Math.max(900,Math.min(3840,saved.width)),height:Math.max(600,Math.min(2160,saved.height))};if(Number.isFinite(saved.x)&&Number.isFinite(saved.y)&&screen.getAllDisplays().some(display=>saved.x>=display.workArea.x&&saved.x<display.workArea.x+display.workArea.width&&saved.y>=display.workArea.y&&saved.y<display.workArea.y+display.workArea.height))Object.assign(bounds,{x:saved.x,y:saved.y});}}catch{}
- window=new BrowserWindow({...bounds,frame:false,minWidth:900,minHeight:600,show:false,title:'Pane',backgroundColor:'#171613',icon:path.join(appDir,'desktop-build','icon.png'),webPreferences:{preload:path.join(appDir,'desktop-build','preload.cjs'),additionalArguments:[`--pane-backend-id=${crypto.randomUUID()}`,'--pane-notifications=1','--pane-update-flow=1'],nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,spellcheck:false,autoplayPolicy:'no-user-gesture-required'}});
+ window=new BrowserWindow({...bounds,frame:false,minWidth:900,minHeight:600,show:false,title:'Pane',backgroundColor:'#171613',icon:path.join(appDir,'desktop-build','icon.png'),webPreferences:{preload:path.join(appDir,'desktop-build','preload.cjs'),additionalArguments:[`--pane-backend-id=${crypto.randomUUID()}`,'--pane-notifications=1','--pane-update-flow=1','--pane-browser=1'],nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:true,spellcheck:false,autoplayPolicy:'no-user-gesture-required'}});
  const contents=window.webContents;
  const {autoUpdater}=electronUpdater;
  updates=await createUpdates({engine:autoUpdater,version:app.getVersion(),platform:`${process.platform} ${process.arch}`,supported:app.isPackaged&&process.platform==='win32'&&process.arch==='x64',preferencesFile:path.join(stateDir,'updates.json'),log,installApproved:()=>requestClose(false,true,true),publish:state=>{if(!contents.isDestroyed())contents.send('pane:update-state',state);}});
@@ -132,7 +133,7 @@ async function boot(){
  });
  contents.setWindowOpenHandler(({url})=>{external(url);return {action:'deny'};});
  contents.on('will-navigate',(event,url)=>{if(url!==origin+'/'){event.preventDefault();external(url);}});
- contents.on('will-attach-webview',event=>event.preventDefault());
+ installBrowserGuards(contents,()=>origin);
  contents.on('render-process-gone',async(_event,details)=>{await log(`Renderer stopped: ${details.reason}`);if(quitting)return;const result=await dialog.showMessageBox(window!,{type:'error',message:'The Pane window stopped responding.',detail:'The local backend and terminals are still running. Reload to reconnect.',buttons:['Reload','Quit Pane'],defaultId:0});if(result.response===0)contents.reload();else void requestClose(false);});
  window.on('close',event=>{if(quitting)return;event.preventDefault();void requestClose(true);});
  window.on('closed',()=>{window=undefined;});

@@ -2,11 +2,13 @@ import http from 'node:http';
 import https from 'node:https';
 import type {DevServer,DevServerSnapshot,Workspace} from '../../../../shared/contracts.ts';
 import {collectDevServerPorts,type Listener,type PortScan} from './dev-server-scan.ts';
+import {terminateProcess} from './dev-server-kill.ts';
+import {FileError} from '../files/files.ts';
 
 type Protocol=DevServer['protocol'];
 interface Observation {row:DevServer;startTime?:string;misses:number;stoppedAt?:number;probedAt?:number}
 interface TerminalRoot {projectId:string;tail:string;urls:Map<number,{url:string;at:number}>}
-export interface DevServerOptions {getProjects:()=>Workspace[];collect?:()=>Promise<PortScan>;probe?:(host:string,port:number)=>Promise<Protocol>;clock?:()=>number;excludePid?:number}
+export interface DevServerOptions {getProjects:()=>Workspace[];collect?:()=>Promise<PortScan>;probe?:(host:string,port:number)=>Promise<Protocol>;clock?:()=>number;excludePid?:number;kill?:(pid:number)=>Promise<void>}
 
 export function loopbackHost(host:string):string|null {
  if(host==='0.0.0.0'||host==='localhost'||host==='*')return '127.0.0.1';
@@ -34,7 +36,7 @@ function commandContains(command:string,root:string):boolean {
  while(index>=0){const before=index?text[index-1]:'',after=text[index+value.length]||'';if((!before||/[\s"'=]/.test(before))&&(!after||/[\s"'/]/.test(after)))return true;index=text.indexOf(value,index+value.length);}
  return false;
 }
-export function createDevServers({getProjects,collect=collectDevServerPorts,probe=probeWebProtocol,clock=Date.now,excludePid}:DevServerOptions){
+export function createDevServers({getProjects,collect=collectDevServerPorts,probe=probeWebProtocol,clock=Date.now,excludePid=process.pid,kill=terminateProcess}:DevServerOptions){
  const roots=new Map<number,TerminalRoot>(),observations=new Map<string,Observation>();
  let lastScan=0,scannedAt:string|null=null,available=true,error:string|undefined,inFlight:Promise<void>|undefined,disposed=false;
  function register(pid:number,project:Workspace){roots.set(pid,{projectId:project.id,tail:'',urls:new Map()});}
@@ -111,15 +113,29 @@ export function createDevServers({getProjects,collect=collectDevServerPorts,prob
    }
   }));
  }
- async function read(projectId:string):Promise<DevServerSnapshot>{
+ /** Stops a running server of a workspace. The process is re-verified (pid, port and start time) just before, and Pane never stops itself, its parents or a terminal. */
+ async function terminate(projectId:string,id:string){
+  const observation=[...observations.values()].find(value=>value.row.id===id&&value.row.projectId===projectId);
+  if(!observation||observation.row.status!=='running'||!getProjects().some(project=>project.id===projectId))throw new FileError(404,'This server is no longer running.');
+  const {pid,port}=observation.row;
+  if(pid<=4||pid===excludePid||roots.has(pid))throw new FileError(403,'Pane will not stop this process.');
+  let fresh:PortScan;try{fresh=await collect();}catch{throw new FileError(503,'Could not verify the server. Try again.');}
+  if(!fresh.listeners.some(listener=>listener.pid===pid&&listener.port===port&&(!observation.startTime||listener.startTime===observation.startTime)))throw new FileError(409,'This server changed or has already stopped. Refresh the list.');
+  const parents=new Map(fresh.processes.map(row=>[Number(row.ProcessId),Number(row.ParentProcessId)]));
+  for(let ancestor=excludePid,hops=0;ancestor>0&&hops<64;ancestor=parents.get(ancestor)||0,hops++)if(ancestor===pid)throw new FileError(403,'Pane will not stop its own process.');
+  try{await kill(pid);}catch{throw new FileError(500,'The process could not be stopped. It may need administrator rights.');}
+  observation.row.status='stopped';observation.misses=2;observation.stoppedAt=clock();lastScan=0;
+  return {terminated:true};
+ }
+ async function read(projectId:string,{ownPort}:{ownPort?:number}={}):Promise<DevServerSnapshot>{
   if(!disposed&&(!scannedAt||clock()-lastScan>=3000)){
    inFlight||=scan().finally(()=>{inFlight=undefined;});
   }
   await inFlight;
   for(const [key,value] of observations)if(value.stoppedAt!==undefined&&clock()-value.stoppedAt>=5000)observations.delete(key);
   const projects=getProjects();
-  const rows=[...observations.values()].filter(value=>value.row.projectId===projectId&&projects.some(project=>project.id===projectId)).map(value=>({...value.row,...(value.stoppedAt!==undefined?{stoppedAt:new Date(value.stoppedAt).toISOString()}:{}),...(clock()-Date.parse(value.row.observedAt)>15000&&value.row.status==='running'?{status:'unknown' as const}:{})})).sort((a,b)=>a.port-b.port).slice(0,200);
+  const rows=[...observations.values()].filter(value=>value.row.projectId===projectId&&value.row.port!==ownPort&&projects.some(project=>project.id===projectId)).map(value=>({...value.row,...(value.stoppedAt!==undefined?{stoppedAt:new Date(value.stoppedAt).toISOString()}:{}),...(clock()-Date.parse(value.row.observedAt)>15000&&value.row.status==='running'?{status:'unknown' as const}:{})})).sort((a,b)=>a.port-b.port).slice(0,200);
   return {available,scannedAt,rows,...(error?{error}:{})};
  }
- return {register,unregister,output,read,dispose(){disposed=true;roots.clear();observations.clear();}};
+ return {register,unregister,output,read,terminate,dispose(){disposed=true;roots.clear();observations.clear();}};
 }

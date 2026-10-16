@@ -11,9 +11,11 @@ client/
     components/              Shared React bridges and component contracts
     features/
       agents/                Agent transcript controller
+      browser/               Browser tab, link opening choice and local server detection
       dev-servers/           Workspace server tracking UI
       files/                 Documents, previews, images and Git decorations
                              File tree, file languages and Monaco worker setup
+                             Diff pane header, fold and view controls: diff-view.ts
                              File and folder icons: file-icons.ts, file-icon-lookup.ts and the
                              generated file-icon-manifest.json; SVGs live in client/public/file-icons
       git/                   Git graph, sync, GitHub PRs and issues
@@ -31,7 +33,7 @@ client/
     styles/                  Ordered stylesheet entry and application styles
       styles.css             Imports foundation, workspace-chat, navigation,
                              then workbench; preserve this cascade order
-      workspace-sidebar.css  Project list rows; imported last so it overrides design-theme.css
+      workspace-sidebar.css  Project list rows; imported after design-theme.css to override it
 server/
   src/
     index.ts                 Server entry point
@@ -49,7 +51,10 @@ server/
       usage/                 Provider account quotas
     lib/                     CLI binary discovery
 shared/                      Browser/server API and terminal contracts
+                             (browser.ts holds the Browser tab's session partition name)
 desktop/                     Electron startup, preload bridge and native APIs
+  icons/                     App icon master (pane.svg) and generated icon.png / icon.ico
+  browser-guard.ts           Allows only the Browser tab's webview and keeps it away from Pane
                              Update controller and background check schedule
 config/
   typescript/                Client, server, desktop and test typecheck configs

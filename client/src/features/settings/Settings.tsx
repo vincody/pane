@@ -31,17 +31,18 @@ export function setupSettings({icon,api}: {icon:NativeIcon;api:Api}) {
   const categories:Category[]=[
     {id:'appearance',name:'Appearance',description:'Make your workspace comfortable.',icon:'settings',controls:['[aria-label="Color theme"]','#compact-setting'],nodes:[]},
     {id:'editor',name:'Editor',description:'Choose how files open and how code is displayed.',icon:'code',controls:['#font-setting','#wrap-setting','[aria-label="Opening files"]','[aria-label="Default file view"]'],nodes:[]},
-    {id:'terminal',name:'Terminal',description:'Choose how new terminal sessions are arranged.',icon:'monitor',controls:['#terminal-setting','#auto-split-terminal-setting'],nodes:[]},
+    {id:'terminal',name:'Terminal',description:'Choose how new terminal sessions are arranged.',icon:'terminal',controls:['#terminal-setting','#auto-split-terminal-setting'],nodes:[]},
+    {id:'links',name:'Links',description:'Choose where web links open and when Pane offers to open a local server.',icon:'globe',controls:['[aria-label="Open links"]','[aria-label="Detect local servers"]'],nodes:[]},
     {id:'usage',name:'Usage',description:'Keep account limits within reach.',icon:'chart',controls:['[aria-label="Show usage"]','[aria-label="Show Codex usage"]','[aria-label="Show Claude usage"]','[aria-label="Usage quota window"]'],nodes:[]},
     {id:'notifications',name:'Notifications',description:'Stay informed when agents need you.',icon:'bell',controls:['[aria-label="Popup notifications"]','[aria-label="Notification sounds"]','[aria-label="System notifications"]','#test-notification','[aria-label="Notify while focused"]'],nodes:[]},
     {id:'integrations',name:'Integrations',description:'Check the tools and accounts used to connect your workspace.',icon:'branch',controls:[],nodes:[]},
-    {id:'keybinds',name:'Keybinds',description:'Keyboard shortcuts for navigating your workspace and editing files.',icon:'code',controls:[],nodes:[]},
-    {id:'about',name:'About & Updates',description:'App version, release notes and software updates.',icon:'monitor',controls:[],nodes:[]}
+    {id:'keybinds',name:'Keybinds',description:'Keyboard shortcuts for navigating your workspace and editing files.',icon:'keyboard',controls:[],nodes:[]},
+    {id:'about',name:'About & Updates',description:'App version, release notes and software updates.',icon:'help',controls:[],nodes:[]}
   ];
   for(const category of categories)for(const selector of category.controls){const row=dialog.querySelector(selector)?.closest('.setting-row');if(row)category.nodes.push(row);}
   const shortcuts=document.querySelector('#help-dialog .shortcut-list');if(shortcuts)categories.find(item=>item.id==='keybinds')!.nodes.push(shortcuts);
   document.querySelector('#help-dialog')?.remove();document.querySelector('#help')?.remove();
   dialog.replaceChildren();dialog.setAttribute('aria-label','Settings');
-  const root=createRoot(dialog);flushSync(()=>root.render(<Settings categories={categories} close={[close]} footnote={[footnote]} icon={icon} api={api}/>));
+  const root=createRoot(dialog);flushSync(()=>root.render(<Settings categories={categories.filter(item=>item.id!=='links'||item.nodes.length)} close={[close]} footnote={[footnote]} icon={icon} api={api}/>));
   return {dispose:()=>root.unmount()};
 }

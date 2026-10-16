@@ -39,3 +39,19 @@
 .workspace-attention{display:inline-flex;flex:none;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 5px;border-radius:8px;background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning);font:600 10px/1 var(--font-ui)}
 .workspace-attention-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .sidebar #projects .workspace-context .terminal-agent-card.selected:is([data-status=blocked],[data-status=error],[data-status=failed]){background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--ink)}
+
+/* Quieter sidebars: one background tone, no box around the selected workspace, one-line session rows. */
+:root,:root[data-theme=dark]{--sidebar:var(--canvas)}
+.dev-server-count:empty{display:none}
+.sidebar #projects .workspace-context.selected{background:transparent;border-color:transparent}
+.sidebar #projects .workspace-context.selected>.workspace-context-row{background:var(--workspace-hover)}
+.sidebar #projects .workspace-context .terminal-agent-card{min-height:32px;padding:4px 8px;gap:8px}
+.sidebar #projects .workspace-context .provider-mark{width:18px;height:20px}
+.sidebar #projects .workspace-context .provider-mark>.agent-state{top:13px}
+.sidebar #projects .workspace-context .terminal-agent-card:not(:is([data-status=blocked],[data-status=error],[data-status=failed])) .agent-meta{display:none}
+
+/* Local servers: stopping a running server asks for a second click. */
+.dev-server-actions .dev-server-stop{width:22px;padding:4px;border-color:transparent;background:transparent;color:var(--muted)}
+.dev-server-actions .dev-server-stop:hover:not(:disabled){background:color-mix(in srgb,var(--error) 12%,transparent);color:var(--error)}
+.dev-server-actions .dev-server-stop[data-confirming]{width:auto;padding:3px 8px;border-color:var(--error);background:color-mix(in srgb,var(--error) 12%,transparent);color:var(--error);font-weight:600}
+.dev-server-actions .dev-server-stop:disabled{opacity:.5;cursor:default}

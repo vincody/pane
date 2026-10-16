@@ -3,6 +3,8 @@ import {Terminal} from '@xterm/xterm';
 import {createSshConnections} from './ssh-connections.ts';
 import {readTerminalJournal,saveTerminalJournal,type SavedTerminal} from './terminal-journal.ts';
 import {FitAddon} from '@xterm/addon-fit';
+import {WebLinksAddon} from '@xterm/addon-web-links';
+import {createAddressDetector} from '../browser/local-address.ts';
 import {positionTab,forgetTabPosition} from '../layout/tab-position.ts';
 import {leaves, removePane, splitPane, swapPanes, chooseBalancedSplit} from './terminal-layout.ts';
 import {terminalName, threadTitle} from './terminal-name.ts';
@@ -17,7 +19,7 @@ export type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions} from './term
 import type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions,PaneSession,PaneGroup} from './terminal-types.ts';
 import {createTerminalConnection} from './terminal-connection.ts';
 
-export function createTerminalView({token, icon, onClose, onSessionsChange, onSelect}:TerminalViewOptions) {
+export function createTerminalView({token, icon, onClose, onSessionsChange, onSelect, onOpenBrowser, onOpenLink, onLocalAddress}:TerminalViewOptions) {
   const workspace = document.querySelector<HTMLElement>('#workspace')!;
   const panel = document.createElement('section');
   panel.id = 'terminal-panel';
@@ -31,9 +33,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   const strip = document.createElement('div'); strip.id = 'unified-tabs';
   header.before(strip); strip.append(document.querySelector<HTMLElement>('#tabs')!, header);
   const $ = <T extends HTMLElement=HTMLElement>(selector:string):T => (panel.querySelector<T>(selector) || header.querySelector<T>(selector) || document.querySelector<T>(selector))!;
-  $('#terminal-new').append(icon('plus'));
-  $('#terminal-new').append(document.createTextNode('New session'));
-  document.querySelector<HTMLElement>('.workspace-actions')!.append($('#terminal-new'));
+  $('#terminal-new').append(icon('plus'));$('#terminal-new').toggleAttribute('disabled',true);
   $('#terminal-close').append(icon('close'));
   $('#terminal-close').remove();
   for(const [action,label] of [['split-right','Split right'],['split-down','Split down']]){
@@ -43,9 +43,9 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   const heading=document.createElement('strong');heading.textContent='New session';
   const description=document.createElement('p');description.textContent='Choose an agent, local shell or SSH connection.';
   const choices=document.createElement('div');choices.className='terminal-launch-choices';
-  for(const [kind,label] of [['claude','Claude Code'],['codex','Codex'],['shell','Shell'],['ssh','SSH']]){
+  for(const [kind,label] of [['claude','Claude Code'],['codex','Codex'],['shell','Shell'],['ssh','SSH'],...(window.paneDesktop?.browserVersion===1?[['browser','Browser']]:[])]){
     const button=document.createElement('button');button.type='button';button.dataset.launch=kind;
-    if(kind==='shell'||kind==='ssh')button.append(icon('terminal'));else{const image=document.createElement('img');image.src=`/agents/${kind}.svg`;image.alt='';button.append(image);}
+    if(kind==='shell'||kind==='ssh')button.append(icon('terminal'));else if(kind==='browser')button.append(icon('globe'));else{const image=document.createElement('img');image.src=`/agents/${kind}.svg`;image.alt='';button.append(image);}
     button.append(document.createTextNode(label));choices.append(button);
   }
   launcher.append(heading,description,choices);document.body.append(launcher);
@@ -310,8 +310,9 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
         };
       })(),
     });
-    const fit = new FitAddon();
+    const fit = new FitAddon(),addresses=createAddressDetector();
     terminal.loadAddon(fit);
+    terminal.loadAddon(new WebLinksAddon((event,uri)=>{if(event.ctrlKey||event.metaKey)onOpenLink?.(uri,project);},{hover:()=>{body.title='Ctrl+click to open';},leave:()=>body.removeAttribute('title')}));
     terminal.open(body);
     $('#terminal-screens').append(element);
 
@@ -364,7 +365,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     activate(session);
     renderTabs();
 
-    const connectSocket=createTerminalConnection({session,token,project,id,terminal,launch,resume,getActive:()=>activeSession,$,fitSession,journal,renderTabs,publish,scheduleActivity,inspectScreen});
+    const connectSocket=createTerminalConnection({session,token,project,id,terminal,launch,resume,onOutput:data=>{if(ssh||!onLocalAddress)return;for(const url of addresses.push(data))onLocalAddress(url,project);},getActive:()=>activeSession,$,fitSession,journal,renderTabs,publish,scheduleActivity,inspectScreen});
     session.reconnect=()=>{if(session.disposed||!session.serverId||session.socket?.readyState===WebSocket.CONNECTING||session.socket?.readyState===WebSocket.OPEN)return;if(session.reconnectTimer)clearTimeout(session.reconnectTimer);session.retries=0;session.state='reconnecting';connectSocket();};
     if(restored?.ended){session.state='ended';terminal.writeln('This terminal ended when Pane last quit. Use Restart terminal to start a new session, or History to resume an existing AI conversation.');renderTabs();}else connectSocket();
 
@@ -492,6 +493,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       return;
     }
     lastProject = project;
+    if(launch==='browser'){onOpenBrowser?.(project);return;}
     const open=(connection:SshConnection|null=null)=>{const existing=connection?sessions.find(session=>session.project.id===project.id&&session.ssh?.host===connection.host&&session.ssh?.username===connection.username&&session.ssh?.port===connection.port&&session.ssh?.identityFile===connection.identityFile&&session.state!=='closed'&&!session.disposed):undefined;if(existing){if(existing.state==='disconnected')existing.reconnect?.();activate(existing);setVisible(true);return;}const created=createSession(project,launch,!split,null,connection);if(split&&sessions.includes(split.target))attachPane(split.target,created,split.direction);setVisible(true);};
     if(launch==='ssh')sshConnections.open(connection=>open(connection));else open();
   };
@@ -566,5 +568,5 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     for(const id of Object.values(saved.selected)){const session=sessions.find(session=>session.id===id);if(session)session.lastUsed=++useOrder;}
     maximizedSession=sessions.find(session=>session.id===saved.maximized);renderLayout();renderTabs();
   }
-  return {element: panel,checkpoint:journal,captureLayout,restoreLayout,get runningCount(){return sessions.filter(session=>!session.external&&session.state!=='closed'&&!session.restorePending).length;},startSession(project:Workspace,launch:'shell'|'claude'|'codex'){lastProject=project;closeLauncher();closeMenu();createSession(project,launch,false);setVisible(true);},restore(projects:Workspace[]){for(const saved of savedTerminals){const project=projects.find(item=>item.id===saved.projectId);if(project)createSession(project,saved.launch,false,null,saved.ssh||null,saved);}if(savedTerminals.length&&sessions.length)setVisible(true);}, toggle, showMostRecent, inputMostRecent, resumeSession, placeFilePane, get focusedProjectId(){return activeSession?.project?.id;}, removeFilePane(id:string){const pane=sessions.find(item=>item.external&&item.id===id);if(pane)destroySession(pane);}, hasFilePane(id:string){return sessions.some(item=>item.external&&item.id===id);}, get activePaneId(){return activeSession?.id;}, refreshPaneControls:renderTabs, setFocused(next:boolean){hasFocus=next;renderTabs();publish();}, setProject(project:Workspace|null){lastProject=project;closeLauncher();closeMenu();const recent=sessions.filter(session=>session.project.id===project?.id).sort((a,b)=>b.lastUsed-a.lastUsed)[0];if(recent){activate(recent);setVisible(true);}else{activeSession=null;renderLayout();setVisible(false);}}, newSession(project:Workspace|null){if(project)lastProject=project;$('#terminal-new').click();}, select(id:string) { const session=sessions.find(item=>item.id===id); if(session){activate(session);setVisible(true);} }, close: () => { for (const session of [...sessions]) destroySession(session); setVisible(false); }, get visible() { return visible; }};
+  return {element: panel,checkpoint:journal,captureLayout,restoreLayout,get runningCount(){return sessions.filter(session=>!session.external&&session.state!=='closed'&&!session.restorePending).length;},startSession(project:Workspace,launch:'shell'|'claude'|'codex'){lastProject=project;closeLauncher();closeMenu();createSession(project,launch,false);setVisible(true);},restore(projects:Workspace[]){for(const saved of savedTerminals){const project=projects.find(item=>item.id===saved.projectId);if(project)createSession(project,saved.launch,false,null,saved.ssh||null,saved);}if(savedTerminals.length&&sessions.length)setVisible(true);}, toggle, showMostRecent, inputMostRecent, resumeSession, placeFilePane, get focusedProjectId(){return activeSession?.project?.id;}, removeFilePane(id:string){const pane=sessions.find(item=>item.external&&item.id===id);if(pane)destroySession(pane);}, hasFilePane(id:string){return sessions.some(item=>item.external&&item.id===id);}, get activePaneId(){return activeSession?.id;}, refreshPaneControls:renderTabs, setFocused(next:boolean){hasFocus=next;renderTabs();publish();}, setProject(project:Workspace|null){lastProject=project;$('#terminal-new').toggleAttribute('disabled',!project);closeLauncher();closeMenu();const recent=sessions.filter(session=>session.project.id===project?.id).sort((a,b)=>b.lastUsed-a.lastUsed)[0];if(recent){activate(recent);setVisible(true);}else{activeSession=null;renderLayout();setVisible(false);}}, newSession(project:Workspace|null){if(project)lastProject=project;$('#terminal-new').click();}, select(id:string) { const session=sessions.find(item=>item.id===id); if(session){activate(session);setVisible(true);} }, close: () => { for (const session of [...sessions]) destroySession(session); setVisible(false); }, get visible() { return visible; }};
 }

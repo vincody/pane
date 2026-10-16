@@ -1,6 +1,6 @@
 # Pane desktop preview
 
-The Windows x64 desktop app reuses the existing web UI and backend. Electron hosts a sandboxed, context-isolated renderer; Node integration and webviews are disabled. The preload bridge is limited to lifecycle checkpoints and bounded native notifications. File selection stays behind authenticated backend routes and uses an owner-bound Electron dialog. New windows are blocked; HTTP(S) links open in the system browser.
+The Windows x64 desktop app reuses the existing web UI and backend. Electron hosts a sandboxed, context-isolated renderer; Node integration is disabled, and the only `<webview>` allowed is the Browser tab's (see [Browser tab](#browser-tab)). The preload bridge is limited to lifecycle checkpoints, bounded native notifications and relaying links that Browser pages open in a new tab. File selection stays behind authenticated backend routes and uses an owner-bound Electron dialog. New windows are blocked; HTTP(S) links open in the system browser.
 
 ## Build and run
 
@@ -76,6 +76,18 @@ The first public release establishes the update baseline. To verify end-to-end, 
 
 This is a desktop preview, not a signed public release. The GitHub update feed and draft-release workflow are configured; a published baseline and a higher release are still required to verify a real installed upgrade. Windows builds are currently unsigned; release signing and clean-machine upgrade verification remain release gates, alongside broader DPI/multi-monitor/native-dialog checks. When signing is configured, keep updater publisher-signature verification enabled. macOS and Linux desktop packaging are not configured or verified.
 
+
+## Browser tab
+
+New session → **Browser**, or **Open** on a server in Local servers, opens any http(s) page inside Pane. It is a tab like files and terminals, with back, forward, reload/stop, DevTools, an address bar and Open in system browser. A new tab lists the servers running in your workspaces. Text that is not an address is searched on Google; `javascript:`, `data:`, `file:` and other schemes are never opened. Links that open a new window become another Browser tab. Browser tabs are not restored after a restart. They are available in the desktop app only; in a regular browser, Open still uses a new browser tab.
+
+Isolation: the page runs in its own persistent session (`persist:pane-browser`), so its cookies and sign-ins are separate from Pane. It has no preload, no Node and no access to the Pane bridge, runs in the sandbox, and sees a normal Chromium user agent. Permission prompts are denied except fullscreen and clipboard writes. `will-attach-webview` accepts only that partition and http(s) addresses without credentials. Requests from the Browser session to Pane's own local server (any loopback spelling, HTTP or WebSocket, including redirects) are cancelled in the session, and the address bar reports them as Blocked. See `desktop/browser-guard.ts`.
+
+## Web links
+
+Terminal output, the Markdown editor and previews can open web links. **Ctrl+click** (Cmd+click on Mac) a link in the terminal, in the source editor or in the Markdown editor; links in a Markdown preview open on a plain click. Settings → **Links** chooses where they go: **Ask every time** (default), **In Pane** (a Browser tab) or **In system browser**. The question offers both, plus *Remember my choice*, which saves the preference. Only credential-free http(s) links are handled; relative paths and other schemes are left alone. In a regular browser there is no in-app choice: links open in a new tab and the Links page is hidden.
+
+**Detect local servers** (on by default) watches terminal output, once per server and session, for `http(s)` addresses on this machine or its local network, such as the `Local:` line of a dev server. It shows a small prompt with *Open in Pane* and *Open in browser* (or only the one you chose in Settings). Replayed output, SSH sessions and external sites do not trigger it.
 
 ## Notifications
 
