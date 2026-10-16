@@ -10,11 +10,11 @@ export function AboutUpdates({active}:{active:boolean}){
   void desktop.updates('state').then(value=>{if(!disposed)setState(value);}).catch(()=>{if(!disposed)setError('Could not read update status. Reopen this page to try again.');});
   return ()=>{disposed=true;unsubscribe();};
  },[active,desktop]);
- async function action(command:'check'|'download'|'install'|'automatic',value?:boolean){
+ async function action(command:'check'|'download'|'install'|'update'|'automatic',value?:boolean){
   if(!desktop)return;setWorking(true);setError('');
   try{setState(await desktop.updates(command,value));}catch{setError('Could not complete this action. Please try again.');}finally{setWorking(false);}
  }
- const busy=working||state?.status==='checking'||state?.status==='downloading';
+ const busy=working||state?.status==='checking'||state?.status==='downloading'||state?.status==='waiting'||state?.status==='installing';
  return <article className="integration-card about-updates" aria-label="About Pane">
   <header><div><strong>Pane</strong><p>Your workspace for AI coding.</p></div>{state&&<span className="about-version">v{state.version}</span>}</header>
   {!desktop?<p>Browser edition. Desktop updates are managed in the installed Pane app.</p>:<>
@@ -24,13 +24,14 @@ export function AboutUpdates({active}:{active:boolean}){
     {state.latestVersion&&<p className="about-update-version">New version: <strong>{state.latestVersion}</strong></p>}
     {state.status==='downloading'&&<div className="about-download"><progress max="100" value={state.progress} aria-label="Update download progress"/><span>{Math.floor(state.progress)}%</span></div>}
     {state.releaseNotes&&<details className="about-release-notes"><summary>What’s new</summary><p>{state.releaseNotes}</p></details>}
-    <label className="setting-row"><div><strong>Automatically check for updates</strong><small>Check after launch and every six hours. Downloads and restarts require your action.</small></div><input type="checkbox" aria-label="Automatically check for updates" checked={state.automatic} disabled={!state.supported||busy} onChange={event=>{void action('automatic',event.target.checked);}}/></label>
+    <label className="setting-row"><div><strong>Automatically check for updates</strong><small>Remember the last successful check; recheck every six hours and when returning after that interval. Choose Update now once to download, install silently and reopen Pane.</small></div><input type="checkbox" aria-label="Automatically check for updates" checked={state.automatic} disabled={!state.supported||busy} onChange={event=>{void action('automatic',event.target.checked);}}/></label>
     <footer>
      <button className="secondary-button" type="button" disabled={!state.supported||busy||state.status==='downloaded'} onClick={()=>{void action('check');}}>{state.status==='checking'?'Checking…':'Check for updates'}</button>
-     {state.status==='available'&&<button className="secondary-button" type="button" disabled={busy} onClick={()=>{void action('download');}}>Download update</button>}
-     {state.status==='downloaded'&&<button className="secondary-button" type="button" disabled={busy} onClick={()=>{void action('install');}}>Restart to update</button>}
+     {['available','downloaded','error'].includes(state.status)&&state.latestVersion&&<button className="secondary-button" type="button" disabled={busy||desktop.updateFlowVersion!==1} onClick={()=>{void action('update');}}>Update now</button>}
+
     </footer>
-    <small>Restarting ends running terminals, agents and SSH connections. Pane saves supported drafts and layout before installing.</small>
+    <small>Update now downloads and installs the new version, then reopens Pane automatically. Running terminals, agents and SSH connections will end; supported drafts and layout are saved first.</small>
+    {desktop.updateFlowVersion!==1&&state.supported&&<p role="alert">Quit Pane from the tray and reopen it to enable one-step updates.</p>}
    </>}
   </>}
   {error&&<p role="alert">{error}</p>}

@@ -1,4 +1,4 @@
-import {app,BrowserWindow,Menu,Tray,dialog,ipcMain,shell,nativeImage,screen,Notification} from 'electron';
+import {app,BrowserWindow,Menu,Tray,dialog,ipcMain,shell,nativeImage,screen,Notification,powerMonitor} from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -36,14 +36,16 @@ async function checkpoint():Promise<Checkpoint>{
   ipcMain.on('pane:checkpoint-result',receive);target.send('pane:checkpoint',id);
  });
 }
-async function requestClose(allowHide:boolean,installUpdate=false){
- if(confirming||quitting)return;confirming=true;
+async function requestClose(allowHide:boolean,installUpdate=false,approvedUpdate=false){
+ if(confirming||quitting)return 'busy' as const;confirming=true;
  try{
   if(installUpdate&&!updates?.ready())return;
   const state=await checkpoint();
+  if(state.busy&&approvedUpdate)return 'busy' as const;
+  if(installUpdate&&!state.saved&&approvedUpdate)return 'blocked' as const;
   if(state.busy){await dialog.showMessageBox(window!,{type:'info',message:'An operation is still running.',detail:'Wait for file, workspace, Git or GitHub operations to finish before quitting Pane.',buttons:['Keep working']});return;}
   if(installUpdate&&!state.saved){await dialog.showMessageBox(window!,{type:'warning',message:'Could not save session recovery.',detail:'Save your files and try updating again.',buttons:['Keep working']});return;}
-  if(state.dirty||state.terminals||!state.saved||installUpdate){
+  if(!approvedUpdate&&(state.dirty||state.terminals||!state.saved||installUpdate)){
    const buttons=allowHide?['Keep running in tray','Quit Pane','Cancel']:[installUpdate?'Restart and install':'Quit Pane','Cancel'];
    const result=await dialog.showMessageBox(window!,{type:'question',message:installUpdate?'Restart Pane to install the update?':allowHide?'Keep Pane running in the background?':'Quit Pane?',detail:`${state.terminals} terminal session(s) and ${state.dirty} unsaved file(s).\n${state.saved?'Tabs, layout and supported file drafts have been saved.':'Session recovery could not be confirmed. Unsaved work may be lost.'}\nQuitting ends Pane terminals and their agents. Original processes cannot survive an app or machine restart.`,buttons,defaultId:buttons.length-1,cancelId:buttons.length-1,noLink:true});
    if(allowHide&&result.response===0){window?.hide();return;}
@@ -56,6 +58,7 @@ async function requestClose(allowHide:boolean,installUpdate=false){
   window?.webContents.session.flushStorageData();
   if(installUpdate){updates!.install();if(updates!.get().status==='error'){await dialog.showMessageBox(window!,{type:'error',message:'The update installer could not start.',detail:'Pane will reopen. Please try the update again.',buttons:['Reopen Pane']});app.relaunch();app.quit();}}
   else app.quit();
+  return 'started' as const;
  }finally{confirming=false;}
 }
 async function shutdown(){
@@ -89,13 +92,14 @@ async function boot(){
  origin=`http://127.0.0.1:${port}`;await log(`Backend ready on port ${port}.`);
  let bounds:{width:number;height:number;x?:number;y?:number}={width:1440,height:950};
  try{const saved=JSON.parse(await fs.readFile(path.join(stateDir,'window.json'),'utf8'));if(Number.isFinite(saved.width)&&Number.isFinite(saved.height)){bounds={width:Math.max(900,Math.min(3840,saved.width)),height:Math.max(600,Math.min(2160,saved.height))};if(Number.isFinite(saved.x)&&Number.isFinite(saved.y)&&screen.getAllDisplays().some(display=>saved.x>=display.workArea.x&&saved.x<display.workArea.x+display.workArea.width&&saved.y>=display.workArea.y&&saved.y<display.workArea.y+display.workArea.height))Object.assign(bounds,{x:saved.x,y:saved.y});}}catch{}
- window=new BrowserWindow({...bounds,frame:false,minWidth:900,minHeight:600,show:false,title:'Pane',backgroundColor:'#171613',icon:path.join(appDir,'desktop-build','icon.png'),webPreferences:{preload:path.join(appDir,'desktop-build','preload.cjs'),additionalArguments:[`--pane-backend-id=${crypto.randomUUID()}`,'--pane-notifications=1'],nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,spellcheck:false,autoplayPolicy:'no-user-gesture-required'}});
+ window=new BrowserWindow({...bounds,frame:false,minWidth:900,minHeight:600,show:false,title:'Pane',backgroundColor:'#171613',icon:path.join(appDir,'desktop-build','icon.png'),webPreferences:{preload:path.join(appDir,'desktop-build','preload.cjs'),additionalArguments:[`--pane-backend-id=${crypto.randomUUID()}`,'--pane-notifications=1','--pane-update-flow=1'],nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:false,spellcheck:false,autoplayPolicy:'no-user-gesture-required'}});
  const contents=window.webContents;
  const {autoUpdater}=electronUpdater;
- updates=await createUpdates({engine:autoUpdater,version:app.getVersion(),platform:`${process.platform} ${process.arch}`,supported:app.isPackaged&&process.platform==='win32'&&process.arch==='x64',preferencesFile:path.join(stateDir,'updates.json'),log,publish:state=>{if(!contents.isDestroyed())contents.send('pane:update-state',state);}});
+ updates=await createUpdates({engine:autoUpdater,version:app.getVersion(),platform:`${process.platform} ${process.arch}`,supported:app.isPackaged&&process.platform==='win32'&&process.arch==='x64',preferencesFile:path.join(stateDir,'updates.json'),log,installApproved:()=>requestClose(false,true,true),publish:state=>{if(!contents.isDestroyed())contents.send('pane:update-state',state);}});
  ipcMain.handle('pane:updates',async(event,action:unknown,value:unknown)=>{
   if(event.sender!==contents||event.senderFrame!==contents.mainFrame||!event.senderFrame.url.startsWith(origin+'/'))throw new Error('Untrusted update request.');
   if(action==='check')await updates!.check();
+  else if(action==='update')await updates!.update();
   else if(action==='download')await updates!.download();
   else if(action==='install')await requestClose(false,true);
   else if(action==='automatic'&&typeof value==='boolean')await updates!.setAutomatic(value);
@@ -141,6 +145,7 @@ async function boot(){
  const windowState=()=>({maximized:Boolean(window?.isMaximized()),fullscreen:Boolean(window?.isFullScreen()),focused:Boolean(window?.isFocused())});
  const sendWindowState=()=>{if(!contents.isDestroyed())contents.send('pane:window-state',windowState());};
  window.on('maximize',sendWindowState);window.on('unmaximize',sendWindowState);window.on('enter-full-screen',sendWindowState);window.on('leave-full-screen',sendWindowState);window.on('focus',sendWindowState);window.on('blur',sendWindowState);
+ window.on('focus',()=>{void updates?.backgroundCheck();});powerMonitor.on('resume',()=>{void updates?.backgroundCheck();});
  ipcMain.handle('pane:window',(event,action:unknown)=>{
   if(event.sender!==contents||event.senderFrame!==contents.mainFrame||!event.senderFrame.url.startsWith(origin+'/')||!window||window.isDestroyed())return;
   if(action==='minimize')window.minimize();

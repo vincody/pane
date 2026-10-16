@@ -3,7 +3,7 @@ export interface DesktopUpdateState {
  platform:string;
  supported:boolean;
  automatic:boolean;
- status:'unsupported'|'idle'|'checking'|'current'|'available'|'downloading'|'downloaded'|'error';
+ status:'unsupported'|'idle'|'checking'|'current'|'available'|'downloading'|'downloaded'|'waiting'|'installing'|'error';
  latestVersion:string|null;
  releaseNotes:string;
  progress:number;

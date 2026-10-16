@@ -18,7 +18,7 @@ export function setupDesktopTitlebar(bar:HTMLElement){
  right.append(rightActions,controls);bar.append(right);
  const main=document.querySelector('main')!;
  const updateButton=document.createElement('button');updateButton.type='button';updateButton.className='desktop-update-button';updateButton.hidden=true;updateButton.onclick=()=>document.dispatchEvent(new Event('pane-open-updates'));bar.insertBefore(updateButton,bar.querySelector('.toolbar-actions'));
- const updateState=(state:import('../../../../shared/desktop-updates.ts').DesktopUpdateState)=>{updateButton.hidden=!['available','downloaded'].includes(state.status);updateButton.textContent=state.status==='downloaded'?'Restart to update':'Update available';updateButton.title=state.latestVersion?`Pane ${state.latestVersion}`:'Pane updates';};
+ const updateState=(state:import('../../../../shared/desktop-updates.ts').DesktopUpdateState)=>{updateButton.hidden=!['available','downloaded','downloading','waiting','installing'].includes(state.status);updateButton.textContent=state.status==='available'?'Update available':state.status==='downloaded'?'Update ready':'Updating…';updateButton.title=state.latestVersion?`Pane ${state.latestVersion}`:'Pane updates';};
  const unsubscribeUpdates=desktop.onUpdateState(updateState);void desktop.updates('state').then(updateState).catch(()=>{});
  const align=()=>{const rect=main.getBoundingClientRect();bar.style.setProperty('--desktop-left-edge',`${rect.left}px`);bar.style.setProperty('--desktop-right-edge',`${Math.max(0,innerWidth-rect.right)}px`);};
  const geometry=new ResizeObserver(align);for(const element of [main,document.querySelector('#projects-sidebar'),document.querySelector('#files-sidebar')])if(element)geometry.observe(element);align();
