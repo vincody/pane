@@ -14,6 +14,8 @@ client/
       dev-servers/           Workspace server tracking UI
       files/                 Documents, previews, images and Git decorations
                              File tree, file languages and Monaco worker setup
+                             File and folder icons: file-icons.ts, file-icon-lookup.ts and the
+                             generated file-icon-manifest.json; SVGs live in client/public/file-icons
       git/                   Git graph, sync, GitHub PRs and issues
       history/               CLI session history and resume
       layout/                Titlebar, tab order, drag/drop and sidebar resizing
@@ -23,11 +25,13 @@ client/
                              Connection lifecycle and shared pane types
       usage/                 Account quota UI
       workspaces/            Workspace sidebar and selection helpers
-                             Worktree creation lives in worktree-dialog.ts
+                             Worktree creation lives in worktree-dialog.ts;
+                             row status and +/- totals in session-attention.ts and workspace-diff.ts
     lib/                     Browser HTTP and DOM utilities
     styles/                  Ordered stylesheet entry and application styles
       styles.css             Imports foundation, workspace-chat, navigation,
                              then workbench; preserve this cascade order
+      workspace-sidebar.css  Project list rows; imported last so it overrides design-theme.css
 server/
   src/
     index.ts                 Server entry point
@@ -69,6 +73,7 @@ demo/                        File preview examples
 - Keep generated `dist/`, runtime `.ai-web/`, screenshots, logs and reference checkouts out of source control.
 - Keep file tree rendering in `features/files/file-tree.ts` and terminal connection handling in `features/terminal/terminal-connection.ts`. Pass coordination callbacks from the application or view instead of importing their mutable state.
 - The `/api/sub-workspaces` route remains unchanged for compatibility; source and test filenames use worktree terminology.
+- File and folder icons come from material-icon-theme (MIT). Regenerate `client/public/file-icons/` and the manifest with `npm run icons` after changing the package version, and commit the output.
 - The stylesheet split preserves existing overrides. Move rules between these files only after checking cascade order; feature-local styles such as Live Editor stay beside their modules.
 
 ## Checks
