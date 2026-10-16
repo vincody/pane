@@ -28,3 +28,11 @@
 #link-prompts .link-prompt-dismiss{flex:none;width:22px;height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--ui-muted);font:16px/1 var(--font-ui);cursor:pointer}
 #link-prompts .link-prompt-dismiss:hover:not(:disabled){background:var(--workspace-hover);color:var(--ink)}
 @media(prefers-reduced-motion:no-preference){.link-prompt{animation:link-prompt-in .16s ease-out}@keyframes link-prompt-in{from{opacity:0;transform:translateY(8px)}}}
+.update-prompt{position:fixed;right:16px;bottom:16px;z-index:130;display:flex;align-items:center;gap:12px;width:min(420px,calc(100vw - 32px));padding:12px 14px;border:1px solid var(--hairline);border-radius:var(--radius-lg);background:var(--canvas);color:var(--ink);box-shadow:0 14px 40px #0004}
+.update-prompt-copy{display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+.update-prompt-copy strong{font-size:13px;font-weight:600}
+.update-prompt-copy span{color:var(--ui-muted);font-size:12px;line-height:1.4}
+.update-prompt-actions{display:flex;flex:none;flex-direction:column;gap:6px}
+#update-prompt .update-prompt-actions button{padding:5px 10px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--surface-soft);color:var(--ink);font:500 12px var(--font-ui);cursor:pointer}
+#update-prompt .update-prompt-actions button:hover:not(:disabled){background:var(--surface-card)}
+#update-prompt .update-prompt-actions button:first-child,#update-prompt .update-prompt-actions button:first-child:hover:not(:disabled){border-color:var(--primary-active);background:var(--primary-active);color:var(--on-primary)}

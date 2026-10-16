@@ -1,8 +1,9 @@
 export const UPDATE_CHECK_INTERVAL=6*60*60*1000;
 const RETRY_INTERVAL=15*60*1000;
 
-export function createUpdateSchedule(options:{enabled:()=>boolean;lastSuccess:number;check:()=>Promise<void>}){
- let due=options.lastSuccess?options.lastSuccess+UPDATE_CHECK_INTERVAL:Date.now()+5000;
+export function createUpdateSchedule(options:{enabled:()=>boolean;check:()=>Promise<void>}){
+ // The first check runs shortly after every launch; a recent successful check must not hide a release published since.
+ let due=Date.now()+5000;
  let timer:ReturnType<typeof setTimeout>|undefined,disposed=false,running=false,failures=0;
  function schedule(){
   clearTimeout(timer);timer=undefined;

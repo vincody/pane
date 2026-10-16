@@ -85,6 +85,6 @@ export async function createUpdates(options:Options){
  async function setAutomatic(value:boolean){
   await persist({automatic:value});send({automatic:value});schedule.refresh();
  }
- const schedule=createUpdateSchedule({enabled:()=>state.supported&&state.automatic,lastSuccess:persisted.lastSuccessfulCheckAt||0,check:()=>check(true)});
+ const schedule=createUpdateSchedule({enabled:()=>state.supported&&state.automatic,check:()=>check(true)});
  return {get:()=>({...state}),check,backgroundCheck:schedule.activity,download,update,setAutomatic,ready:()=>downloaded,install:()=>{if(downloaded&&state.status!=='installing'){send({status:'installing',message:'Installing update and restarting Pane…'});try{engine.quitAndInstall(true,true);}catch(error){failed(error);}}},dispose:()=>{disposed=true;cancelApproval();schedule.dispose();}};
 }

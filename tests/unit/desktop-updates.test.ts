@@ -111,13 +111,13 @@ test('failed download cancels automatic installation until the user retries',asy
 });
 
 
-test('background refresh failures retain a known update, and successful check time survives restart',async context=>{
+test('background refresh failures retain a known update, and successful check time survives restart and the next launch checks again',async context=>{
  context.mock.timers.enable({apis:['setTimeout','Date'],now:Date.UTC(2026,9,16)});
  const f=await fixture();let restored:Awaited<ReturnType<typeof createUpdates>>|undefined;
  try{
   f.engine.check=async()=>{f.engine.emit('update-available',{version:'0.1.2'});};await f.updates.check();const successful=JSON.parse(await fs.readFile(f.options.preferencesFile,'utf8')).lastSuccessfulCheckAt;assert.ok(successful);
   f.engine.check=async()=>{throw Error('offline');};await f.updates.check(true);assert.equal(f.updates.get().status,'available');assert.equal(f.updates.get().latestVersion,'0.1.2');assert.match(f.updates.get().message,/previously found/);assert.equal(JSON.parse(await fs.readFile(f.options.preferencesFile,'utf8')).lastSuccessfulCheckAt,successful);
-  f.updates.dispose();restored=await createUpdates(f.options);assert.ok(restored.get().checkedAt);assert.equal(restored.get().status,'available');assert.equal(restored.get().latestVersion,'0.1.2');const calls=f.engine.checks;context.mock.timers.tick(5000);await restored.backgroundCheck();assert.equal(f.engine.checks,calls);await restored.download();assert.equal(f.engine.checks,calls+1);assert.equal(f.engine.downloads,0);assert.equal(restored.get().status,'error');
+  f.updates.dispose();restored=await createUpdates(f.options);assert.ok(restored.get().checkedAt);assert.equal(restored.get().status,'available');assert.equal(restored.get().latestVersion,'0.1.2');const calls=f.engine.checks;context.mock.timers.tick(5000);await restored.check(true);assert.equal(f.engine.checks,calls+1);assert.equal(restored.get().latestVersion,'0.1.2');await restored.download();assert.equal(f.engine.checks,calls+2);assert.equal(f.engine.downloads,0);assert.equal(restored.get().status,'error');
  }finally{restored?.dispose();context.mock.timers.reset();await f.close();}
 });
 
