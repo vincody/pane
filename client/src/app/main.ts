@@ -11,6 +11,7 @@ import {setupDevServers} from '../features/dev-servers/DevServers.tsx';
 import {createFileGitDecorations} from '../features/files/file-git-status.ts';
 import {createWorkspaceSidebar} from '../features/workspaces/WorkspaceSidebar.tsx';
 import {createWorktreeDialog} from '../features/workspaces/worktree-dialog.ts';
+import {createWorkspaceDiffs} from '../features/workspaces/workspace-diff.ts';
 import {createAddWorkspaceDialog} from '../features/workspaces/add-workspace.ts';
 import {createSessionAttention,nextAttention} from '../features/workspaces/session-attention.ts';
 import {showImage} from '../features/files/image-viewer.ts';
@@ -40,6 +41,7 @@ import '../styles/styles.css';
 import '../styles/design-theme.css';
 import '../styles/git.css';
 import '../styles/selects.css';
+import '../styles/workspace-sidebar.css';
 
 setupEditorWorkers();
 
@@ -61,6 +63,7 @@ const documents = new Map<string,OpenDocument>();
 let notifications:ReturnType<typeof createNotifications>|undefined;
 let titlebar:ReturnType<typeof setupTitlebar>|undefined;
 let workspaceSidebar:ReturnType<typeof createWorkspaceSidebar>|undefined;
+const workspaceDiffs=createWorkspaceDiffs(api,()=>renderProjects());
 let changesView:ReturnType<typeof setupChanges>|undefined;
 let gitView:ReturnType<typeof createGitPanel>|undefined;
 let devServers:ReturnType<typeof setupDevServers>|undefined;
@@ -149,7 +152,8 @@ function setupProjectDrag(project:Workspace,button:HTMLButtonElement,group:HTMLE
  group.ondrop=event=>{if(!draggedProject)return;event.preventDefault();const id=draggedProject,after=group.classList.contains('drop-after');draggedProject=null;lastProjectDrag=Date.now();clearProjectDrop();void reorderProjects(id,project.id,after);};
 }
 function renderProjects() {
-  workspaceSidebar?.render({projects:[...projects],currentProjectId:currentProject?.id||null,agents:[...terminalAgents]});
+  workspaceSidebar?.render({projects:[...projects],currentProjectId:currentProject?.id||null,agents:[...terminalAgents],diffs:workspaceDiffs.stats()});
+  workspaceDiffs.refresh(projects.map(project=>project.id));
   titlebar?.refresh();
 }
 function captureWorkspaceState():WorkspaceTabState{return {kind:gitView?.activeProject===currentProject?.id?'git':agentView.visible?'agent':terminalView.visible?'pane':currentDocument?'file':'empty',file:currentDocument&&currentDocument.project===currentProject?.id?currentDocument.key:null,pane:terminalView.focusedProjectId===currentProject?.id?terminalView.activePaneId:undefined,mode,secondary:secondaryDocument?.key||null,secondaryMode,classes:['file-file-split','chat-file-split','split-vertical','split-ai-last','file-pane-first'].filter(name=>$('#app').classList.contains(name)),order:[...tabOrder],agent:agentView.selected||null,agentVisible:agentView.visible};}
@@ -342,7 +346,7 @@ function renderTabs() {
   for (const doc of documents.values()) {
     if(doc.project!==currentProject?.id)continue;
     const tab = document.createElement('div'); tab.dataset.tabKey=doc.key;tab.dataset.project=doc.project;tab.dataset.path=doc.path;tab.className = `file-tab${activeFileKey===doc.key&&!chatActive&&!gitActive ? ' active' : ''}`; tab.title = `${projects.find(p => p.id === doc.project)?.name}/${doc.path}`; tab.tabIndex = 0; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(activeFileKey===doc.key&&!chatActive&&!gitActive));
-    tab.append(fileIcon(doc.path,icon)); const name = document.createElement('span'); name.className = 'tab-name'; name.textContent = doc.name; tab.append(name);
+    tab.append(fileIcon(doc.path)); const name = document.createElement('span'); name.className = 'tab-name'; name.textContent = doc.name; tab.append(name);
     if (doc.dirty) { const dot = document.createElement('span'); dot.className = 'tab-dirty'; dot.setAttribute('aria-label', 'Unsaved changes'); tab.append(dot); }
     const close = document.createElement('button'); close.className = 'tab-close'; close.append(icon('close')); close.setAttribute('aria-label', `Close ${doc.name}`); close.onclick = event => { event.stopPropagation(); closeDocument(doc); }; tab.append(close);
     tab.onclick = () => selectDocument(doc); tab.onkeydown = event => { if (event.target === tab && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); tab.click(); } }; $('#tabs').append(tab);

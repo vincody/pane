@@ -1,0 +1,41 @@
+/* Projects list: project avatar, workspace status glyph, branch/name text and +/- totals. Loaded after design-theme.css. */
+.workspace-heading>span{text-transform:uppercase;letter-spacing:.08em}
+.project-avatar{display:grid;place-items:center;flex:none;width:20px;height:20px;border-radius:5px;background:hsl(var(--hue) 42% 46%);color:#fff;font:700 11px/1 var(--font-ui)}
+.sidebar #projects .workspace-group .project-button{gap:9px}
+.sidebar #projects .workspace-group{margin-bottom:14px}
+.sidebar #projects .workspace-context{margin:0 0 2px;padding:2px 0}
+.sidebar #projects .workspace-context-row{min-height:36px}
+.sidebar #projects .workspace-context-row:has(.workspace-branch-only){min-height:34px}
+.sidebar #projects .workspace-context-button{display:flex;align-items:center;gap:9px;min-height:36px;padding:4px 8px}
+.workspace-lead{position:relative;display:grid;place-items:center;flex:none;width:16px;height:16px;color:var(--muted)}
+.workspace-lead>.react-icon{display:grid}
+.workspace-lead svg{width:14px;height:14px}
+.lead-ring{width:9px;height:9px;border:1.5px solid color-mix(in srgb,var(--muted) 75%,transparent);border-radius:50%}
+.lead-badge{position:absolute;top:-1px;right:-2px;width:7px;height:7px;border-radius:50%;background:var(--muted);box-shadow:0 0 0 2px var(--sidebar)}
+.workspace-lead[data-lead=review] .lead-badge{background:var(--success)}
+.workspace-lead[data-lead=review] .lead-ring{border-color:var(--body)}
+.workspace-lead[data-lead=blocked] .lead-badge,.workspace-lead[data-lead=working] .lead-badge{background:var(--warning)}
+.workspace-lead[data-lead=blocked] .lead-ring{border-color:var(--warning)}
+.workspace-lead[data-lead=failed] .lead-badge{background:var(--error)}
+.workspace-lead[data-lead=failed] .lead-ring{border-color:var(--error)}
+.wave-spinner{display:grid;grid-template-columns:repeat(3,3px);grid-template-rows:repeat(3,3px);gap:1px;color:var(--body)}
+.wave-spinner i{display:block;border-radius:.5px;background:currentColor;opacity:.75}
+@media(prefers-reduced-motion:no-preference){
+ .wave-spinner i{opacity:0;animation:wave-cell 1.2s linear infinite;animation-delay:calc(var(--cell)*.1s)}
+ .workspace-lead:is([data-lead=blocked],[data-lead=failed]) .lead-badge{animation:lead-pulse 1.4s ease-in-out infinite}
+}
+@keyframes wave-cell{0%{opacity:0}15%,45%{opacity:1}60%,100%{opacity:0}}
+@keyframes lead-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.workspace-context-text{display:flex;flex-direction:column;flex:1;gap:1px;min-width:0}
+.workspace-context-text.is-local{flex-direction:row;align-items:baseline;gap:8px}
+.sidebar #projects .workspace-context-button .workspace-context-text>.workspace-context-name{font-size:13px;line-height:1.35}
+.workspace-local-label{flex:none;color:var(--ink);font-size:13px;font-weight:500;line-height:1.35}
+.sidebar #projects .workspace-context-button .workspace-context-text.is-local .workspace-branch{grid-row:auto;font-size:11px}
+.workspace-diff{display:flex;flex:none;gap:6px;color:var(--muted);font:10.5px/1 var(--font-code);font-variant-numeric:tabular-nums}
+.workspace-diff i{font-style:normal}
+.workspace-context.selected .workspace-diff b{color:var(--success)}
+.workspace-context.selected .workspace-diff i{color:var(--error)}
+.sidebar #projects .workspace-context-row:has(.project-more):is(:hover,:focus-within) .workspace-diff{display:none}
+.workspace-attention{display:inline-flex;flex:none;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 5px;border-radius:8px;background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning);font:600 10px/1 var(--font-ui)}
+.workspace-attention-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.sidebar #projects .workspace-context .terminal-agent-card.selected:is([data-status=blocked],[data-status=error],[data-status=failed]){background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--ink)}

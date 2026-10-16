@@ -8,6 +8,7 @@ const paths:Record<string,string> = {
   file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z M14 2v6h6',
   'file-plus':'M14 2H6a2 2 0 0 0-2 2v16h16V8Z M14 2v6h6 M12 11v6 M9 14h6',
   'folder-plus':'M3 7V4h6l2 3h10v13H3Z M12 10v7 M8.5 13.5h7',
+  laptop:'M5 5h14v10H5Z M2.5 19h19',
   copy:'M8 8h13v13H8Z M16 8V3H3v13h5',
   rename:'m15 4 5 5 M4 20l5-1L21 7l-5-5L4 14Z',
   trash:'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7',

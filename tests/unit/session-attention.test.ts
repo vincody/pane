@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createSessionAttention,needsAttention,nextAttention} from '../../client/src/features/workspaces/session-attention.ts';
+import {createSessionAttention,needsAttention,nextAttention,workspaceLead} from '../../client/src/features/workspaces/session-attention.ts';
 import type {TerminalAgent} from '../../client/src/components/contracts.ts';
 const agent=(id:string,status='idle',selected=false,completed=false):TerminalAgent=>({id,project:'project',agent:'codex',name:id,status,selected,completed});
 test('completion is retained after its signal clears; viewing acknowledges unread completion',()=>{
@@ -21,4 +21,13 @@ test('hidden or unfocused selected sessions retain unread; removed sessions forg
 test('attention navigation cycles through actionable sessions and skips acknowledged completions',()=>{
  const rows=[agent('a','working'),agent('b','blocked'),{...agent('c','done'),unread:true},agent('d','done'),agent('e','error')];
  assert.equal(nextAttention(rows)?.id,'b');assert.equal(nextAttention(rows,'b')?.id,'c');assert.equal(nextAttention(rows,'c')?.id,'e');assert.equal(nextAttention(rows,'e')?.id,'b');assert.equal(nextAttention([agent('a')]),undefined);assert.equal(nextAttention([]),undefined);
+});
+test('a workspace row shows its most urgent session status',()=>{
+ const unread=(id:string)=>({...agent(id,'done'),unread:true});
+ assert.equal(workspaceLead([]),'idle');assert.equal(workspaceLead([agent('a'),agent('b','done')]),'idle');
+ assert.equal(workspaceLead([agent('a'),unread('b')]),'review');
+ assert.equal(workspaceLead([unread('a'),agent('b','working')]),'working');
+ assert.equal(workspaceLead([agent('a','working'),agent('b','blocked')]),'blocked');
+ assert.equal(workspaceLead([agent('a','blocked'),agent('b','failed'),unread('c')]),'failed');
+ assert.equal(workspaceLead([agent('a','error')]),'failed');
 });
