@@ -7,15 +7,16 @@ import * as pty from 'node-pty';
 import type { Server } from 'node:http';
 import type { Workspace, TerminalServerMessage } from '../../../../shared/contracts.ts';
 import {agentInProcessTree, readProcesses} from './terminal-agents.ts';
+import {protectSshKey} from './ssh-key-permissions.ts';
 import {parseStartupLaunch,powerShellStartupArgs} from './terminal-startup.ts';
 
 const maxCols = 300;
 const maxRows = 150;
 const validSize = (cols: unknown, rows: unknown) => typeof cols === 'number' && typeof rows === 'number' && Number.isInteger(cols) && cols >= 2 && cols <= maxCols && Number.isInteger(rows) && rows >= 2 && rows <= maxRows;
-export interface TerminalPtyOptions { token: string; getProject: (id: string) => Workspace | undefined; ptyApi?: Pick<typeof pty, 'spawn'>;onStart?:(pid:number,project:Workspace)=>void;onStop?:(pid:number)=>void;onOutput?:(pid:number,data:string)=>void }
+export interface TerminalPtyOptions { token: string; getProject: (id: string) => Workspace | undefined; ptyApi?: Pick<typeof pty, 'spawn'>;protectKey?:(key:string)=>void;onStart?:(pid:number,project:Workspace)=>void;onStop?:(pid:number)=>void;onOutput?:(pid:number,data:string)=>void }
 interface TerminalSession {id:string;pty:pty.IPty;client:WebSocket|null;send:(message:TerminalServerMessage)=>void;agent:string|null;exited?:boolean;detachable:boolean;project:Workspace;shell:string;output:string[];outputSize:number;ssh:boolean}
 
-export function attachTerminalPty(server: Server, { token, getProject, ptyApi = pty,onStart,onStop,onOutput }: TerminalPtyOptions){
+export function attachTerminalPty(server: Server, { token, getProject, ptyApi = pty,protectKey=protectSshKey,onStart,onStop,onOutput }: TerminalPtyOptions){
   const websocketServer = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024, perMessageDeflate: false });
   const sessions=new Map<string,TerminalSession>();
   const sendTo=(client:WebSocket|null,message:TerminalServerMessage)=>{if(client?.readyState===WebSocket.OPEN)client.send(JSON.stringify(message));};
@@ -83,7 +84,7 @@ export function attachTerminalPty(server: Server, { token, getProject, ptyApi = 
         const project=getProject(message.project);if(!project){send({type:'error',message:'Select a registered project before opening a terminal.'});client.close(1008,'Unknown project');return;}
         if(sessions.size>=64){send({type:'error',message:'Close an existing terminal before opening another session.'});client.close(1008,'Terminal limit');return;}
         let shell=process.platform==='win32'?'powershell.exe':process.env.SHELL||'/bin/bash';let args=process.platform==='win32'?['-NoLogo']:['-l'];
-        try{if(message.ssh!==undefined){const connection=validateSshConnection(message.ssh);args=sshArguments(connection);if(connection.identityFile){const key=connection.identityFile;if(!path.isAbsolute(key))throw new Error('Use an absolute SSH key file path.');try{if(!statSync(key).isFile())throw new Error();accessSync(key,constants.R_OK);}catch{throw new Error('SSH key file is missing or unreadable. Choose the key file again.');}}const windowsSsh=path.join(process.env.SystemRoot||'C:\Windows','System32','OpenSSH','ssh.exe');shell=process.platform==='win32'&&existsSync(windowsSsh)?windowsSsh:'ssh';}}
+        try{if(message.ssh!==undefined){const connection=validateSshConnection(message.ssh);args=sshArguments(connection);if(connection.identityFile){const key=connection.identityFile;if(!path.isAbsolute(key))throw new Error('Use an absolute SSH key file path.');try{if(!statSync(key).isFile())throw new Error();accessSync(key,constants.R_OK);}catch{throw new Error('SSH key file is missing or unreadable. Choose the key file again.');}protectKey(key);}const windowsSsh=path.join(process.env.SystemRoot||'C:\Windows','System32','OpenSSH','ssh.exe');shell=process.platform==='win32'&&existsSync(windowsSsh)?windowsSsh:'ssh';}}
         catch(error){send({type:'error',message:error instanceof Error?error.message:'Invalid SSH connection.'});client.close(1008,'Invalid SSH connection');return;}
         // On Windows PowerShell the agent starts from the shell's own arguments, so its command line is never typed into the terminal.
         let startupDelivered=false;
