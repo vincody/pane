@@ -4,6 +4,8 @@ import os from 'node:os';
 // Well-known SIDs, so the fix does not depend on the Windows display language.
 const BROAD_GROUPS=['*S-1-1-0','*S-1-5-11','*S-1-5-32-545'];
 
+export const windowsAccount=(domain:string|undefined,name:string)=>domain?`${domain}\\${name}`:name;
+
 export const sshKeyAclCommands=(key:string,user:string)=>[
  ['/grant:r',`${user}:(R)`],
  ['/inheritance:r'],
@@ -14,6 +16,6 @@ export const sshKeyAclCommands=(key:string,user:string)=>[
 // Leave only the current user with read access; failures are ignored so ssh itself reports the problem.
 export function protectSshKey(key:string,run:(args:string[])=>void=args=>{execFileSync('icacls',args,{stdio:'ignore',timeout:5000,windowsHide:true});},platform=process.platform){
  if(platform!=='win32')return;
- const user=process.env.USERDOMAIN?`${process.env.USERDOMAIN}\${os.userInfo().username}`:os.userInfo().username;
+ const user=windowsAccount(process.env.USERDOMAIN,os.userInfo().username);
  for(const args of sshKeyAclCommands(key,user)){try{run(args);}catch{return;}}
 }
