@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {isPasteShortcut,pasteIntoTerminal,sanitizePasteText,terminalPasteText} from '../../client/src/features/terminal/terminal-paste.ts';
+import {copyTerminalSelection,isCopyShortcut,isPasteShortcut,pasteIntoTerminal,sanitizePasteText,terminalPasteText} from '../../client/src/features/terminal/terminal-paste.ts';
 
 const key=(over:Partial<Parameters<typeof isPasteShortcut>[0]>)=>({type:'keydown',ctrlKey:false,shiftKey:false,altKey:false,metaKey:false,code:'KeyV',...over});
 
@@ -35,4 +35,19 @@ test('paste sends clipboard content to the terminal and reports errors',async()=
  assert.deepEqual(await run({kind:'error',message:'too large'}),{calls:[],notices:['too large']});
  assert.deepEqual(await run(new Error('ipc')),{calls:[],notices:['Could not read the clipboard.']});
  assert.deepEqual(await run(undefined),{calls:[],notices:[]});
+});
+
+test('copy shortcuts are Ctrl+Shift+C and Ctrl+Insert, or Cmd+C on macOS; plain Ctrl+C stays an interrupt',()=>{
+ assert.equal(isCopyShortcut(key({ctrlKey:true,shiftKey:true,code:'KeyC'}),'win32'),true);
+ assert.equal(isCopyShortcut(key({ctrlKey:true,code:'Insert'}),'win32'),true);
+ assert.equal(isCopyShortcut(key({metaKey:true,code:'KeyC'}),'darwin'),true);
+ assert.equal(isCopyShortcut(key({ctrlKey:true,code:'KeyC'}),'win32'),false);
+});
+
+test('copying writes the selection and ignores an empty one',async()=>{
+ const written:string[]=[];
+ const write=async(text:string)=>{written.push(text);};
+ assert.equal(await copyTerminalSelection({hasSelection:()=>true,getSelection:()=>'abc'},write),true);
+ assert.equal(await copyTerminalSelection({hasSelection:()=>false,getSelection:()=>''},write),false);
+ assert.deepEqual(written,['abc']);
 });

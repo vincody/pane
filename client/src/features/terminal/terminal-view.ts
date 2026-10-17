@@ -11,7 +11,7 @@ import {leaves, removePane, splitPane, swapPanes, chooseBalancedSplit, dropZone}
 import {terminalName, terminalProvider, threadTitle} from './terminal-name.ts';
 import {readTerminalActivity} from './terminal-activity.ts';
 import {trackPromptInput} from './terminal-input.ts';
-import {isPasteShortcut,pasteIntoTerminal} from './terminal-paste.ts';
+import {copyTerminalSelection,isCopyShortcut,isPasteShortcut,pasteIntoTerminal} from './terminal-paste.ts';
 import {createOsc52Handler} from './terminal-osc52.ts';
 import {MAX_TERMINAL_FONT_SIZE,MIN_TERMINAL_FONT_SIZE,normalizeTerminalFontSize,readTerminalFontSize,saveTerminalFontSize} from './terminal-font.ts';
 import {validateResume} from '../history/history-session.ts';
@@ -103,6 +103,10 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   const autoSetting=document.createElement('div');autoSetting.className='setting-row';autoSetting.innerHTML='<div><strong>Auto split terminals</strong><small>Add new sessions to the focused split group. Preserve adjusted layouts; use separate tabs in narrow windows.</small></div><input id="auto-split-terminal-setting" type="checkbox" aria-label="Auto split terminals">';
   document.querySelector<HTMLElement>('.settings-footnote')!.before(autoSetting);
   const autoCheckbox=autoSetting.querySelector<HTMLInputElement>('input')!;autoCheckbox.checked=autoSplit;autoCheckbox.onchange=()=>{autoSplit=autoCheckbox.checked;try{localStorage.setItem('ai-web.auto-split-terminals',String(autoSplit));}catch{}};
+  let copyOnSelect=false;try{copyOnSelect=localStorage.getItem('ai-web.copy-on-select')==='true';}catch{}
+  const copySetting=document.createElement('div');copySetting.className='setting-row';copySetting.innerHTML='<div><strong>Copy on select</strong><small>Copy terminal text to the clipboard as soon as you select it with the mouse. Ctrl+Shift+C always copies.</small></div><input id="copy-on-select-setting" type="checkbox" aria-label="Copy on select">';
+  document.querySelector<HTMLElement>('.settings-footnote')!.before(copySetting);
+  const copyCheckbox=copySetting.querySelector<HTMLInputElement>('input')!;copyCheckbox.checked=copyOnSelect;copyCheckbox.onchange=()=>{copyOnSelect=copyCheckbox.checked;try{localStorage.setItem('ai-web.copy-on-select',String(copyOnSelect));}catch{}};
   let terminalFontSize=readTerminalFontSize();
   const fontSetting=document.createElement('div');fontSetting.className='setting-row';fontSetting.innerHTML=`<div><strong>Terminal text size</strong><small>Size of terminal text in pixels, ${MIN_TERMINAL_FONT_SIZE} to ${MAX_TERMINAL_FONT_SIZE}. Hidden terminals update when you open them.</small></div><input type="number" min="${MIN_TERMINAL_FONT_SIZE}" max="${MAX_TERMINAL_FONT_SIZE}" step="1" inputmode="numeric" aria-label="Terminal text size">`;
   document.querySelector<HTMLElement>('.settings-footnote')!.before(fontSetting);
@@ -366,7 +370,12 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     const fit = new FitAddon(),addresses=createAddressDetector();
     terminal.loadAddon(fit);
     terminal.loadAddon(new WebLinksAddon((event,uri)=>{if(event.ctrlKey||event.metaKey)onOpenLink?.(uri,project);},{hover:()=>{body.title='Ctrl+click to open';},leave:()=>body.removeAttribute('title')}));
-    terminal.attachCustomKeyEventHandler(event=>{if(!isPasteShortcut(event))return true;event.preventDefault();void pasteIntoTerminal(terminal,window.paneDesktop?.readClipboard,onNotice);return false;});
+    terminal.attachCustomKeyEventHandler(event=>{
+      if(isCopyShortcut(event)){event.preventDefault();void copyTerminalSelection(terminal,window.paneDesktop?.writeClipboardText,onNotice).then(copied=>{if(copied)onNotice?.('Copied to clipboard.',1500);});return false;}
+      if(!isPasteShortcut(event))return true;event.preventDefault();void pasteIntoTerminal(terminal,window.paneDesktop?.readClipboard,onNotice);return false;
+    });
+    // Releasing the mouse after a drag (or double-click) finishes a selection; copy it like Claude CLI's auto-copy.
+    body.addEventListener('mouseup',event=>{if(copyOnSelect&&event.button===0)void copyTerminalSelection(terminal,window.paneDesktop?.writeClipboardText,onNotice).then(copied=>{if(copied)onNotice?.('Copied to clipboard.',1500);});});
     body.addEventListener('paste',event=>{event.preventDefault();event.stopPropagation();void pasteIntoTerminal(terminal,window.paneDesktop?.readClipboard,onNotice);},true);
     terminal.open(body);
     // The DOM renderer leaves gaps between block glyphs once lineHeight > 1 (Claude's logo shatters); WebGL draws them to fill the cell.

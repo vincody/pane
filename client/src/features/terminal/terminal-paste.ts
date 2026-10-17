@@ -11,6 +11,21 @@ export function isPasteShortcut(event:PasteKey,platform=window.paneDesktop?.plat
  return event.ctrlKey&&event.code==='KeyV';
 }
 
+// Ctrl+C stays an interrupt for the shell, so copying uses Ctrl+Shift+C or Ctrl+Insert (Cmd+C on macOS).
+export function isCopyShortcut(event:PasteKey,platform=window.paneDesktop?.platform||'win32'){
+ if(event.type!=='keydown'||event.altKey)return false;
+ if(platform==='darwin')return event.metaKey&&!event.ctrlKey&&!event.shiftKey&&event.code==='KeyC';
+ if(event.metaKey)return false;
+ if(event.ctrlKey&&!event.shiftKey)return event.code==='Insert';
+ return event.ctrlKey&&event.shiftKey&&event.code==='KeyC';
+}
+
+export async function copyTerminalSelection(terminal:Pick<Terminal,'hasSelection'|'getSelection'>,write:((text:string)=>Promise<unknown>)|undefined,onNotice?:(message:string)=>void){
+ if(!terminal.hasSelection())return false;
+ const text=terminal.getSelection();if(!text)return false;
+ try{await (write?write(text):navigator.clipboard.writeText(text));return true;}catch{onNotice?.('Could not copy to the clipboard.');return false;}
+}
+
 // An embedded ESC (such as a pasted ESC[201~) would end the bracketed paste early and run the rest as keystrokes.
 export const sanitizePasteText=(text:string)=>text.replace(/\x1b/g,'␛');
 const quotePath=(file:string)=>/\s/.test(file)?`"${file}"`:file;
