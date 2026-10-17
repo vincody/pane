@@ -32,6 +32,8 @@ export const test=base.extend<{page:Page;desktop:ElectronApplication},{closeApp:
    const executablePath=process.env.PANE_DESKTOP_EXECUTABLE;
    const app=await electron.launch({args:executablePath?[]:[path.resolve('.')],...(executablePath?{executablePath}:{}),env:{...process.env,PANE_DESKTOP_DATA_DIR:data,PANE_DESKTOP_PORT:String(await freePort())}});
    app.process().stderr?.on('data',()=>{});
+   // A fixed size keeps layout-dependent behavior (auto split, compact tabs) the same on CI runners.
+   await app.firstWindow();await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].setContentSize(1440,900);});
    running={file:testInfo.file,app,data};
   }
   await use(running.app);

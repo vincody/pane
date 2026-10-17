@@ -2,8 +2,8 @@ import {test,expect} from './app.ts';
 import type {DevServer,Workspace} from '../../shared/contracts.ts';
 const first:Workspace={id:'servers-one',name:'First workspace',root:'C:\\work\\one'},second:Workspace={id:'servers-two',name:'Second workspace',root:'C:\\work\\two',branch:'main'};
 function server(projectId:string,port:number,protocol:DevServer['protocol']):DevServer{return {id:`${projectId}:${port}`,projectId,pid:42,port,host:'127.0.0.1',name:'node',status:'running',protocol,url:protocol==='unknown'?null:`${protocol}://127.0.0.1:${port}`,observedAt:new Date().toISOString()};}
-test('local servers aggregates open workspaces and keeps workspace labels and scoped actions',async({page,context})=>{
- await context.grantPermissions(['clipboard-read','clipboard-write']);
+test('local servers aggregates open workspaces and keeps workspace labels and scoped actions',async({page})=>{
+ await page.context().grantPermissions(['clipboard-read','clipboard-write']);
  await page.route('**/api/projects',route=>route.fulfill({json:{projects:[first,second],defaultProject:first.id}}));
  await page.route('**/api/tree?**',route=>route.fulfill({json:{entries:[]}}));
  await page.route('**/api/changes?**',route=>route.fulfill({json:{available:false,files:[]}}));
