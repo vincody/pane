@@ -192,6 +192,8 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .terminal-divider:hover,.terminal-divider.dragging{background:color-mix(in srgb,var(--accent) 25%,transparent);border-radius:4px}
 .terminal-divider:focus-visible{outline:1px solid var(--accent);outline-offset:-1px}
 .terminal-screen[data-terminal-drop]:after{content:'Split right';position:absolute;z-index:10;inset:0 0 0 50%;display:grid;place-items:center;pointer-events:none;background:#d9775730;border:2px solid var(--accent);border-radius:6px;font-size:12px;color:var(--text)}
+.terminal-screen[data-terminal-drop=left]:after{content:'Split left';inset:0 50% 0 0}
+.terminal-screen[data-terminal-drop=up]:after{content:'Split up';inset:0 0 50% 0}
 .terminal-screen[data-terminal-drop=down]:after{content:'Split down';inset:50% 0 0}
 .terminal-screen[data-terminal-drop=swap]:after{content:'Swap panes';inset:0}
 #terminal-screens .terminal-screen{display:flex;flex-direction:column;padding:0}

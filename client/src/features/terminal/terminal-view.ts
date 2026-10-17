@@ -4,9 +4,10 @@ import {createSshConnections} from './ssh-connections.ts';
 import {readTerminalJournal,saveTerminalJournal,type SavedTerminal} from './terminal-journal.ts';
 import {FitAddon} from '@xterm/addon-fit';
 import {WebLinksAddon} from '@xterm/addon-web-links';
+import {WebglAddon} from '@xterm/addon-webgl';
 import {createAddressDetector} from '../browser/local-address.ts';
 import {positionTab,forgetTabPosition} from '../layout/tab-position.ts';
-import {leaves, removePane, splitPane, swapPanes, chooseBalancedSplit} from './terminal-layout.ts';
+import {leaves, removePane, splitPane, swapPanes, chooseBalancedSplit, dropZone} from './terminal-layout.ts';
 import {terminalName, terminalProvider, threadTitle} from './terminal-name.ts';
 import {readTerminalActivity} from './terminal-activity.ts';
 import {trackPromptInput} from './terminal-input.ts';
@@ -16,7 +17,7 @@ import {MAX_TERMINAL_FONT_SIZE,MIN_TERMINAL_FONT_SIZE,normalizeTerminalFontSize,
 import {validateResume} from '../history/history-session.ts';
 import '@xterm/xterm/css/xterm.css';
 import type {Workspace,SessionRecord,SshConnection,LocalToolStatus} from '../../../../shared/contracts.ts';
-import type {PaneTree,SplitDirection} from './terminal-layout.ts';
+import type {DropZone,PaneTree,SplitDirection} from './terminal-layout.ts';
 import type {TerminalActivity} from './terminal-activity.ts';
 export type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions} from './terminal-types.ts';
 import type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions,PaneSession,PaneGroup} from './terminal-types.ts';
@@ -128,10 +129,34 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     document.dispatchEvent(new Event('pane-layout-changed'));
     requestAnimationFrame(()=>{for(const session of leaves(activeSession?.group?.root))fitSession(session);});
   }
-  function attachPane(target:PaneSession,session:PaneSession,direction:SplitDirection){
+  function attachPane(target:PaneSession,session:PaneSession,direction:SplitDirection,before=false){
     if(!target || target===session)return;
     if(session.group)session.group.root=removePane(session.group.root,session);
-    session.group=target.group;session.group.manual=true;session.group.root=splitPane(session.group.root!,target,session,direction);activate(session);setVisible(true);
+    session.group=target.group;session.group.manual=true;session.group.root=splitPane(session.group.root!,target,session,direction,before);activate(session);setVisible(true);
+  }
+  // Dropping a tab or pane header on a pane splits the nearest side; the middle swaps the two.
+  // Dropping the pane's own tab splits it with the most recent other tab, which takes the opposite side.
+  function bindPaneDrop(pane:PaneSession){
+    const clear=()=>delete pane.element.dataset.terminalDrop;
+    const partner=()=>sessions.filter(item=>item!==pane&&!item.external&&item.project.id===pane.project.id&&item.group!==pane.group).sort((a,b)=>b.lastUsed-a.lastUsed)[0];
+    const zoneAt=(event:DragEvent)=>{const rect=pane.element.getBoundingClientRect();return dropZone(event.clientX-rect.left,event.clientY-rect.top,rect.width,rect.height);};
+    pane.element.ondragover=event=>{
+      if(!draggedSession)return;
+      const zone=zoneAt(event);
+      if(draggedSession===pane&&(zone==='swap'||!partner()))return;
+      event.preventDefault();pane.element.dataset.terminalDrop=zone;
+    };
+    pane.element.ondragleave=event=>{if(!pane.element.contains(event.relatedTarget as Node|null))clear();};
+    pane.element.ondrop=event=>{
+      if(!draggedSession)return;
+      const source=draggedSession,zone=(pane.element.dataset.terminalDrop||'swap') as DropZone,other=partner();clear();
+      if(source===pane&&(zone==='swap'||!other))return;
+      event.preventDefault();event.stopPropagation();draggedSession=null;
+      const direction=zone==='left'||zone==='right'?'right':'down',first=zone==='left'||zone==='up';
+      if(source===pane){attachPane(pane,other!,direction,!first);activate(pane);}
+      else if(zone==='swap')swapPanePositions(pane,source);
+      else attachPane(pane,source,direction,first);
+    };
   }
   function swapPanePositions(target:PaneSession,source:PaneSession){
     const sourceGroup=source.group,targetGroup=target.group;
@@ -344,6 +369,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     terminal.attachCustomKeyEventHandler(event=>{if(!isPasteShortcut(event))return true;event.preventDefault();void pasteIntoTerminal(terminal,window.paneDesktop?.readClipboard,onNotice);return false;});
     body.addEventListener('paste',event=>{event.preventDefault();event.stopPropagation();void pasteIntoTerminal(terminal,window.paneDesktop?.readClipboard,onNotice);},true);
     terminal.open(body);
+    // The DOM renderer leaves gaps between block glyphs once lineHeight > 1 (Claude's logo shatters); WebGL draws them to fill the cell.
+    try{const webgl=new WebglAddon();webgl.onContextLoss(()=>webgl.dispose());terminal.loadAddon(webgl);}catch{}
     $('#terminal-screens').append(element);
 
     const session:PaneSession = {...(ssh?{ssh}:{}),...(restored?{serverId:restored.ended?undefined:restored.sessionId,restorePending:restored.ended,customName:true}:{}),group:{root:null},lastUsed:0,id, project, name: restored?.name||ssh?.name||project.name, shell: 'Shell', state: 'connecting', ready: false, socket: null, terminal, fit, element, launch,paneHeader,paneTitle,paneMark,paneZoom,resume,cliTitle:restored?.name||ssh?.name||resume?.name};
@@ -371,9 +398,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     session.group={root:{session}};
     element.onpointerdown=()=>{if(activeSession!==session||!hasFocus){hasFocus=true;activeSession=session;onSelect?.();session.lastUsed=++useOrder;for(const item of sessions)item.element.classList.toggle('pane-focused',item===session);renderTabs();publish();}};
     paneHeader.oncontextmenu=event=>{if(event.shiftKey)return;event.preventDefault();event.stopPropagation();showMenu(session,event.clientX,event.clientY);};
-    element.ondragover=event=>{if(!draggedSession||draggedSession===session)return;event.preventDefault();const rect=element.getBoundingClientRect();element.dataset.terminalDrop=event.clientY>rect.bottom-Math.min(80,rect.height*.2)?'down':event.clientX>rect.right-Math.min(80,rect.width*.2)?'right':'swap';};
-    element.ondragleave=event=>{if(!element.contains(event.relatedTarget as Node|null))delete element.dataset.terminalDrop;};
-    element.ondrop=event=>{if(!draggedSession||draggedSession===session)return;event.preventDefault();event.stopPropagation();const source=draggedSession,direction=element.dataset.terminalDrop || 'swap';delete element.dataset.terminalDrop;draggedSession=null;if(direction==='swap')swapPanePositions(session,source);else attachPane(session,source,direction as SplitDirection);};
+    bindPaneDrop(session);
     session.observer = new ResizeObserver(() => fitSession(session));
     session.observer.observe(element);
     terminal.parser.registerOscHandler(52,createOsc52Handler({isReplaying:()=>Boolean(session.replaying),write:window.paneDesktop?.writeClipboardText,onFailure:()=>onNotice?.('Could not copy to the clipboard.')}));
@@ -571,9 +596,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       mounted.paneHeader.draggable=true;
       mounted.paneHeader.ondragstart=event=>{if((event.target as Element).closest<HTMLButtonElement>('button,input')){event.preventDefault();return;}draggedSession=mounted;event.dataTransfer!.setData('application/x-terminal-session',mounted.id);event.dataTransfer!.effectAllowed='move';};
       mounted.paneHeader.ondragend=()=>{draggedSession=null;panel.querySelectorAll<HTMLElement>('[data-terminal-drop]').forEach(node=>delete node.dataset.terminalDrop);};
-      mounted.element.ondragover=event=>{if(!draggedSession||draggedSession===mounted)return;event.preventDefault();const rect=mounted.element.getBoundingClientRect();mounted.element.dataset.terminalDrop=event.clientY>rect.bottom-Math.min(80,rect.height*.2)?'down':event.clientX>rect.right-Math.min(80,rect.width*.2)?'right':'swap';};
-      mounted.element.ondragleave=event=>{if(!mounted.element.contains(event.relatedTarget as Node|null))delete mounted.element.dataset.terminalDrop;};
-      mounted.element.ondrop=event=>{if(!draggedSession||draggedSession===mounted)return;event.preventDefault();event.stopPropagation();const source=draggedSession,direction=mounted.element.dataset.terminalDrop||'swap';draggedSession=null;delete mounted.element.dataset.terminalDrop;if(direction==='swap')swapPanePositions(mounted,source);else attachPane(mounted,source,direction as SplitDirection);};
+      bindPaneDrop(mounted);
     }
     if(target&&target!==session){if(direction==='swap')swapPanePositions(target,session);else attachPane(target,session,direction==='bottom'?'down':direction);}else activate(session);
     setVisible(true);return session;

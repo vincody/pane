@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {leaves,removePane,splitPane,swapPanes,chooseBalancedSplit} from '../../client/src/features/terminal/terminal-layout.ts';
+import {leaves,removePane,splitPane,swapPanes,chooseBalancedSplit,dropZone} from '../../client/src/features/terminal/terminal-layout.ts';
 import type {PaneTree} from '../../client/src/features/terminal/terminal-layout.ts';
 test('nested splits preserve sessions and collapse only the closed pane',()=>{
   const a={id:'a'},b={id:'b'},c={id:'c'};
@@ -29,4 +29,15 @@ test('auto split balances depth, then size, then recent focus',()=>{
  for(let i=2;i<8;i++){const choice=chooseBalancedSplit(root);root=splitPane(root,choice.session,{id:String(i),lastUsed:i},choice.direction);}
  const depths:number[]=[];const visit=(node:PaneTree<typeof a>,depth=0):void=>{if('session' in node)depths.push(depth);else{visit(node.first,depth+1);visit(node.second,depth+1);}};visit(root);
  assert.deepEqual(depths,[3,3,3,3,3,3,3,3]);
+});
+
+test('dropZone splits the nearest edge and swaps in the middle',()=>{
+  assert.equal(dropZone(10,200,900,400),'left');
+  assert.equal(dropZone(890,200,900,400),'right');
+  assert.equal(dropZone(450,20,900,400),'up');
+  assert.equal(dropZone(450,390,900,400),'down');
+  assert.equal(dropZone(450,200,900,400),'swap');
+});
+test('splitPane places the new pane first when dropped before the target',()=>{
+  assert.deepEqual(splitPane({session:'a'},'a','b','right',true),{direction:'right',ratio:.5,first:{session:'b'},second:{session:'a'}});
 });
