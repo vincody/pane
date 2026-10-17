@@ -30,7 +30,7 @@ test('the Browser tab opens any http page in an isolated session and never reach
   await page.locator('#terminal-new').click();await page.locator('[data-launch=browser]').click();
   const address=page.getByLabel('Address');await expect(address).toBeFocused();await expect(page.getByText('Open a page')).toBeVisible();
   await address.fill(`localhost:${port}`);await address.press('Enter');
-  await expect(page.locator('.browser-pane webview')).toHaveCount(1);
+  await expect(page.locator('#browser-layer webview')).toHaveCount(1);
   await expect(page.locator('#tabs .file-tab .tab-name').filter({hasText:'Local Page'})).toBeVisible({timeout:15000});
   await expect(address).toHaveValue(`http://localhost:${port}/`);
   // Isolation: its own session, no Pane bridge, no Node, and no "Electron" in the user agent.

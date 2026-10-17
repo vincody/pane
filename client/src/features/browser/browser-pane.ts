@@ -22,6 +22,15 @@ function button(label:string,iconName:string,icon:NativeIcon,action:string){
  const element=document.createElement('button');element.type='button';element.className='browser-button';element.dataset.action=action;
  element.setAttribute('aria-label',label);element.title=label;element.append(icon(iconName));return element;
 }
+/**
+ * Electron reloads a <webview> whenever it is moved in the DOM, and the workbench re-parents panes on every tab or layout change.
+ * The webview therefore lives in one fixed layer that is never re-parented, and follows the position of its pane's viewport.
+ */
+function webviewLayer(){
+ let layer=document.querySelector<HTMLElement>('#browser-layer');
+ if(!layer){layer=document.createElement('div');layer.id='browser-layer';document.body.append(layer);}
+ return layer;
+}
 /** An embedded browser (an Electron <webview> in its own session) with an address bar, navigation, error screen and local-server start page. */
 export function setupBrowserPane({host,icon,initialUrl,loadServers,onState,onFocus,openExternal}:Options){
  host.classList.add('browser-host');
@@ -39,7 +48,7 @@ export function setupBrowserPane({host,icon,initialUrl,loadServers,onState,onFoc
  const failure=document.createElement('div');failure.className='browser-error';failure.setAttribute('role','alert');failure.hidden=true;
  failure.innerHTML='<strong></strong><p></p><div class="browser-error-actions"><button type="button" data-action="retry">Try again</button><button type="button" data-action="system">Open in system browser</button></div>';
  viewport.append(start,failure);host.replaceChildren(toolbar,progress,viewport);
- let view:WebviewElement|undefined,ready=false,destroyed=false,state:BrowserState={url:initialUrl,title:'',favicon:''};
+ let view:WebviewElement|undefined,ready=false,destroyed=false,frame=0,placed='',state:BrowserState={url:initialUrl,title:'',favicon:''};
  const publish=(patch:Partial<BrowserState>)=>{state={...state,...patch};onState(state);};
  function syncControls(){
   let canBack=false,canForward=false;
@@ -56,7 +65,7 @@ export function setupBrowserPane({host,icon,initialUrl,loadServers,onState,onFoc
  }
  function attach(url:string){
   const element=document.createElement('webview') as WebviewElement;
-  element.setAttribute('partition',BROWSER_PARTITION);element.setAttribute('allowpopups','');element.className='browser-view';
+  element.setAttribute('partition',BROWSER_PARTITION);element.setAttribute('allowpopups','');element.className='browser-view';placed='';
   element.addEventListener('dom-ready',()=>{ready=true;syncControls();});
   element.addEventListener('did-start-loading',()=>{failure.hidden=true;setLoading(true);});
   element.addEventListener('did-stop-loading',()=>{setLoading(false);syncControls();});
@@ -66,8 +75,18 @@ export function setupBrowserPane({host,icon,initialUrl,loadServers,onState,onFoc
   element.addEventListener('page-favicon-updated',event=>{const icons=(event as Event&{favicons:string[]}).favicons;publish({favicon:icons.find(value=>/^https?:/.test(value))||''});});
   element.addEventListener('did-fail-load',event=>{const failed=event as Event&{errorCode:number;errorDescription:string;validatedURL:string;isMainFrame:boolean};if(failed.errorCode===-3||!failed.isMainFrame)return;showFailure(failed.errorCode,failed.errorDescription,failed.validatedURL);});
   element.addEventListener('focus',onFocus);
-  element.src=url;view=element;viewport.append(element);start.hidden=true;
+  element.src=url;view=element;webviewLayer().append(element);start.hidden=true;
  }
+ // Follows the viewport, and hides (without unloading) the page while its pane is not on screen or the error screen covers it.
+ function place(){
+  frame=requestAnimationFrame(place);
+  if(!view)return;
+  const rect=viewport.getBoundingClientRect(),shown=viewport.isConnected&&rect.width>0&&rect.height>0&&failure.hidden;
+  const next=shown?`${rect.left}|${rect.top}|${rect.width}|${rect.height}`:'hidden';
+  if(next===placed)return;placed=next;
+  if(shown)Object.assign(view.style,{left:`${rect.left}px`,top:`${rect.top}px`,width:`${rect.width}px`,height:`${rect.height}px`,visibility:'visible'});else view.style.visibility='hidden';
+ }
+ frame=requestAnimationFrame(place);
  function navigate(input:string){
   const url=sanitizeUrl(input);if(!url)return;
   address.value=url;failure.hidden=true;publish({url,title:'',favicon:''});
@@ -100,5 +119,5 @@ export function setupBrowserPane({host,icon,initialUrl,loadServers,onState,onFoc
  });
  setLoading(false);syncControls();
  if(initialUrl)navigate(initialUrl);else void showServers();
- return {navigate,focusAddress(){address.focus();},destroy(){destroyed=true;view?.remove();view=undefined;}};
+ return {navigate,focusAddress(){address.focus();},destroy(){destroyed=true;cancelAnimationFrame(frame);view?.remove();view=undefined;}};
 }
