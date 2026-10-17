@@ -355,6 +355,9 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       scrollback: 5000,
       convertEol: true,
       macOptionIsMeta: false,
+      // Agent CLIs print OSC 8 hyperlinks. xterm's default handler confirms with a native dialog and then opens the system browser,
+      // which skips the Settings → Links choice and needs no modifier key, so those links go the same way as plain URLs.
+      linkHandler: {activate:(event,uri)=>{if(event.ctrlKey||event.metaKey)onOpenLink?.(uri,project);}},
       theme: (() => {
         const styles = getComputedStyle(document.documentElement);
         const color = (name:string,fallback:string) => styles.getPropertyValue(name).trim() || fallback;
