@@ -32,7 +32,7 @@ export interface GitHubCheck {name:string;status:string;conclusion:string|null;u
 export interface GitHubPullDetails {pull:GitHubPull;files:GitHubPullFile[];checks:GitHubCheck[];checksMessage?:string;truncated:boolean}
 export interface LocalToolStatus {id:string;name:string;installed:boolean|null}
 export interface TextFile {kind:'text';content:string;version:string;bom:boolean;size:number}
-export interface ImageFile {kind:'image';size:number;path:string}
+export interface ImageFile {kind:'image';media?:'pdf';size:number;path:string}
 export interface TreeEntry {name:string;path:string;type:'file'|'directory'|'link';image:boolean}
 export interface DevServer {id:string;projectId:string;pid:number;port:number;host:string;name:string;status:'running'|'unknown'|'stopped';protocol:'http'|'https'|'unknown';url:string|null;observedAt:string;stoppedAt?:string}
 export interface DevServerSnapshot {available:boolean;scannedAt:string|null;rows:DevServer[];error?:string}

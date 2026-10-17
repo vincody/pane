@@ -16,6 +16,7 @@ import {createWorkspaceDiffs} from '../features/workspaces/workspace-diff.ts';
 import {createAddWorkspaceDialog} from '../features/workspaces/add-workspace.ts';
 import {createSessionAttention,nextAttention} from '../features/workspaces/session-attention.ts';
 import {showImage} from '../features/files/image-viewer.ts';
+import {disposePdf} from '../features/files/pdf-viewer.ts';
 import {addCodeCopyButtons} from '../features/files/markdown-copy.ts';
 import {positionTab, setupUnifiedTabOrder,forgetTabPosition} from '../features/layout/tab-position.ts';
 import {createNotifications} from '../features/notifications/notifications.ts';
@@ -312,7 +313,8 @@ async function openFile(project:string, path:string, {newTab=false,recovery=unde
       if (currentDocument === doc) { updateToolbar(); status(doc.dirty ? 'Unsaved changes' : 'Ready'); }
       schedulePreview(doc);
     });
-  } else doc.imageUrl = URL.createObjectURL(await api(fileUrl('image', doc), { image: true }));
+  } else if (doc.media === 'pdf') doc.pdfBlob = await api(fileUrl('image', doc), { image: true });
+  else doc.imageUrl = URL.createObjectURL(await api(fileUrl('image', doc), { image: true }));
   if(documents.has(key)){doc.subscription?.dispose();doc.model?.dispose();if(doc.imageUrl)URL.revokeObjectURL(doc.imageUrl);return selectDocument(documents.get(key)!);}
   const replace=replacement&&replacement===currentDocument&&documents.get(replacement.key)===replacement&&!replacement.dirty&&!replacement.saving;
   if(replace){const entries=[...documents];documents.clear();for(const [entryKey,entry] of entries)if(entryKey===replacement.key)documents.set(key,doc);else documents.set(entryKey,entry);}else documents.set(key,doc);
@@ -341,7 +343,7 @@ function selectDocument(doc:OpenDocument,{keepChat=false}={}) {
   $('#empty').hidden = true; $('#image-editor').hidden = doc.kind !== 'image'; $('#editor').hidden = doc.kind === 'image';
   editor.setModel(doc.model || null);
   if (doc.viewState) editor.restoreViewState(doc.viewState);
-  $('#image-editor').replaceChildren();
+  disposePdf($('#image-editor'));$('#image-editor').replaceChildren();
   if (doc.kind === 'image') showImage($('#image-editor'),doc);
   renderTabs(); updateToolbar(); renderPreview();
   setView(doc.view||defaultFileView);
@@ -427,8 +429,8 @@ function updateToolbar() {
   if(!currentDocument){
     mainLive.hide();
     editor.setModel(null);
-    const preview=$('#preview-content');previewRequests.set(preview,(previewRequests.get(preview)||0)+1);preview.replaceChildren();$('#preview-kind').textContent='';
-    $('#image-editor').replaceChildren();$('#image-editor').hidden=true;
+    const preview=$('#preview-content');previewRequests.set(preview,(previewRequests.get(preview)||0)+1);preview.replaceChildren();$('#preview-pane').classList.remove('pdf-only');$('#preview-kind').textContent='';
+    disposePdf($('#image-editor'));$('#image-editor').replaceChildren();$('#image-editor').hidden=true;
     $('#empty').hidden=Boolean(currentProject);
     if(!secondaryDocument){activeFileKey=null;$('#app').dataset.fileFocused='false';}
   }
@@ -472,7 +474,7 @@ async function renderPreview({doc=currentDocument,target=$('#preview-content'),s
   if (!doc || view !== 'preview'&&view !=='split') return;
   const scrollTop=target.scrollTop;
   try{
-  target.replaceChildren(); if(!secondary)$('#preview-kind').textContent = doc.kind === 'image' ? 'Image file' : doc.dirty ? 'Unsaved edits' : 'Current file';
+  target.replaceChildren(); if(!secondary)$('#preview-pane').classList.toggle('pdf-only',Boolean(doc.pdfBlob)); if(!secondary)$('#preview-kind').textContent = doc.kind === 'image' ? (doc.pdfBlob ? 'PDF file' : 'Image file') : doc.dirty ? 'Unsaved edits' : 'Current file';
   if (doc.kind === 'image') { showImage(target,doc); return; }
   if(!doc.model)return;const model=doc.model;
   const content = model.getValue();

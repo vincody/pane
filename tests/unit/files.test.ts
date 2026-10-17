@@ -111,3 +111,13 @@ test('renaming/removing a workspace changes only the web registry and survives r
   app = await create();
   assert.equal(app.files.projects.size, 0, 'removed default workspace resurrected');
 });
+
+test('a PDF is offered as a viewable document instead of failing as binary text', async t => {
+  const { root, files, id } = await fixture(t);
+  const bytes = Buffer.from('%PDF-1.4\n%%EOF\n');
+  await fs.writeFile(path.join(root, 'guide.PDF'), bytes);
+  assert.deepEqual(await files.read(id, 'guide.PDF'), { kind: 'image', media: 'pdf', size: bytes.length, path: 'guide.PDF' });
+  const served = await files.image(id, 'guide.PDF');
+  assert.equal(served.type, 'application/pdf');
+  assert.deepEqual(served.content, bytes);
+});

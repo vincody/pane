@@ -1,5 +1,8 @@
+import {disposePdf,showPdf} from './pdf-viewer.ts';
 const viewers=new WeakMap<HTMLElement,ResizeObserver>();
-export function showImage(host:HTMLElement,doc:{imageUrl?:string;name:string}){
+export function showImage(host:HTMLElement,doc:{imageUrl?:string;pdfBlob?:Blob;name:string}){
+  disposePdf(host);
+  if(doc.pdfBlob){showPdf(host,{blob:doc.pdfBlob,name:doc.name});return;}
   if(!doc.imageUrl)return;
   viewers.get(host)?.disconnect();
   const viewer=document.createElement('div');viewer.className='image-viewer';

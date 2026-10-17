@@ -10,7 +10,8 @@ export interface FileTreeEntry { name: string; path: string; type: 'link' | 'dir
 export interface FileReference { name: string; path: string }
 export interface FileReferenceResult { files: FileReference[]; truncated: boolean }
 export interface SavedFile { version: string; size: number }
-export type ReadFile = { kind: 'image'; size: number; path: string } | { kind: 'text'; content: string; version: string; bom: boolean; size: number };
+const MAX_PDF_BYTES = 100 * 1024 * 1024;
+export type ReadFile = { kind: 'image'; media?: 'pdf'; size: number; path: string } | { kind: 'text'; content: string; version: string; bom: boolean; size: number };
 interface ReferenceIndex { expires: number; pending?: Promise<void> | null; files?: FileReference[]; truncated?: boolean }
 const excluded = new Set(['node_modules', '.git', '.ai-web']);
 const hash = (buffer: Buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
@@ -86,6 +87,7 @@ export class Files {
     const stat = await fs.stat(target);
     if (!stat.isFile()) throw new FileError(400, 'Choose a file.');
     if (imageTypes[path.extname(target).toLowerCase()]) return { kind: 'image', size: stat.size, path: relative };
+    if (path.extname(target).toLowerCase() === '.pdf') return { kind: 'image', media: 'pdf', size: stat.size, path: relative };
     if (stat.size > MAX_TEXT_BYTES) throw new FileError(413, 'This file is larger than the 2 MB editor limit.');
     const buffer = await fs.readFile(target);
     if (buffer.length > MAX_TEXT_BYTES) throw new FileError(413, 'This file is larger than the 2 MB editor limit.');
@@ -128,10 +130,11 @@ export class Files {
 
   async image(id: string, relative: string): Promise<{ content: Buffer; type: string }> {
     const target = await this.resolve(id, relative);
-    const type = imageTypes[path.extname(target).toLowerCase()];
+    const pdf = path.extname(target).toLowerCase() === '.pdf';
+    const type = pdf ? 'application/pdf' : imageTypes[path.extname(target).toLowerCase()];
     if (!type) throw new FileError(415, 'Not a supported image.');
     const stat = await fs.stat(target);
-    if (stat.size > 20 * 1024 * 1024) throw new FileError(413, 'Image exceeds 20 MB.');
+    if (pdf ? stat.size > MAX_PDF_BYTES : stat.size > 20 * 1024 * 1024) throw new FileError(413, pdf ? 'PDF exceeds 100 MB.' : 'Image exceeds 20 MB.');
     return { content: await fs.readFile(target), type };
   }
 }
