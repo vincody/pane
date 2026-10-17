@@ -31,3 +31,9 @@ test('a workspace row shows its most urgent session status',()=>{
  assert.equal(workspaceLead([agent('a','blocked'),agent('b','failed'),unread('c')]),'failed');
  assert.equal(workspaceLead([agent('a','error')]),'failed');
 });
+
+test('a session is a plain idle shell again once its agent has exited',()=>{
+ const tracker=createSessionAttention();tracker.update([agent('a','working')]);
+ let rows=tracker.update([agent('a','idle',false,true)]);assert.equal(rows[0].status,'done');
+ rows=tracker.update([{...agent('a'),agent:'shell'}]);assert.equal(rows[0].status,'idle');
+});

@@ -179,7 +179,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     launcher.style.top=`${Math.max(8,Math.min(y,innerHeight-launcher.offsetHeight-8))}px`;
     choices.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
   }
-  const publish = () => {journal();onSessionsChange?.(sessions.filter(session => !session.external && session.ready).map(session => ({id:session.id, project:session.project.id, agent:session.agent||session.launch, name:terminalName(session), status:session.state==='error'?'error':session.state==='closed'?'done':session.agentStatus || 'idle', completed:Boolean(session.activity?.completed), selected:visible && hasFocus && session===activeSession})));};
+  const publish = () => {journal();onSessionsChange?.(sessions.filter(session => !session.external && session.ready).map(session => ({id:session.id, project:session.project.id, agent:terminalProvider(session)||'shell', name:terminalName(session), status:session.state==='error'?'error':session.state==='closed'?'done':session.agentStatus || 'idle', completed:Boolean(session.activity?.completed), selected:visible && hasFocus && session===activeSession})));};
   function scheduleActivity(session:PaneSession) {
     // Bound the wait: spinner frames must not postpone detection forever.
     if(session.activityTimer)return;
