@@ -51,6 +51,7 @@ import '../styles/workspace-sidebar.css';
 import '../styles/dividers.css';
 import '../styles/browser.css';
 import '../styles/links.css';
+import '../styles/settings.css';
 
 setupEditorWorkers();
 
