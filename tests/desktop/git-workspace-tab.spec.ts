@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './app.ts';
 
 test('Git uses one persistent main tab per workspace and preserves forms across files, terminals and other repos',async({page})=>{
  const a={id:'git-a',name:'Pane A',root:'C:\\work\\a',branch:'main'},b={id:'git-b',name:'Pane B',root:'C:\\work\\b',branch:'dev'},errors:string[]=[],inputs:string[]=[];

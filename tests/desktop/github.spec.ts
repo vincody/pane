@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './app.ts';
 
 test('GitHub PR review, explicit draft creation and issue worktree handoff',async({page})=>{
  let releaseList!:()=>void;const listStarted=new Promise<void>(resolve=>{releaseList=resolve;});const sections:string[]=[];

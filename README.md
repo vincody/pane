@@ -49,7 +49,7 @@ Open **http://127.0.0.1:7317**. On Windows, `scripts/Start-AIWeb.ps1` and `scrip
 ```sh
 npm run typecheck   # client, server, desktop and tests
 npm test            # unit tests
-npm run test:ui     # browser tests (npx playwright install chromium first)
+npm run test:desktop # native Electron tests (builds the app first)
 npm run icons       # regenerate file icons from material-icon-theme
 ```
 

@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './app.ts';
 
 test('workspace entry supports browsing, cloning and creating without a host selector',async({page})=>{
  const requests:Record<string,unknown>[]=[];let chosen=0;

@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './app.ts';
 
 test('contextual split launcher stays near the clicked terminal and inside the viewport',async({page})=>{
  await page.setViewportSize({width:1920,height:1080});

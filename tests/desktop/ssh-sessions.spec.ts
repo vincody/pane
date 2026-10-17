@@ -1,4 +1,4 @@
-import {test,expect,type WebSocketRoute} from '@playwright/test';
+import {test,expect,type WebSocketRoute} from './app.ts';
 
 test('SSH opens as a tab, saves a host, restores by attachment on reload and closes explicitly',async({page})=>{
  const project={id:'ssh-workspace',name:'SSH workspace',root:'C:\\work\\ssh',branch:'main'};

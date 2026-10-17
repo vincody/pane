@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './app.ts';
 
 test('dragging a tab onto the open terminal pane splits it on the dropped side',async({page})=>{
  const project={id:'drop-test',name:'Drop test',root:'C:\work\drop'};

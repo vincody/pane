@@ -12,7 +12,7 @@ test('desktop isolates Node, restores drafts and splits, keeps hidden terminals 
  const launch=async()=>{const executablePath=process.env.PANE_DESKTOP_EXECUTABLE;const app=await electron.launch({args:executablePath?[]:[path.resolve('.')],...(executablePath?{executablePath}:{}),env});app.process().stderr?.on('data',()=>{});return app;};
  const quit=async(app:ElectronApplication)=>{const exited=new Promise<void>(resolve=>app.process().once('exit',()=>resolve()));await app.evaluate(({dialog,app})=>{dialog.showMessageBox=async()=>({response:0,checkboxChecked:false});app.quit();});await exited;};
  try{
-  desktop=await launch();let page=await desktop.firstWindow();await expect(page.getByRole('treeitem',{name:'draft.txt',exact:true})).toBeVisible();
+  desktop=await launch();let page=await desktop.firstWindow();await page.waitForLoadState('load');await page.evaluate(()=>localStorage.setItem('ai-web.terminal-renderer','dom'));await page.reload();await expect(page.getByRole('treeitem',{name:'draft.txt',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>({require:typeof Reflect.get(window,'require'),native:!!window.paneDesktop}))).toEqual({require:'undefined',native:true});
   await page.locator('#settings').click();await page.getByRole('button',{name:'About & Updates',exact:true}).click();
   await expect(page.getByRole('article',{name:'About Pane'})).toContainText(JSON.parse(await fs.readFile(path.resolve('package.json'),'utf8')).version);

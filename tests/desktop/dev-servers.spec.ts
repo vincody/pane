@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './app.ts';
 import type {DevServer,Workspace} from '../../shared/contracts.ts';
 const first:Workspace={id:'servers-one',name:'First workspace',root:'C:\\work\\one'},second:Workspace={id:'servers-two',name:'Second workspace',root:'C:\\work\\two',branch:'main'};
 function server(projectId:string,port:number,protocol:DevServer['protocol']):DevServer{return {id:`${projectId}:${port}`,projectId,pid:42,port,host:'127.0.0.1',name:'node',status:'running',protocol,url:protocol==='unknown'?null:`${protocol}://127.0.0.1:${port}`,observedAt:new Date().toISOString()};}

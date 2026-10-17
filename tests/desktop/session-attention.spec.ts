@@ -1,4 +1,4 @@
-import {test,expect,type WebSocketRoute} from '@playwright/test';
+import {test,expect,type WebSocketRoute} from './app.ts';
 
 test('folders stay expanded and shortcut opens and acknowledges the correct session',async({page})=>{
  const projects=[{id:'attention-a',name:'Workspace A',root:'C:\\work\\a',branch:'main'},{id:'attention-b',name:'Workspace B',root:'C:\\work\\b',branch:'main'}];

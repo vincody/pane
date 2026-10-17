@@ -23,7 +23,7 @@ test('web links ask where to open, remember the choice, and local servers in ter
   const executablePath=process.env.PANE_DESKTOP_EXECUTABLE;application=await electron.launch({args:executablePath?[]:[path.resolve('.')],...(executablePath?{executablePath}:{}),env:{...process.env,PANE_DESKTOP_DATA_DIR:data,PANE_DESKTOP_PORT:'17357'}});
   application.process().stderr?.on('data',()=>{});const app=application;
   await application.evaluate(({shell})=>{const urls:string[]=[];Reflect.set(globalThis,'paneOpened',urls);shell.openExternal=async(url:string)=>{urls.push(url);};});
-  const page=await application.firstWindow();await expect(page.locator('.project-button')).toBeVisible();
+  const page=await application.firstWindow();await page.waitForLoadState('load');await page.evaluate(()=>localStorage.setItem('ai-web.terminal-renderer','dom'));await page.reload();await expect(page.locator('.project-button')).toBeVisible();
   // Settings has a Links page with sensible defaults.
   await page.getByRole('button',{name:'Settings',exact:true}).click();await page.locator('[data-settings-page=links]').click();
   await expect(page.getByLabel('Open links',{exact:true})).toHaveValue('ask');await expect(page.getByLabel('Detect local servers')).toBeChecked();await page.getByLabel('Close settings').click();

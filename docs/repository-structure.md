@@ -61,8 +61,7 @@ config/
   playwright/                Browser and desktop test runner configs
 tests/
   unit/                      Node test suite, including service integration checks
-  e2e/                       Playwright browser checks and fixtures
-  desktop/                   Native Electron and packaged updater checks
+  desktop/                   Native Electron checks and the shared app fixture (app.ts)
   helpers/                   Shared server and Codex test helpers
 scripts/                     Desktop build and Windows start/stop scripts
 docs/                        Architecture and implementation notes
@@ -83,4 +82,4 @@ demo/                        File preview examples
 
 ## Checks
 
-`npm run typecheck`, `npm run build` and `npm test` use the source paths above. `npm run test:ui` discovers `tests/e2e`; the README lists current terminal-focused browser checks. Older chat checks remain available for migration and are not the acceptance suite for the terminal UI.
+`npm run typecheck`, `npm run build` and `npm test` use the source paths above.  `npm run test:desktop` builds the app and runs `tests/desktop`; every spec launches a real Electron window through `tests/desktop/app.ts`.

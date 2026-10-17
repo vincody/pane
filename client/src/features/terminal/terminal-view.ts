@@ -370,7 +370,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     body.addEventListener('paste',event=>{event.preventDefault();event.stopPropagation();void pasteIntoTerminal(terminal,window.paneDesktop?.readClipboard,onNotice);},true);
     terminal.open(body);
     // The DOM renderer leaves gaps between block glyphs once lineHeight > 1 (Claude's logo shatters); WebGL draws them to fill the cell.
-    try{const webgl=new WebglAddon();webgl.onContextLoss(()=>webgl.dispose());terminal.loadAddon(webgl);}catch{}
+    // Tests read terminal text from the DOM rows, which only the DOM renderer provides.
+    try{if(localStorage.getItem('ai-web.terminal-renderer')!=='dom'){const webgl=new WebglAddon();webgl.onContextLoss(()=>webgl.dispose());terminal.loadAddon(webgl);}}catch{}
     $('#terminal-screens').append(element);
 
     const session:PaneSession = {...(ssh?{ssh}:{}),...(restored?{serverId:restored.ended?undefined:restored.sessionId,restorePending:restored.ended,customName:true}:{}),group:{root:null},lastUsed:0,id, project, name: restored?.name||ssh?.name||project.name, shell: 'Shell', state: 'connecting', ready: false, socket: null, terminal, fit, element, launch,paneHeader,paneTitle,paneMark,paneZoom,resume,cliTitle:restored?.name||ssh?.name||resume?.name};

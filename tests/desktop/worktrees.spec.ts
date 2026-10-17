@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './app.ts';
 import type {Workspace} from '../../shared/contracts.ts';
 
 test('Local and worktrees own their sessions and remember the selected working folder',async({page})=>{

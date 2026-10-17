@@ -17,7 +17,7 @@ async function withApp(fakeAgents:boolean,run:(app:ElectronApplication,page:impo
  try{
   const executablePath=process.env.PANE_DESKTOP_EXECUTABLE;
   application=await electron.launch({args:executablePath?[]:[path.resolve('.')],...(executablePath?{executablePath}:{}),env});application.process().stderr?.on('data',()=>{});
-  await run(application,await application.firstWindow(),root);
+  const window=await application.firstWindow();await window.waitForLoadState('load');await window.evaluate(()=>localStorage.setItem('ai-web.terminal-renderer','dom'));await window.reload();await run(application,window,root);
  }finally{if(application){const pid=application.process().pid;if(pid)try{execFileSync('taskkill.exe',['/PID',String(pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});}catch{}}await fs.rm(data,{recursive:true,force:true,maxRetries:5,retryDelay:200});}
 }
 
