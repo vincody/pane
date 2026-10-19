@@ -7,6 +7,7 @@ import type {NotificationDelivery} from '../shared/desktop-notifications.ts';
 import type {ClipboardPaste} from '../shared/desktop-clipboard.ts';
 import {createUpdates} from './updates.ts';
 import {readClipboardForPaste,type ClipboardLike} from './clipboard.ts';
+import {installInAppDialogs} from './in-app-dialog.ts';
 import {createApp} from '../server/src/app.ts';
 import {installBrowserGuards} from './browser-guard.ts';
 
@@ -99,6 +100,7 @@ async function boot(){
  try{const saved=JSON.parse(await fs.readFile(path.join(stateDir,'window.json'),'utf8'));if(Number.isFinite(saved.width)&&Number.isFinite(saved.height)){bounds={width:Math.max(900,Math.min(3840,saved.width)),height:Math.max(600,Math.min(2160,saved.height))};if(Number.isFinite(saved.x)&&Number.isFinite(saved.y)&&screen.getAllDisplays().some(display=>saved.x>=display.workArea.x&&saved.x<display.workArea.x+display.workArea.width&&saved.y>=display.workArea.y&&saved.y<display.workArea.y+display.workArea.height))Object.assign(bounds,{x:saved.x,y:saved.y});}}catch{}
  window=new BrowserWindow({...bounds,frame:false,minWidth:900,minHeight:600,show:false,title:'Pane',backgroundColor:'#171613',icon:path.join(appDir,'desktop-build',process.platform==='win32'?'icon.ico':'icon.png'),webPreferences:{preload:path.join(appDir,'desktop-build','preload.cjs'),additionalArguments:[`--pane-backend-id=${crypto.randomUUID()}`,'--pane-notifications=1','--pane-update-flow=1','--pane-browser=1'],nodeIntegration:false,contextIsolation:true,sandbox:true,webviewTag:true,spellcheck:false,autoplayPolicy:'no-user-gesture-required'}});
  const contents=window.webContents;
+ installInAppDialogs(window,show);
  const {autoUpdater}=electronUpdater;
  updates=await createUpdates({engine:autoUpdater,version:app.getVersion(),platform:`${process.platform} ${process.arch}`,supported:app.isPackaged&&process.platform==='win32'&&process.arch==='x64',preferencesFile:path.join(stateDir,'updates.json'),log,installApproved:()=>requestClose(false,true,true),publish:state=>{if(!contents.isDestroyed())contents.send('pane:update-state',state);}});
  ipcMain.handle('pane:updates',async(event,action:unknown,value:unknown)=>{

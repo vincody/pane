@@ -34,6 +34,7 @@ import {kind,language} from '../features/files/file-language.ts';
 import {createFileTree} from '../features/files/file-tree.ts';
 import {setupFileActions} from '../features/files/file-actions.ts';
 import {confirmDiscardFile} from '../features/files/discard-dialog.ts';
+import {showAppDialog} from '../features/dialog/app-dialog.ts';
 import {createLiveMarkdownSurface} from '../features/files/live-markdown.ts';
 import {chooseFileView,syncFileModeButtons} from '../features/files/markdown-modes.ts';
 import type {FileAction} from '../../../shared/file-actions.ts';
@@ -786,6 +787,7 @@ function mountFilePane(doc:OpenDocument,target:string|null|undefined,direction:'
   terminalView.placeFilePane(pane,target,direction);
 }
 setupUnifiedTabOrder($('#unified-tabs'),order=>{tabOrder=order;});
+window.paneDesktop?.onDialog?.(showAppDialog);
 window.paneDesktop?.onBrowserOpen?.(url=>{if(currentProject)openBrowser(currentProject,url);});
 tabDrag=setupTabDrag({tabs:$('#tabs'),content:contentViews,onReorder:()=>{},canDrop:(key,zone)=>{if(!key||!zone)return false;if(typeof zone==='object')return documents.has(key);const split=$('#app').classList.contains('chat-file-split')||$('#app').classList.contains('file-file-split');if(zone!=='right'&&zone!=='bottom')return split;if(key==='ai')return Boolean(agentView.selected&&currentDocument);return Boolean(documents.has(key)&&(terminalView.visible||agentView.visible||agentView.selected&&split||currentDocument&&currentDocument.key!==key));},onDrop:dropTab,onFileDrop:dropFile});
 

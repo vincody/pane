@@ -14,6 +14,13 @@ contextBridge.exposeInMainWorld('paneDesktop',Object.freeze({
  writeClipboardText(text){return ipcRenderer.invoke('pane:clipboard-write',text);},
  readClipboard(){return ipcRenderer.invoke('pane:clipboard-read');},
  onNotificationClick(callback){ipcRenderer.on('pane:notification-click',(_event,id)=>{if(typeof id==='string')callback(id);});},
+ // Message boxes from the main process (quit confirmation, update errors) are drawn by the page, in the app's design.
+ onDialog(callback){
+  ipcRenderer.on('pane:dialog',(_event,request)=>{
+   if(!request||typeof request!=='object'||typeof request.id!=='string')return;
+   Promise.resolve().then(()=>callback(request)).then(response=>ipcRenderer.send('pane:dialog-result',{id:request.id,response}),()=>ipcRenderer.send('pane:dialog-result',{id:request.id,response:request.cancelId}));
+  });
+ },
  onCheckpoint(callback){
   ipcRenderer.on('pane:checkpoint',(_event,id)=>{
    if(typeof id!=='string')return;
