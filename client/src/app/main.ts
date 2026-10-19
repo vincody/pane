@@ -421,6 +421,7 @@ function updateToolbar() {
   if(currentDocument){previewHandle.dataset.project=currentDocument.project;previewHandle.dataset.path=currentDocument.path;previewHandle.title='Drag to move or split file';}
   else{delete previewHandle.dataset.project;delete previewHandle.dataset.path;previewHandle.removeAttribute('title');}
   $('#save').hidden = currentDocument?.kind === 'image';
+  $('#refresh-file').hidden = currentDocument?.kind !== 'text' && currentDocument?.kind !== 'image';
   $('.view-switch').hidden = currentDocument?.kind === 'image';
   syncFileModeButtons($('.view-switch'),currentDocument,chooseFileView(currentDocument,mode),setView);
   $('#save').disabled = !currentDocument?.dirty || Boolean(currentDocument.saving);
@@ -446,6 +447,28 @@ async function saveFile(target?:OpenDocument|Event|null) {
     if(doc.project===currentProject?.id)void changesView?.refresh();
   } catch (error) { status(errorMessage(error,'Operation failed.'), true); toast(errorMessage(error,'Operation failed.')); }
   finally { doc.saving = false; renderTabs(); updateToolbar(); }
+}
+// Files are read once when opened; this pulls in changes made on disk (for example by an agent).
+async function reloadFile(doc:OpenDocument|null|undefined=currentDocument) {
+  if (!doc || (doc.kind !== 'text' && doc.kind !== 'image') || doc.saving) return;
+  if (doc.dirty && !await confirmDiscardFile(doc.name, 'reload')) return;
+  status('Reloading…');
+  try {
+    const fresh = await api<TextFile|ImageFile>(fileUrl('file', doc));
+    if (documents.get(doc.key) !== doc) return;
+    if (fresh.kind === 'text' && doc.kind === 'text' && doc.model) {
+      doc.savedContent = fresh.content; doc.version = fresh.version; doc.bom = fresh.bom; doc.size = fresh.size; doc.liveError = undefined;
+      if (doc.model.getValue() !== fresh.content) doc.model.setValue(fresh.content);
+      doc.dirty = false;
+    } else if (fresh.kind === 'image' && doc.kind === 'image') {
+      if (fresh.media === 'pdf') doc.pdfBlob = await api(fileUrl('image', doc), { image: true });
+      else { const old = doc.imageUrl; doc.imageUrl = URL.createObjectURL(await api(fileUrl('image', doc), { image: true })); if (old) URL.revokeObjectURL(old); }
+      const pane = filePanes.get(doc.key); if (pane) showImage(pane.preview, doc);
+      if (currentDocument === doc) selectDocument(doc);
+    } else { toast('This file changed type on disk. Close the tab and open it again.'); status('Ready'); return; }
+    renderTabs(); updateToolbar(); status('Reloaded from disk');
+    if (doc.project === currentProject?.id) void changesView?.refresh();
+  } catch (error) { status(errorMessage(error, 'Operation failed.'), true); toast(errorMessage(error, 'Could not reload the file.')); }
 }
 function setView(view:string) {
   view=chooseFileView(currentDocument,view);
@@ -548,7 +571,7 @@ $('#folder-form').onsubmit = async event => {
 };
 for (const button of document.querySelectorAll<HTMLButtonElement>('.close-dialog')) button.onclick = () => button.closest<HTMLDialogElement>('dialog')?.close();
 for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-view]')) button.onclick = () => setView(button.dataset.view||'editor');
-$('#save').onclick = saveFile; $('#refresh-files').onclick = refreshTree; $('#filter').oninput = filterTree;
+$('#refresh-file').onclick = () => { void reloadFile(); }; $('#save').onclick = saveFile; $('#refresh-files').onclick = refreshTree; $('#filter').oninput = filterTree;
 $('#settings-icon').append(icon('settings')); $('#host-icon').append(icon('monitor'));
 let fileOpenMode='new';try{if(localStorage.getItem('ai-web.file-open-mode')==='replace')fileOpenMode='replace';}catch{}
 const fileOpenSetting=document.createElement('div');fileOpenSetting.className='setting-row';fileOpenSetting.innerHTML='<div><strong>Opening files</strong><small>Unsaved tabs are always kept</small></div><select aria-label="Opening files"><option value="new">Open a new tab</option><option value="replace">Replace selected file tab</option></select>';document.querySelector<HTMLElement>('.settings-footnote')!.before(fileOpenSetting);const fileOpenSelect=fileOpenSetting.querySelector<HTMLSelectElement>('select')!;fileOpenSelect.value=fileOpenMode;fileOpenSelect.onchange=()=>{fileOpenMode=fileOpenSelect.value;try{localStorage.setItem('ai-web.file-open-mode',fileOpenMode);}catch{}};
@@ -641,7 +664,7 @@ async function start() {
 const usagePanel=createUsagePanel({api});
  const agentView = createAgentView({api,icon,onStatus:agent=>{updateAITabStatus(agent);notifications?.observe(agent);},onSessionClosed:refreshSessions,onChange:()=>{if(agentView.visible){gitView?.deactivate();endFileSplit();}$('#app').classList.remove('chat-file-split');renderProjects();renderTabs();editor.layout();}});
 $('.topbar').insertBefore($('#tabs'),$('.toolbar-actions'));
-$('.topbar .toolbar-actions').append($('.view-switch'), $('#save'), $('#terminal-toggle'));
+$('.topbar .toolbar-actions').append($('.view-switch'), $('#refresh-file'), $('#save'), $('#terminal-toggle'));
 $('#terminal-toggle-icon').append(icon('terminal'));
 const contentViews=document.createElement('div');contentViews.id='content-views';const editorStack=document.createElement('section');editorStack.id='editor-stack';editorStack.setAttribute('aria-label','File editor');contentViews.append($('#agent-panel'),editorStack);editorStack.append($('#workspace'));document.querySelector<HTMLElement>('main')!.append(contentViews);
 const linkPreferences=createLinkPreferences(),linkOpener=createLinkOpener({preferences:linkPreferences,available:()=>window.paneDesktop?.browserVersion===1,openInApp:(url,project)=>{const target=project||currentProject;if(target)openBrowser(target,url);},openExternal:url=>{window.open(url,'_blank','noopener');}});
@@ -784,7 +807,7 @@ start().catch(error => { status(errorMessage(error,'Operation failed.'), true); 
 // Refresh Monaco metrics when the bundled font has finished loading.
 document.fonts.ready.then(() => { monaco.editor.remeasureFonts(); editor.layout(); });
 
-for (const [selector, name] of [['#refresh-files','refresh'], ['#close-files','close'], ['.empty-symbol','folder'], ['#empty-open span','arrow']]) $(selector).replaceChildren(icon(name));
+for (const [selector, name] of [['#refresh-files','refresh'], ['#refresh-file','refresh'], ['#close-files','close'], ['.empty-symbol','folder'], ['#empty-open span','arrow']]) $(selector).replaceChildren(icon(name));
 for (const button of document.querySelectorAll<HTMLButtonElement>('.dialog-heading .icon-button')) button.replaceChildren(icon('close'));
 const refreshGit = document.createElement('button'); refreshGit.className = 'icon-button refresh-git'; refreshGit.setAttribute('aria-label', 'Refresh Git branches'); refreshGit.title = 'Refresh Git branches'; refreshGit.append(icon('refresh')); refreshGit.onclick = () => refreshSessions(); $('.section-head').append(refreshGit);
 window.addEventListener('focus', () => { void refreshSessions(); });

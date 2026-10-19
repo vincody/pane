@@ -43,6 +43,10 @@ test('a PDF in the file tree opens in a viewer with its pages, text search and z
   await viewer.getByLabel('Find in PDF').fill('nothing here');
   await expect(viewer.locator('.pdf-find-count')).toHaveText('No matches');
   await expect(page.locator('#preview-pane')).toHaveClass(/pdf-only/);
+  // Reload from disk picks up a rewritten PDF.
+  await fs.writeFile(path.join(root,'guide.pdf'),samplePdf('Second version'));
+  await page.getByRole('button',{name:'Reload from disk'}).click();
+  await expect(page.locator('.pdf-viewer:visible .textLayer')).toContainText('Second version',{timeout:20000});
   await expect(page.locator('.preview-heading')).toBeHidden();
  }finally{
   if(application){const exited=new Promise<void>(resolve=>application!.process().once('exit',()=>resolve()));await application.evaluate(({dialog,app})=>{dialog.showMessageBox=async()=>({response:0,checkboxChecked:false});app.quit();}).catch(()=>{});await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,10000))]);}
