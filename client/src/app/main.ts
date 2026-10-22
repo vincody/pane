@@ -499,7 +499,9 @@ function schedulePreview(doc:OpenDocument|null=currentDocument) {
 async function renderPreview({doc=currentDocument,target=$('#preview-content'),secondary=false,view=mode}={}) {
   const generation=(previewRequests.get(target)||0)+1;previewRequests.set(target,generation);
   if (!doc || view !== 'preview'&&view !=='split') return;
-  if(!target.dataset.scrollMemory){target.dataset.scrollMemory='1';target.addEventListener('scroll',()=>rememberPreviewScroll(target),{passive:true});}
+  if(!target.dataset.scrollMemory){target.dataset.scrollMemory='1';target.addEventListener('scroll',()=>rememberPreviewScroll(target),{passive:true});
+    // Copy plain text so pasting elsewhere (such as Google Docs) does not bring the preview's colors and fonts along.
+    target.addEventListener('copy',event=>{const text=getSelection()?.toString();if(!text||!event.clipboardData)return;event.preventDefault();event.clipboardData.setData('text/plain',text);});}
   const scrollTop=previewShown.get(target)===doc?target.scrollTop:previewScrolls.get(doc)?.get(target)||0;previewShown.delete(target);
   try{
   target.replaceChildren(); if(!secondary)$('#preview-pane').classList.toggle('pdf-only',Boolean(doc.pdfBlob)); if(!secondary)$('#preview-kind').textContent = doc.kind === 'image' ? (doc.pdfBlob ? 'PDF file' : 'Image file') : doc.dirty ? 'Unsaved edits' : 'Current file';
