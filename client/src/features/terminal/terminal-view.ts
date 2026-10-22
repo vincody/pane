@@ -356,8 +356,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       scrollback: 5000,
       allowProposedApi: true,
       // Like Orca: a local Windows pane is ConPTY, whose row-wrap markers xterm must not trust (agy's status and spinner rows garble otherwise).
-      ...(!ssh&&/Windows/.test(navigator.userAgent)?{windowsPty:{backend:'conpty' as const}}:{}),
-      convertEol: true,
+      // ConPTY sends a bare LF to move down while keeping the column (agy's logo and prompt cursor), so it must not become CR LF there.
+      ...(!ssh&&/Windows/.test(navigator.userAgent)?{windowsPty:{backend:'conpty' as const},convertEol:false}:{convertEol:true}),
       macOptionIsMeta: false,
       // Agent CLIs print OSC 8 hyperlinks. xterm's default handler confirms with a native dialog and then opens the system browser,
       // which skips the Settings → Links choice and needs no modifier key, so those links go the same way as plain URLs.
