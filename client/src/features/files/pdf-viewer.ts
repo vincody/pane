@@ -8,6 +8,8 @@ pdfjs.GlobalWorkerOptions.workerSrc=workerUrl;
 const MIN_SCALE=.25,MAX_SCALE=5,STEP=1.25;
 const disposers=new WeakMap<HTMLElement,()=>void>();
 
+// Zoom and scroll position per PDF and host, so switching tabs reopens a PDF where it was left.
+const positions=new WeakMap<Blob,WeakMap<HTMLElement,{scale:string;top:number;left:number}>>();
 export function disposePdf(host:HTMLElement){const dispose=disposers.get(host);disposers.delete(host);dispose?.();}
 
 // CJK character maps, the standard fonts and the WebAssembly decoders are copied to /pdfjs/ at build time (config/vite/pdfjs-assets.ts).
@@ -52,7 +54,7 @@ export function showPdf(host:HTMLElement,{blob,name}:{blob:Blob;name:string}){
  find.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();search(event.shiftKey);}else if(event.key==='Escape'){find.value='';search(false);container.focus();}});
  eventBus.on('updatefindmatchescount',(event:{matchesCount:{current:number;total:number}})=>{matches.textContent=find.value?(event.matchesCount.total?`${event.matchesCount.current}/${event.matchesCount.total}`:'No matches'):'';});
  eventBus.on('updatefindcontrolstate',(event:{matchesCount:{current:number;total:number}})=>{if(find.value&&!event.matchesCount.total)matches.textContent='No matches';});
- eventBus.on('scalechanging',(event:{scale:number})=>{zoomValue.textContent=`${Math.round(event.scale*100)}%`;});
+ eventBus.on('scalechanging',(event:{scale:number})=>{if(status.hidden)queueMicrotask(remember);zoomValue.textContent=`${Math.round(event.scale*100)}%`;});
  eventBus.on('pagechanging',(event:{pageNumber:number})=>{pageValue.textContent=`${event.pageNumber} / ${pdfViewer?.pagesCount??0}`;});
  container.addEventListener('wheel',event=>{if(!event.ctrlKey&&!event.metaKey)return;event.preventDefault();zoomBy(event.deltaY<0?1.12:1/1.12);},{passive:false,signal:abort.signal});
  container.addEventListener('keydown',event=>{
@@ -60,6 +62,8 @@ export function showPdf(host:HTMLElement,{blob,name}:{blob:Blob;name:string}){
   if(['+','=','-','0'].includes(event.key)&&!event.ctrlKey&&!event.metaKey){event.preventDefault();if(event.key==='0')fit();else zoomBy(event.key==='-'?1/STEP:STEP);}
  },{signal:abort.signal});
 
+ const remember=()=>{if(!pdfViewer?.pagesCount||!container.scrollHeight)return;let saved=positions.get(blob);if(!saved)positions.set(blob,saved=new WeakMap());saved.set(host,{scale:String(pdfViewer.currentScaleValue),top:container.scrollTop/container.scrollHeight,left:container.scrollLeft/Math.max(1,container.scrollWidth)});};
+ container.addEventListener('scroll',()=>{if(!disposed&&status.hidden)remember();},{passive:true,signal:abort.signal});
  const fail=(error:unknown)=>{status.hidden=false;status.textContent=error instanceof Error&&error.name==='PasswordException'?'This PDF is password-protected.':'This PDF could not be opened.';};
  // A pane that is not on screen (such as the inactive view of the same file) loads only once it is shown.
  const start=()=>{
@@ -73,7 +77,7 @@ export function showPdf(host:HTMLElement,{blob,name}:{blob:Blob;name:string}){
   const options={container,viewer:pages,eventBus,linkService,findController,textLayerMode:1,removePageBorders:true,abortSignal:abort.signal};
   pdfViewer=new PDFViewer(options);
   linkService.setViewer(pdfViewer);pdfViewer.setDocument(doc);linkService.setDocument(doc);findController.setDocument(doc);
-  eventBus.on('pagesinit',()=>{fit();status.hidden=true;find.disabled=false;pageValue.textContent=`1 / ${pdfViewer!.pagesCount}`;});
+  eventBus.on('pagesinit',()=>{const saved=positions.get(blob)?.get(host);if(saved){pdfViewer!.currentScaleValue=saved.scale;container.scrollTop=saved.top*container.scrollHeight;container.scrollLeft=saved.left*container.scrollWidth;}else fit();status.hidden=true;find.disabled=false;pageValue.textContent=`1 / ${pdfViewer!.pagesCount}`;});
  }).catch(error=>{if(!disposed)fail(error);});
  };
  const visibility=new ResizeObserver(()=>{if(!disposed&&container.clientHeight>0){visibility.disconnect();start();}});visibility.observe(container);

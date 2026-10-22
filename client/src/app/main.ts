@@ -112,6 +112,9 @@ function focusSecondaryFile(){
 }
 try{if(localStorage.getItem('ai-web.default-file-view')==='preview')defaultFileView='preview';}catch{}
 const previewRequests=new WeakMap<HTMLElement,number>();
+// Each preview remembers which document it shows and how far each document was scrolled, so switching tabs restores the position.
+const previewShown=new WeakMap<HTMLElement,OpenDocument>(),previewScrolls=new WeakMap<OpenDocument,WeakMap<HTMLElement,number>>();
+function rememberPreviewScroll(target:HTMLElement){const doc=previewShown.get(target);if(!doc||!target.childElementCount)return;let scrolls=previewScrolls.get(doc);if(!scrolls)previewScrolls.set(doc,scrolls=new WeakMap());scrolls.set(target,target.scrollTop);}
 const pendingPreviews=new Set<OpenDocument>();
 const expanded = new Set<string>();
 let projects:Workspace[]=[],currentProject:Workspace|null=null,currentDocument:OpenDocument|null=null,mode:string='editor',previewGeneration=0,previewTimer:ReturnType<typeof setTimeout>|undefined,toastTimer:ReturnType<typeof setTimeout>|undefined;
@@ -496,7 +499,8 @@ function schedulePreview(doc:OpenDocument|null=currentDocument) {
 async function renderPreview({doc=currentDocument,target=$('#preview-content'),secondary=false,view=mode}={}) {
   const generation=(previewRequests.get(target)||0)+1;previewRequests.set(target,generation);
   if (!doc || view !== 'preview'&&view !=='split') return;
-  const scrollTop=target.scrollTop;
+  if(!target.dataset.scrollMemory){target.dataset.scrollMemory='1';target.addEventListener('scroll',()=>rememberPreviewScroll(target),{passive:true});}
+  const scrollTop=previewShown.get(target)===doc?target.scrollTop:previewScrolls.get(doc)?.get(target)||0;previewShown.delete(target);
   try{
   target.replaceChildren(); if(!secondary)$('#preview-pane').classList.toggle('pdf-only',Boolean(doc.pdfBlob)); if(!secondary)$('#preview-kind').textContent = doc.kind === 'image' ? (doc.pdfBlob ? 'PDF file' : 'Image file') : doc.dirty ? 'Unsaved edits' : 'Current file';
   if (doc.kind === 'image') { showImage(target,doc); return; }
@@ -529,7 +533,7 @@ async function renderPreview({doc=currentDocument,target=$('#preview-content'),s
     const highlighted = await monaco.editor.colorize(content, model.getLanguageId(), { tabSize: 2 });
     if (generation !== previewRequests.get(target)) return; pre.innerHTML = highlighted; target.append(pre);
   }
-  if(generation===previewRequests.get(target))target.scrollTop=scrollTop;
+  if(generation===previewRequests.get(target)){target.scrollTop=scrollTop;previewShown.set(target,doc);}
   }catch(error){
     if(generation!==previewRequests.get(target))return;
     const message=document.createElement('p');message.className='preview-error';message.setAttribute('role','alert');message.textContent=errorMessage(error,'Could not render this preview.');target.replaceChildren(message);
