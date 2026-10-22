@@ -10,4 +10,6 @@ test('agent identity follows live descendants and disappears when the CLI exits'
   assert.equal(agentInProcessTree([shell,{...cli,ParentProcessId:90}],10),null);
   assert.equal(agentInProcessTree([shell,{...wrapper,CommandLine:'node server.js --comment codex'}],10),null);
   assert.equal(agentInProcessTree([shell,{...wrapper,CommandLine:'C:\\npm\\node_modules\\@anthropic-ai\\claude-code\\cli.js'}],10),'claude');
+  assert.equal(agentInProcessTree([shell,{ProcessId:13,ParentProcessId:10,Name:'agy.exe'}],10),'agy');
+  assert.equal(agentInProcessTree([shell,{ProcessId:13,ParentProcessId:10,Name:'antigravity.exe'}],10),'agy');
 });

@@ -14,9 +14,9 @@ export function agentInProcessTree(rows:ProcessRow[], rootPid:number) {
     if (!descendants.has(Number(row.ProcessId)) || Number(row.ProcessId) === Number(rootPid)) continue;
     const name = String(row.Name || '').toLowerCase();
     const command = String(row.CommandLine || '').toLowerCase().replaceAll('\\', '/');
-    for (const agent of ['codex', 'claude', 'opencode', 'gemini'] as const) {
-      const packages = {codex:'@openai/codex/',claude:'@anthropic-ai/claude-code/',opencode:'opencode-ai/',gemini:'@google/gemini-cli/'};
-      if (name === `${agent}.exe` || name === agent || /^(node|bun)(\.exe)?$/.test(name) && (command.includes(packages[agent]) || new RegExp(`/${agent}(?:/|\\.)`).test(command))) return agent;
+    for (const agent of ['codex', 'claude', 'opencode', 'gemini', 'agy'] as const) {
+      const packages = {codex:'@openai/codex/',claude:'@anthropic-ai/claude-code/',opencode:'opencode-ai/',gemini:'@google/gemini-cli/',agy:'/agy/bin/'};
+      if (name === `${agent}.exe` || name === agent || agent === 'agy' && (name === 'antigravity.exe' || name === 'antigravity') || /^(node|bun)(\.exe)?$/.test(name) && (command.includes(packages[agent]) || new RegExp(`/${agent}(?:/|\\.)`).test(command))) return agent;
     }
   }
   return null;

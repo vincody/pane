@@ -4,6 +4,7 @@ import {createSshConnections} from './ssh-connections.ts';
 import {readTerminalJournal,saveTerminalJournal,type SavedTerminal} from './terminal-journal.ts';
 import {FitAddon} from '@xterm/addon-fit';
 import {WebLinksAddon} from '@xterm/addon-web-links';
+import {Unicode11Addon} from '@xterm/addon-unicode11';
 import {WebglAddon} from '@xterm/addon-webgl';
 import {createAddressDetector} from '../browser/local-address.ts';
 import {positionTab,forgetTabPosition} from '../layout/tab-position.ts';
@@ -47,7 +48,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   const heading=document.createElement('strong');heading.textContent='New session';
   const description=document.createElement('p');description.textContent='Choose an agent, local shell or SSH connection.';
   const choices=document.createElement('div');choices.className='terminal-launch-choices';
-  for(const [kind,label] of [['claude','Claude Code'],['codex','Codex'],['shell','Shell'],['ssh','SSH'],...(window.paneDesktop?.browserVersion===1?[['browser','Browser']]:[])]){
+  for(const [kind,label] of [['claude','Claude Code'],['codex','Codex'],['agy','Antigravity'],['shell','Shell'],['ssh','SSH'],...(window.paneDesktop?.browserVersion===1?[['browser','Browser']]:[])]){
     const button=document.createElement('button');button.type='button';button.dataset.launch=kind;
     if(kind==='shell'||kind==='ssh')button.append(icon('terminal'));else if(kind==='browser')button.append(icon('globe'));else{const image=document.createElement('img');image.src=`/agents/${kind}.svg`;image.alt='';button.append(image);}
     button.append(document.createTextNode(label));choices.append(button);
@@ -61,7 +62,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       const response=await fetch('/api/integrations/tools',{headers:{'X-AI-Web-Token':token},signal:active.signal});
       if(!response.ok||active.signal.aborted)return;
       const {tools}=await response.json() as {tools:LocalToolStatus[]};
-      for(const [kind,label] of [['claude','Claude Code'],['codex','Codex']] as const){
+      for(const [kind,label] of [['claude','Claude Code'],['codex','Codex'],['agy','Antigravity']] as const){
         const button=choices.querySelector<HTMLButtonElement>(`[data-launch=${kind}]`);if(!button)continue;
         const missing=tools.find(tool=>tool.id===kind)?.installed===false;
         button.disabled=missing;button.title=missing?`${label} is not installed. Install it, then check Settings → Integrations.`:'';
@@ -285,7 +286,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       session.paneZoom.setAttribute('aria-label',zoomed?'Restore terminal pane':'Maximize terminal pane');session.paneZoom.title=zoomed?'Restore pane':'Maximize pane';session.paneZoom.setAttribute('aria-pressed',String(zoomed));
       session.paneZoom.disabled=!zoomed && leaves(session.group.root).length<2 && !document.querySelector<HTMLElement>('#app')!.classList.contains('file-file-split');
       session.paneHeader.dataset.status=session.agent ? session.agentStatus || 'idle' : session.state;
-      if(session.paneProvider!==provider){session.paneProvider=provider;session.paneMark!.replaceChildren();if(['codex','claude'].includes(provider || '')){const image=document.createElement('img');image.src=`/agents/${provider}.svg`;image.alt=provider || '';session.paneMark!.append(image);}else session.paneMark!.append(icon('terminal'));}
+      if(session.paneProvider!==provider){session.paneProvider=provider;session.paneMark!.replaceChildren();if(['codex','claude','opencode','agy'].includes(provider || '')){const image=document.createElement('img');image.src=`/agents/${provider}.svg`;image.alt=provider || '';session.paneMark!.append(image);}else session.paneMark!.append(icon('terminal'));}
     }
   }
 
@@ -353,6 +354,9 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       fontSize: terminalFontSize,
       lineHeight: 1.1,
       scrollback: 5000,
+      allowProposedApi: true,
+      // Like Orca: a local Windows pane is ConPTY, whose row-wrap markers xterm must not trust (agy's status and spinner rows garble otherwise).
+      ...(!ssh&&/Windows/.test(navigator.userAgent)?{windowsPty:{backend:'conpty' as const}}:{}),
       convertEol: true,
       macOptionIsMeta: false,
       // Agent CLIs print OSC 8 hyperlinks. xterm's default handler confirms with a native dialog and then opens the system browser,
@@ -372,6 +376,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     });
     const fit = new FitAddon(),addresses=createAddressDetector();
     terminal.loadAddon(fit);
+    // Agent CLIs (agy's logo) lay out glyphs with Unicode 11 widths; xterm's default v6 table shifts the rest of the row.
+    terminal.loadAddon(new Unicode11Addon());terminal.unicode.activeVersion='11';
     terminal.loadAddon(new WebLinksAddon((event,uri)=>{if(event.ctrlKey||event.metaKey)onOpenLink?.(uri,project);},{hover:()=>{body.title='Ctrl+click to open';},leave:()=>body.removeAttribute('title')}));
     terminal.attachCustomKeyEventHandler(event=>{
       if(isCopyShortcut(event)){event.preventDefault();void copyTerminalSelection(terminal,window.paneDesktop?.writeClipboardText,onNotice).then(copied=>{if(copied)onNotice?.('Copied to clipboard.',1500);});return false;}

@@ -17,7 +17,7 @@ export function createTerminalConnection({session,token,project,id,terminal,laun
     session.socket = new WebSocket(`${scheme}//${location.host}/api/terminal`, ['ai-web-terminal', `token.${token}`]);
     session.socket.addEventListener('open', () => {
       fitSession(session);
-      if(session.serverId){terminal.reset();session.socket!.send(JSON.stringify({type:'attach',sessionId:session.serverId,cols:terminal.cols,rows:terminal.rows}));}else {session.serverId=id;journal();session.socket!.send(JSON.stringify({type:'start',sessionId:id,project:project.id,cols:terminal.cols,rows:terminal.rows,detachable:true,...(session.ssh?{ssh:session.ssh}:{}),...(launch==='claude'||launch==='codex'?{launch:{agent:launch,...(resume?{resume:{id:resume.agent_session.value,cwd:resume.cwd}}:{})}}:{})}));}
+      if(session.serverId){terminal.reset();session.socket!.send(JSON.stringify({type:'attach',sessionId:session.serverId,cols:terminal.cols,rows:terminal.rows}));}else {session.serverId=id;journal();session.socket!.send(JSON.stringify({type:'start',sessionId:id,project:project.id,cols:terminal.cols,rows:terminal.rows,detachable:true,...(session.ssh?{ssh:session.ssh}:{}),...(['claude','codex','agy'].includes(launch)?{launch:{agent:launch,...(resume?{resume:{id:resume.agent_session.value,cwd:resume.cwd}}:{})}}:{})}));}
     });
     session.socket.addEventListener('message', event => {
       let message:TerminalServerMessage;

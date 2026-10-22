@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import http from 'node:http';
+import net from 'node:net';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {createDevServers,probeWebProtocol,loopbackHost} from '../../server/src/features/dev-servers/dev-servers.ts';
+import {createDevServers,loopbackHost} from '../../server/src/features/dev-servers/dev-servers.ts';
 import type {PortScan,Listener} from '../../server/src/features/dev-servers/dev-server-scan.ts';
 import type {Workspace,DevServerSnapshot} from '../../shared/contracts.ts';
 import {createApp} from '../../server/src/app.ts';
@@ -20,6 +20,10 @@ function fixture(){
  service.register(10,workspace);
  return {service,get calls(){return calls;},set scan(value:PortScan){scan=value;},set projects(value:Workspace[]){projects=value;},advance(ms=3000){now+=ms;}};
 }
+test('an agent CLI\'s own local endpoints are not listed as servers',async()=>{
+ const f=fixture();f.scan={complete:true,listeners:[listener,{...listener,port:65423,processName:'agy.EXE'},{...listener,port:65424,processName:'agy.EXE'}],processes:[{ProcessId:20,ParentProcessId:10}]};
+ assert.deepEqual((await f.service.read('one')).rows.map(row=>row.port),[5173]);f.service.dispose();
+});
 test('listening descendants belong to their terminal workspace, dual stack is one server and scan calls coalesce',async()=>{
  const f=fixture();f.scan={complete:true,listeners:[listener,{...listener,host:'::'}],processes:[{ProcessId:20,ParentProcessId:10}]};
  const [first,second]=await Promise.all([f.service.read('one'),f.service.read('one')]);
@@ -59,12 +63,14 @@ test('unreadable sockets block stop confirmation only for their own port',async(
  f.scan={complete:true,listeners:[],processes:[],unresolvedPorts:[9229]};
  f.advance();await f.service.read('one');f.advance();assert.equal((await f.service.read('one')).rows[0].status,'stopped');f.service.dispose();
 });
-test('web probing uses HEAD without following redirects and leaves non-loopback ports unknown',async t=>{
- const methods:string[]=[];const server=http.createServer((req,res)=>{methods.push(`${req.method} ${req.url}`);res.writeHead(302,{Location:'http://example.invalid/'});res.end();});
+test('a listener is never contacted: protocol comes from terminal output, so a TLS server is not sent plain HTTP',async t=>{
+ let connections=0;const server=net.createServer(socket=>{connections++;socket.destroy();});
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise<void>(resolve=>server.close(()=>resolve())));
- assert.equal(await probeWebProtocol('0.0.0.0',serverPort(server)),'http');assert.deepEqual(methods,['HEAD /']);
- assert.equal(await probeWebProtocol('192.168.1.10',5173),'unknown');
- assert.equal(loopbackHost('0000:0000:0000:0000:0000:0000:0000:0001'),'::1');assert.equal(loopbackHost('127.999.0.1'),null);
+ const port=(server.address() as net.AddressInfo).port,now=Date.parse(startTime)+1000;
+ const service=createDevServers({getProjects:()=>[workspace],collect:async()=>({complete:true,processes:[{ProcessId:10,ParentProcessId:1},{ProcessId:20,ParentProcessId:10}],listeners:[{...listener,host:'127.0.0.1',port}]}),clock:()=>now,excludePid:-1});service.register(10,workspace);
+ const row=(await service.read('one')).rows[0];await new Promise(resolve=>setTimeout(resolve,100));
+ assert.equal(connections,0);assert.equal(row.protocol,'unknown');assert.equal(row.url,null);
+ assert.equal(loopbackHost('0000:0000:0000:0000:0000:0000:0000:0001'),'::1');assert.equal(loopbackHost('127.999.0.1'),null);service.dispose();
 });
 test('Dev servers API requires authentication and registered workspace, exposing only scoped display data',async t=>{
  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'pane-dev-server-api-')));t.after(()=>fs.rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100}));

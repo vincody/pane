@@ -14,7 +14,7 @@ const writePreferences=(preferences:Preferences)=>{try{localStorage.setItem(STOR
 /** Minimal, review-oriented Monaco diff options: only changed regions with a little context, no overview ruler. */
 export function diffEditorOptions():editor.IDiffEditorConstructionOptions{
  const preferences=readPreferences();
- return {renderSideBySide:!preferences.unified,hideUnchangedRegions:unchanged(preferences.hideUnchanged),renderOverviewRuler:false,enableSplitViewResizing:false,renderIndicators:true,glyphMargin:false,folding:false,lineNumbersMinChars:4,padding:{top:8,bottom:8}};
+ return {renderSideBySide:!preferences.unified,hideUnchangedRegions:unchanged(preferences.hideUnchanged),renderOverviewRuler:false,enableSplitViewResizing:false,useInlineViewWhenSpaceIsLimited:false,renderIndicators:true,glyphMargin:false,folding:false,lineNumbersMinChars:4,padding:{top:8,bottom:8}};
 }
 export function updateDiffStat(root:ParentNode|undefined,stat:DiffStat|undefined){
  const node=root?.querySelector<HTMLElement>('.diff-stat');if(!node)return;
@@ -37,17 +37,19 @@ export function setupDiffHeader({header,anchor,diff,doc,icon}:{header:HTMLElemen
  const stat=document.createElement('span');stat.className='diff-stat';stat.hidden=true;
  const layout=control('Unified view','diff-unified',icon),fold=control('Hide unchanged regions','diff-fold',icon),previous=control('Previous change','chevron-up',icon),next=control('Next change','chevron-down',icon);
  controls.append(stat,previous,next,fold,layout);header.insertBefore(controls,anchor);updateDiffStat(header,doc.stat);
- let width=0;
+ let width=0,applied:boolean|undefined;
  const sideBySide=()=>!preferences.unified&&width>=SIDE_BY_SIDE_MIN_WIDTH;
  function render(){
   const label=(button:HTMLButtonElement,text:string)=>{button.title=text;button.setAttribute('aria-label',text);};
   layout.setAttribute('aria-pressed',String(preferences.unified));label(layout,preferences.unified?'Split view':'Unified view');
   fold.setAttribute('aria-pressed',String(preferences.hideUnchanged));label(fold,preferences.hideUnchanged?'Show all lines':'Hide unchanged regions');
-  diff.updateOptions({renderSideBySide:width===0?!preferences.unified:sideBySide(),hideUnchangedRegions:unchanged(preferences.hideUnchanged)});
+  applied=width===0?!preferences.unified:sideBySide();
+  diff.updateOptions({renderSideBySide:applied,hideUnchangedRegions:unchanged(preferences.hideUnchanged)});
  }
  layout.onclick=()=>{preferences.unified=!preferences.unified;writePreferences(preferences);render();};
  fold.onclick=()=>{preferences.hideUnchanged=!preferences.hideUnchanged;writePreferences(preferences);render();};
  previous.onclick=()=>diff.goToDiff('previous');next.onclick=()=>diff.goToDiff('next');
  render();
- return {layout(next:number){width=next;diff.updateOptions({renderSideBySide:sideBySide()});}};
+ // Only a real change of mode is applied: re-setting it on every resize relayouts Monaco, which resizes the pane again and the view jitters.
+ return {layout(next:number){width=next;const value=sideBySide();if(value!==applied){applied=value;diff.updateOptions({renderSideBySide:value});}}};
 }

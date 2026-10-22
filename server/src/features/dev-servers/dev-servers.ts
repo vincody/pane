@@ -1,5 +1,3 @@
-import http from 'node:http';
-import https from 'node:https';
 import type {DevServer,DevServerSnapshot,Workspace} from '../../../../shared/contracts.ts';
 import {collectDevServerPorts,type Listener,type PortScan} from './dev-server-scan.ts';
 import {terminateProcess} from './dev-server-kill.ts';
@@ -8,26 +6,13 @@ import {FileError} from '../files/files.ts';
 type Protocol=DevServer['protocol'];
 interface Observation {row:DevServer;startTime?:string;misses:number;stoppedAt?:number;probedAt?:number}
 interface TerminalRoot {projectId:string;tail:string;urls:Map<number,{url:string;at:number}>}
-export interface DevServerOptions {getProjects:()=>Workspace[];collect?:()=>Promise<PortScan>;probe?:(host:string,port:number)=>Promise<Protocol>;clock?:()=>number;excludePid?:number;kill?:(pid:number)=>Promise<void>}
+export interface DevServerOptions {getProjects:()=>Workspace[];collect?:()=>Promise<PortScan>;/** Optional active protocol check. Off by default: like Orca, a listener's protocol comes only from a URL its terminal printed, because a plain-HTTP probe of a TLS server (agy's local endpoint) is logged into that terminal as a TLS handshake error. */probe?:(host:string,port:number)=>Promise<Protocol>;clock?:()=>number;excludePid?:number;kill?:(pid:number)=>Promise<void>}
 
 export function loopbackHost(host:string):string|null {
  if(host==='0.0.0.0'||host==='localhost'||host==='*')return '127.0.0.1';
  if(host.includes(':'))try{host=new URL(`http://[${host}]/`).hostname.slice(1,-1);}catch{return null;}
  if(host==='::'||host==='::1')return '::1';
  return /^127\.(?:\d{1,3}\.){2}\d{1,3}$/.test(host)&&host.split('.').every(part=>Number(part)<=255)?host:null;
-}
-export function probeWebProtocol(host:string,port:number):Promise<Protocol>{
- const target=loopbackHost(host);if(!target)return Promise.resolve('unknown');
- const attempt=(tls:boolean)=>new Promise<boolean>(resolve=>{
-  const finish=(result:boolean)=>{clearTimeout(timer);request.destroy();resolve(result);};
-  // Detection accepts local development certificates. Opening the URL still uses
-  // the browser's normal certificate validation; no credentials or redirects.
-  const request=(tls?https:http).request({hostname:target,port,method:'HEAD',path:'/',agent:false,maxHeaderSize:16384,...(tls?{rejectUnauthorized:false}:{})},response=>{response.destroy();finish(true);});
-  const timer=setTimeout(()=>finish(false),600);
-  request.on('error',()=>finish(false));
-  request.end();
- });
- return attempt(false).then(async plain=>plain?'http':await attempt(true)?'https':'unknown');
 }
 function comparable(value:string):string {const normalized=value.replaceAll('\\','/').replace(/\/+$/,'');return process.platform==='win32'?normalized.toLowerCase():normalized;}
 function within(root:string,cwd:string):boolean {const parent=comparable(root),child=comparable(cwd);return child===parent||child.startsWith(parent+'/');}
@@ -36,7 +21,8 @@ function commandContains(command:string,root:string):boolean {
  while(index>=0){const before=index?text[index-1]:'',after=text[index+value.length]||'';if((!before||/[\s"'=]/.test(before))&&(!after||/[\s"'/]/.test(after)))return true;index=text.indexOf(value,index+value.length);}
  return false;
 }
-export function createDevServers({getProjects,collect=collectDevServerPorts,probe=probeWebProtocol,clock=Date.now,excludePid=process.pid,kill=terminateProcess}:DevServerOptions){
+const AGENT_CLI=/^(agy|antigravity|codex|claude)(\.exe)?$/i;
+export function createDevServers({getProjects,collect=collectDevServerPorts,probe,clock=Date.now,excludePid=process.pid,kill=terminateProcess}:DevServerOptions){
  const roots=new Map<number,TerminalRoot>(),observations=new Map<string,Observation>();
  let lastScan=0,scannedAt:string|null=null,available=true,error:string|undefined,inFlight:Promise<void>|undefined,disposed=false;
  function register(pid:number,project:Workspace){roots.set(pid,{projectId:project.id,tail:'',urls:new Map()});}
@@ -72,7 +58,8 @@ export function createDevServers({getProjects,collect=collectDevServerPorts,prob
   const listeners=new Map<string,Listener>();
   for(const listener of result.listeners){const key=identity(listener),previous=listeners.get(key),host=loopbackHost(listener.host);if(!previous||host&&!loopbackHost(previous.host)||host&&!host.includes(':')&&loopbackHost(previous.host)?.includes(':'))listeners.set(key,listener);}
   for(const listener of listeners.values()){
-   if(listener.pid===excludePid)continue;
+   // An agent CLI's own local endpoints (agy opens two) are not the project's servers.
+   if(listener.pid===excludePid||AGENT_CLI.test(listener.processName||''))continue;
    const key=identity(listener),previous=observations.get(key),assignment=owner(listener,result,projects);
    seen.add(key);
    const continuous=Boolean(previous&&previous.startTime&&listener.startTime===previous.startTime);
@@ -89,7 +76,7 @@ export function createDevServers({getProjects,collect=collectDevServerPorts,prob
     const url=new URL(hint.url);if(url.hostname.replace(/^\[|\]$/g,'')===host){observation.row.protocol=url.protocol==='https:'?'https':'http';observation.row.url=hint.url;}
    }
    observations.set(key,observation);
-   if(host&&(observation.probedAt===undefined||now-observation.probedAt>=15000))pending.push({observation,host});
+   if(probe&&host&&(observation.probedAt===undefined||now-observation.probedAt>=15000))pending.push({observation,host});
   }
   for(const [key,observation] of observations){
    if(!projects.some(project=>project.id===observation.row.projectId)){observations.delete(key);continue;}
@@ -104,7 +91,7 @@ export function createDevServers({getProjects,collect=collectDevServerPorts,prob
   await Promise.all(Array.from({length:Math.min(6,queue.length)},async()=>{
    for(let item=queue.shift();item;item=queue.shift()){
     const {observation,host}=item;let protocol:Protocol='unknown';
-    try{protocol=await probe(host,observation.row.port);}catch{}
+    try{protocol=await probe!(host,observation.row.port);}catch{}
     if(disposed)return;
     observation.probedAt=clock();
     if(protocol!=='unknown'){observation.row.protocol=protocol;const origin=`${protocol}://${host.includes(':')?`[${host}]`:host}:${observation.row.port}`;

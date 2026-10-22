@@ -37,7 +37,7 @@ export interface TreeEntry {name:string;path:string;type:'file'|'directory'|'lin
 export interface DevServer {id:string;projectId:string;pid:number;port:number;host:string;name:string;status:'running'|'unknown'|'stopped';protocol:'http'|'https'|'unknown';url:string|null;observedAt:string;stoppedAt?:string}
 export interface DevServerSnapshot {available:boolean;scannedAt:string|null;rows:DevServer[];error?:string}
 export interface SshConnection {name:string;host:string;username?:string;port?:number;identityFile?:string}
-export interface StartupLaunch {agent:'claude'|'codex';resume?:{id:string;cwd:string}}
+export interface StartupLaunch {agent:'claude'|'codex'|'agy';resume?:{id:string;cwd:string}}
 export type TerminalClientMessage={type:'start';project:string;cols:number;rows:number;sessionId?:string;detachable?:boolean;ssh?:SshConnection;launch?:StartupLaunch}|{type:'attach';sessionId:string;cols:number;rows:number}|{type:'close'}|{type:'input';data:string}|{type:'resize';cols:number;rows:number};
 export type TerminalServerMessage={type:'ready';shell:string;project:string;sessionId?:string;attached?:boolean;startupDelivered?:boolean}|{type:'data';data:string;replay?:boolean}|{type:'agent';agent:string|null}|{type:'error';message:string;code?:string}|{type:'exit';exitCode:number;signal?:number};
 export interface GitHubIntegrationStatus {status:'connected'|'not-installed'|'not-authenticated'|'unavailable';version:string|null;account:string|null;message:string}
