@@ -206,6 +206,9 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 .terminal-launch-choices button:last-child{grid-column:auto}
 @media(max-width:420px){#ssh-dialog{padding:20px 16px}}
 
+.ssh-keys{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-8px 0 16px}.ssh-keys small{width:100%;font-size:11px;color:var(--muted)}
+.ssh-key-chip{display:inline-flex;align-items:center;max-width:100%;border:1px solid var(--hairline);border-radius:999px;font-size:12px}.ssh-key-chip.selected{border-color:var(--ink)}
+.ssh-key-chip button{padding:4px 8px;border-radius:999px;color:var(--body);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ssh-key-chip button:first-child{padding-right:2px}.ssh-key-chip button:hover{color:var(--ink);background:var(--surface-card)}
 .ssh-key-row{display:flex;align-items:center;gap:8px;min-width:0}.ssh-key-row input{flex:1;min-width:0}.ssh-key-row button{flex-shrink:0;white-space:nowrap}
 
 /* Spacevibe Deck workspace rail: repo > checkout > connected session rows. */

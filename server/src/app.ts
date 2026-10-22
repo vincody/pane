@@ -6,6 +6,7 @@ import {createLocalRunner} from './features/sessions/local-runner.ts';
 import {attachTerminalPty} from './features/terminal/terminal-pty.ts';
 import {createResourceMonitor} from './features/resources/resources.ts';
 import {selectSshKey} from './features/terminal/ssh-key-picker.ts';
+import {importSshKey} from './features/terminal/ssh-key-import.ts';
 import {selectWorkspaceFolder,defaultWorkspaceFolder} from './features/files/folder-picker.ts';
 import {createProjectFolder} from './features/files/new-project.ts';
 import {createDevServers,type DevServerOptions} from './features/dev-servers/dev-servers.ts';
@@ -149,6 +150,8 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
           const project = await changeProjects(() => files.addProject(data.path));
           return json(201, { ...project, branch: await gitBranch(project.root) });
         }
+        // The server picks the source itself, so a page can never make it copy an arbitrary file.
+        if(req.method==='POST'&&url.pathname==='/api/ssh/import-key'){const source=await (nativePickers?.key||selectSshKey)();return json(200,{path:source?await importSshKey(source):null});}
         if(req.method==='POST'&&url.pathname==='/api/ssh/select-key')return json(200,{path:await (nativePickers?.key||selectSshKey)()});
         if(req.method==='GET'&&url.pathname==='/api/account-usage')return json(200,await usage.read((url.searchParams.get('providers') || '').split(',').filter(Boolean)));
         if(req.method==='GET'&&url.pathname==='/api/token-usage')return json(200,await tokenUsage.read(Number(url.searchParams.get('since')||0)));
