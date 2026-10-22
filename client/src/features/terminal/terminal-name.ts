@@ -7,7 +7,8 @@ export function terminalProvider(session:Pick<TerminalNaming,'agent'|'launch'|'s
 }
 export function terminalName(session:TerminalNaming) {
   if (session.customName) return session.name;
-  if (session.launch==='ssh'&&session.cliTitle)return session.cliTitle;
+  // SSH tabs keep the saved connection name; the remote shell title is usually just user@host.
+  if (session.launch==='ssh')return session.name;
   const provider=terminalProvider(session);
   if (provider && session.cliTitle) return session.cliTitle;
   return provider ? agentLabel(provider) : session.shell==='Shell'?'Terminal':session.shell;
