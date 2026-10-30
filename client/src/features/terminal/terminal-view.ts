@@ -1,7 +1,8 @@
 import type {SavedLayout,SavedPaneTree} from '../layout/workbench-journal.ts';
 import {Terminal} from '@xterm/xterm';
 import {createSshConnections} from './ssh-connections.ts';
-import {readTerminalJournal,saveTerminalJournal,type SavedTerminal} from './terminal-journal.ts';
+import {readTerminalJournal,saveTerminalJournal,type SavedConversation,type SavedTerminal} from './terminal-journal.ts';
+import {pickConversation} from './terminal-conversation.ts';
 import {FitAddon} from '@xterm/addon-fit';
 import {WebLinksAddon} from '@xterm/addon-web-links';
 import {Unicode11Addon} from '@xterm/addon-unicode11';
@@ -77,7 +78,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   const sessions:PaneSession[] = [];
   const savedTerminals=readTerminalJournal();
   const sshConnections=createSshConnections(token);
-  function journal(){return saveTerminalJournal(sessions.filter(session=>!session.external&&(session.serverId||session.restorePending)&&session.state!=='closed').map(session=>({sessionId:session.serverId||session.id,...(session.restorePending?{ended:true}:{}),projectId:session.project.id,launch:session.launch,name:terminalName(session),...(session.ssh?{ssh:session.ssh}:{})})));}
+  function journal(){return saveTerminalJournal(sessions.filter(session=>!session.external&&(session.serverId||session.restorePending)&&session.state!=='closed').map(session=>({sessionId:session.serverId||session.id,...(session.restorePending?{ended:true}:{}),projectId:session.project.id,launch:session.launch,name:terminalName(session),...(session.startedAt?{openedAt:session.startedAt}:{}),...conversationOf(session),...(session.ssh?{ssh:session.ssh}:{})})));}
+  function conversationOf(session:PaneSession):{conversation?:SavedConversation}{const record=session.resume;const conversation:SavedConversation|undefined=record&&(record.agent==='codex'||record.agent==='claude')?{agent:record.agent,id:record.agent_session.value,cwd:record.cwd}:session.savedConversation;return conversation?{conversation}:{};}
 
   let useOrder = 0;
   let activeSession:PaneSession|null|undefined,menuSession:PaneSession|undefined,lastProject:Workspace|null|undefined,visible=false;
@@ -99,11 +101,16 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       ],{duration:180,easing:'cubic-bezier(.2,.8,.2,1)'});
     }
     session.terminal?.focus();
+    session?.autoResume?.();
   }
   let autoSplit=true;try{autoSplit=localStorage.getItem('ai-web.auto-split-terminals')!=='false';}catch{}
   const autoSetting=document.createElement('div');autoSetting.className='setting-row';autoSetting.innerHTML='<div><strong>Auto split terminals</strong><small>Add new sessions to the focused split group. Preserve adjusted layouts; use separate tabs in narrow windows.</small></div><input id="auto-split-terminal-setting" type="checkbox" aria-label="Auto split terminals">';
   document.querySelector<HTMLElement>('.settings-footnote')!.before(autoSetting);
   const autoCheckbox=autoSetting.querySelector<HTMLInputElement>('input')!;autoCheckbox.checked=autoSplit;autoCheckbox.onchange=()=>{autoSplit=autoCheckbox.checked;try{localStorage.setItem('ai-web.auto-split-terminals',String(autoSplit));}catch{}};
+  let autoResume=true;try{autoResume=localStorage.getItem('ai-web.auto-resume-sessions')!=='false';}catch{}
+  const resumeSetting=document.createElement('div');resumeSetting.className='setting-row';resumeSetting.innerHTML='<div><strong>Resume AI sessions on startup</strong><small>Reopen Codex and Claude conversations that were running when Pane quit. Each one resumes when you open its tab. Shell and SSH terminals are never restarted.</small></div><input id="auto-resume-setting" type="checkbox" aria-label="Resume AI sessions on startup">';
+  document.querySelector<HTMLElement>('.settings-footnote')!.before(resumeSetting);
+  const resumeCheckbox=resumeSetting.querySelector<HTMLInputElement>('input')!;resumeCheckbox.checked=autoResume;resumeCheckbox.onchange=()=>{autoResume=resumeCheckbox.checked;try{localStorage.setItem('ai-web.auto-resume-sessions',String(autoResume));}catch{}};
   let copyOnSelect=false;try{copyOnSelect=localStorage.getItem('ai-web.copy-on-select')==='true';}catch{}
   const copySetting=document.createElement('div');copySetting.className='setting-row';copySetting.innerHTML='<div><strong>Copy on select</strong><small>Copy terminal text to the clipboard as soon as you select it with the mouse. Ctrl+Shift+C always copies.</small></div><input id="copy-on-select-setting" type="checkbox" aria-label="Copy on select">';
   document.querySelector<HTMLElement>('.settings-footnote')!.before(copySetting);
@@ -329,6 +336,13 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     publish();
   }
 
+  async function findConversation(session:PaneSession,saved:SavedTerminal){
+    const snapshot=await fetch('/api/local-sessions',{headers:{'X-AI-Web-Token':token}}).then(response=>response.ok?response.json() as Promise<{sessions?:SessionRecord[]}>:null).catch(()=>null);
+    if(!snapshot?.sessions)return null;
+    const claimed=new Set<string>([...sessions.flatMap(item=>item.resume?[item.resume.agent_session.value]:[]),...savedTerminals.flatMap(item=>item.conversation?[item.conversation.id]:[])]);
+    const rivals=savedTerminals.filter(item=>item!==saved&&item.ended&&item.projectId===saved.projectId&&item.launch===saved.launch&&!item.conversation).length;
+    return pickConversation(saved,session.project,snapshot.sessions,claimed,rivals);
+  }
   function createSession(project:Workspace,launch='shell',allowAuto=true,resume:SessionRecord|null=null,ssh:SshConnection|null=null,restored:SavedTerminal|null=null) {
     const previous=activeSession;
     const area=$('#terminal-screens').getBoundingClientRect();
@@ -392,7 +406,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     try{if(localStorage.getItem('ai-web.terminal-renderer')!=='dom'){const webgl=new WebglAddon();webgl.onContextLoss(()=>webgl.dispose());terminal.loadAddon(webgl);}}catch{}
     $('#terminal-screens').append(element);
 
-    const session:PaneSession = {...(ssh?{ssh}:{}),...(restored?{serverId:restored.ended?undefined:restored.sessionId,restorePending:restored.ended,customName:true}:{}),group:{root:null},lastUsed:0,id, project, name: restored?.name||ssh?.name||project.name, shell: 'Shell', state: 'connecting', ready: false, socket: null, terminal, fit, element, launch,paneHeader,paneTitle,paneMark,paneZoom,resume,cliTitle:restored?.name||ssh?.name||resume?.name};
+    const session:PaneSession = {...(ssh?{ssh}:{}),...(restored?{serverId:restored.ended?undefined:restored.sessionId,restorePending:restored.ended,customName:true}:{}),group:{root:null},lastUsed:0,id, project, name: restored?.name||ssh?.name||project.name, shell: 'Shell', state: 'connecting', ready: false, socket: null, terminal, fit, element, launch,paneHeader,paneTitle,paneMark,paneZoom,resume,cliTitle:restored?.name||ssh?.name||resume?.name,startedAt:restored?.openedAt??Date.now(),...(restored?.conversation?{savedConversation:restored.conversation}:{})};
     paneZoom.onclick=event=>{event.stopPropagation();toggleMaximize(session);};
     paneClose.onclick=event=>{event.stopPropagation();destroySession(session);};
     paneHeader.ondblclick=event=>{if(!(event.target as Element).closest<HTMLButtonElement>('button'))beginRename(session);};
@@ -442,7 +456,21 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
 
     const connectSocket=createTerminalConnection({session,token,project,id,terminal,launch,resume,onOutput:data=>{if(ssh||!onLocalAddress)return;for(const url of addresses.push(data))onLocalAddress(url,project);},getActive:()=>activeSession,$,fitSession,journal,renderTabs,publish,scheduleActivity,inspectScreen});
     session.reconnect=()=>{if(session.disposed||!session.serverId||session.socket?.readyState===WebSocket.CONNECTING||session.socket?.readyState===WebSocket.OPEN)return;if(session.reconnectTimer)clearTimeout(session.reconnectTimer);session.retries=0;session.state='reconnecting';connectSocket();};
-    if(restored?.ended){session.state='ended';terminal.writeln('This terminal ended when Pane last quit. Use Restart terminal to start a new session, or History to resume an existing AI conversation.');renderTabs();}else connectSocket();
+    if(restored?.ended){
+      session.state='ended';
+      if(autoResume&&(launch==='claude'||launch==='codex')){
+        terminal.writeln('This AI session will resume when you open this tab.');
+        session.autoResume=()=>{
+          session.autoResume=undefined;
+          void findConversation(session,restored).then(record=>{
+            if(session.disposed)return;
+            if(!record){terminal.writeln('\r\nPane could not tell which conversation this was. Use Restart terminal to start a new one, or History to resume an existing one.');return;}
+            session.resume=record;session.cliTitle=record.name||session.cliTitle;session.restorePending=false;session.state='connecting';terminal.reset();connectSocket();renderTabs();
+          });
+        };
+      }else terminal.writeln('This terminal ended when Pane last quit. Use Restart terminal to start a new session, or History to resume an existing AI conversation.');
+      renderTabs();
+    }else connectSocket();
 
     return session;
   }
@@ -641,5 +669,5 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     for(const id of Object.values(saved.selected)){const session=sessions.find(session=>session.id===id);if(session)session.lastUsed=++useOrder;}
     maximizedSession=sessions.find(session=>session.id===saved.maximized);renderLayout();renderTabs();
   }
-  return {element: panel,checkpoint:journal,captureLayout,restoreLayout,get runningCount(){return sessions.filter(session=>!session.external&&session.state!=='closed'&&!session.restorePending).length;},startSession(project:Workspace,launch:'shell'|'claude'|'codex'){lastProject=project;closeLauncher();closeMenu();createSession(project,launch,false);setVisible(true);},restore(projects:Workspace[]){for(const saved of savedTerminals){const project=projects.find(item=>item.id===saved.projectId);if(project)createSession(project,saved.launch,false,null,saved.ssh||null,saved);}if(savedTerminals.length&&sessions.length)setVisible(true);}, toggle, showMostRecent, inputMostRecent, resumeSession, placeFilePane, get focusedProjectId(){return activeSession?.project?.id;}, removeFilePane(id:string){const pane=sessions.find(item=>item.external&&item.id===id);if(pane)destroySession(pane);}, hasFilePane(id:string){return sessions.some(item=>item.external&&item.id===id);}, get activePaneId(){return activeSession?.id;}, refreshPaneControls:renderTabs, setFocused(next:boolean){hasFocus=next;renderTabs();publish();}, setProject(project:Workspace|null){lastProject=project;$('#terminal-new').toggleAttribute('disabled',!project);closeLauncher();closeMenu();const recent=sessions.filter(session=>session.project.id===project?.id).sort((a,b)=>b.lastUsed-a.lastUsed)[0];if(recent){activate(recent);setVisible(true);}else{activeSession=null;renderLayout();setVisible(false);}}, newSession(project:Workspace|null){if(project)lastProject=project;$('#terminal-new').click();}, select(id:string) { const session=sessions.find(item=>item.id===id); if(session){activate(session);setVisible(true);} }, close: () => { for (const session of [...sessions]) destroySession(session); setVisible(false); }, get visible() { return visible; }};
+  return {element: panel,checkpoint:journal,captureLayout,restoreLayout,get runningCount(){return sessions.filter(session=>!session.external&&session.state!=='closed'&&!session.restorePending).length;},startSession(project:Workspace,launch:'shell'|'claude'|'codex'){lastProject=project;closeLauncher();closeMenu();createSession(project,launch,false);setVisible(true);},restore(projects:Workspace[]){for(const saved of savedTerminals){const project=projects.find(item=>item.id===saved.projectId);if(project)createSession(project,saved.launch,false,null,saved.ssh||null,saved);}activeSession?.autoResume?.();if(savedTerminals.length&&sessions.length)setVisible(true);}, toggle, showMostRecent, inputMostRecent, resumeSession, placeFilePane, get focusedProjectId(){return activeSession?.project?.id;}, removeFilePane(id:string){const pane=sessions.find(item=>item.external&&item.id===id);if(pane)destroySession(pane);}, hasFilePane(id:string){return sessions.some(item=>item.external&&item.id===id);}, get activePaneId(){return activeSession?.id;}, refreshPaneControls:renderTabs, setFocused(next:boolean){hasFocus=next;renderTabs();publish();}, setProject(project:Workspace|null){lastProject=project;$('#terminal-new').toggleAttribute('disabled',!project);closeLauncher();closeMenu();const recent=sessions.filter(session=>session.project.id===project?.id).sort((a,b)=>b.lastUsed-a.lastUsed)[0];if(recent){activate(recent);setVisible(true);}else{activeSession=null;renderLayout();setVisible(false);}}, newSession(project:Workspace|null){if(project)lastProject=project;$('#terminal-new').click();}, select(id:string) { const session=sessions.find(item=>item.id===id); if(session){activate(session);setVisible(true);} }, close: () => { for (const session of [...sessions]) destroySession(session); setVisible(false); }, get visible() { return visible; }};
 }
