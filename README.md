@@ -41,7 +41,7 @@ Open **http://127.0.0.1:7317**. On Windows, `scripts/Start-AIWeb.ps1` and `scrip
 
 - Workspace and server state live in `.ai-web/` (not committed); CLI conversations stay in the providers' own directories. Fonts, provider marks, sounds and icons are credited in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 - The server binds to `127.0.0.1`, requires a per-run token and checks the local origin. File access is limited to registered workspaces. It is not designed for public hosting.
-- Text editing: UTF-8 files up to 2 MB; saves keep BOM and line endings and reject stale versions. Markdown previews are sanitized; HTML previews are static and sandboxed.
+- Text editing: UTF-8 files up to 50 MB (large files open with syntax highlighting and heavy editor features off); saves keep BOM and line endings and reject stale versions. Markdown previews are sanitized; HTML previews are static and sandboxed.
 - Terminals replay up to the last 512 KiB after a reload; a server or machine restart ends the original processes. In browser mode, unsaved edits and exact split layouts are not restored after a reload.
 
 ## Development

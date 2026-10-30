@@ -15,7 +15,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { Files, FileError, isWithin } from './features/files/files.ts';
+import { Files, FileError, isWithin, MAX_EDIT_BYTES } from './features/files/files.ts';
 import {createFileActions,type NativeFileActions} from './features/files/file-actions.ts';
 import { gitBranch } from './features/git/git.ts';
 import {worktreeBranches,createWorktree,unregisterNewWorktree,existingWorktree,createComposerWorktree} from './features/git/worktrees.ts';
@@ -41,13 +41,16 @@ export interface AppOptions {
 export const appRoot = fileURLToPath(new URL('../../', import.meta.url));
 const types: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.woff': 'font/woff', '.woff2': 'font/woff2', '.png': 'image/png', '.mp3': 'audio/mpeg', '.mjs': 'text/javascript; charset=utf-8', '.wasm': 'application/wasm' };
 
-async function body(req: http.IncomingMessage): Promise<Record<string, unknown>> {
-  let data = '';
+async function body(req: http.IncomingMessage, limit = 3 * 1024 * 1024): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  let size = 0;
   for await (const chunk of req) {
-    data += chunk;
-    if (Buffer.byteLength(data) > 3 * 1024 * 1024) throw new FileError(413, 'Request too large.');
+    const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += part.length;
+    if (size > limit) throw new FileError(413, 'Request too large.');
+    chunks.push(part);
   }
-  try { const parsed: unknown = JSON.parse(data); if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Expected object'); return parsed as Record<string, unknown>; }
+  try { const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8')); if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Expected object'); return parsed as Record<string, unknown>; }
   catch { throw new FileError(400, 'Invalid JSON.'); }
 }
 
@@ -234,7 +237,7 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
         }
         if (req.method === 'GET' && url.pathname === '/api/file') return json(200, await files.read(id, relative));
         if (req.method === 'PUT' && url.pathname === '/api/file') {
-          const data = await body(req);
+          const data = await body(req, 3 * MAX_EDIT_BYTES);
           if (typeof data.content !== 'string' || typeof data.version !== 'string') throw new FileError(400,'Missing content or file version.');
           return json(200, await files.save(id, relative, data.content, data.version, Boolean(data.bom)));
         }

@@ -4,6 +4,8 @@ import crypto from 'node:crypto';
 import {repositoryName} from '../git/repository-name.ts';
 
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+// Editing limit, matching VS Code's 50 MB point where Monaco stops syncing models to its workers.
+export const MAX_EDIT_BYTES = 50 * 1024 * 1024;
 export const imageTypes: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
 export interface Workspace { id: string; name: string; root: string; parentId?: string; nameSource?:'automatic'|'custom';note?:string }
 export interface FileTreeEntry { name: string; path: string; type: 'link' | 'directory' | 'file'; image: boolean }
@@ -88,9 +90,9 @@ export class Files {
     if (!stat.isFile()) throw new FileError(400, 'Choose a file.');
     if (imageTypes[path.extname(target).toLowerCase()]) return { kind: 'image', size: stat.size, path: relative };
     if (path.extname(target).toLowerCase() === '.pdf') return { kind: 'image', media: 'pdf', size: stat.size, path: relative };
-    if (stat.size > MAX_TEXT_BYTES) throw new FileError(413, 'This file is larger than the 2 MB editor limit.');
+    if (stat.size > MAX_EDIT_BYTES) throw new FileError(413, 'This file is larger than the 50 MB editor limit.');
     const buffer = await fs.readFile(target);
-    if (buffer.length > MAX_TEXT_BYTES) throw new FileError(413, 'This file is larger than the 2 MB editor limit.');
+    if (buffer.length > MAX_EDIT_BYTES) throw new FileError(413, 'This file is larger than the 50 MB editor limit.');
     if (buffer.includes(0)) throw new FileError(415, 'Binary files cannot be edited as text.');
     let content;
     try { content = new TextDecoder('utf-8', { fatal: true }).decode(buffer); }
@@ -101,7 +103,7 @@ export class Files {
   async save(id: string, relative: string, content: string, version: string, bom = false): Promise<SavedFile> {
     if (typeof content !== 'string' || typeof version !== 'string') throw new FileError(400, 'Missing content or file version.');
     const encoded = Buffer.from((bom ? '\ufeff' : '') + content, 'utf8');
-    if (encoded.length > MAX_TEXT_BYTES) throw new FileError(413, 'This file exceeds the 2 MB editor limit.');
+    if (encoded.length > MAX_EDIT_BYTES) throw new FileError(413, 'This file exceeds the 50 MB editor limit.');
     const key = `${id}:${relative}`;
     const previous = this.locks.get(key) || Promise.resolve();
     const operation = previous.catch(() => {}).then(async () => {

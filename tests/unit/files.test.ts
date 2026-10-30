@@ -52,7 +52,10 @@ test('binary, oversized and non-UTF-8 files are not editable; UTF-8 BOM is retai
   await fs.writeFile(path.join(root, 'binary.bin'), Buffer.from([1, 0, 2]));
   await assert.rejects(files.read(id, 'binary.bin'), error => error instanceof FileError && error.status === 415);
   await fs.writeFile(path.join(root, 'large.txt'), Buffer.alloc(2 * 1024 * 1024 + 1, 65));
-  await assert.rejects(files.read(id, 'large.txt'), error => error instanceof FileError && error.status === 413);
+  const large = await files.read(id, 'large.txt'); assert.equal(large.kind, 'text');
+  await files.save(id, 'large.txt', 'B'.repeat(3 * 1024 * 1024), large.version);
+  await fs.writeFile(path.join(root, 'huge.txt'), Buffer.alloc(50 * 1024 * 1024 + 1, 65));
+  await assert.rejects(files.read(id, 'huge.txt'), error => error instanceof FileError && error.status === 413);
   await fs.writeFile(path.join(root, 'legacy.txt'), Buffer.from([0xff, 0xfe, 0x61]));
   await assert.rejects(files.read(id, 'legacy.txt'), error => error instanceof FileError && error.status === 415);
   await fs.writeFile(path.join(root, 'bom.txt'), '\ufeffTiếng Việt\r\n');

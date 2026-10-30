@@ -1,6 +1,7 @@
 import {marked,type TokensList,type Token} from 'marked';
 import {decodeHTML} from 'entities';
 import type {OpenDocument,FileView} from './documents.ts';
+import {isLargeModel} from './large-file.ts';
 
 export const isMarkdown=(path:string)=>/\.(md|markdown)$/i.test(path);
 export function splitMarkdownSource(source:string){
@@ -53,6 +54,8 @@ export function markdownMeaning(source:string):string{
 }
 export function chooseFileView(doc:OpenDocument|null,requested:string):FileView{
  if(doc?.kind==='image')return 'preview';
+ // Preview and Live Editor would render the whole file, which freezes the tab.
+ if(doc?.model&&isLargeModel(doc.model))return 'editor';
  const content=doc?.kind==='text'&&doc.model?doc.model.getValue():null;
  const compatible=content!==null&&!doc?.liveError&&!liveMarkdownReason(doc!.path,content)&&eligibility.get(content)?.reason===null;
  if(requested==='preview')return compatible?'live':'preview';
@@ -68,12 +71,13 @@ function richEligibility(source:string){
 export function syncFileModeButtons(container:HTMLElement,doc:OpenDocument|null,view:FileView,choose:(view:FileView)=>void,attribute='view'){
  const selector=`button[data-${attribute}]`,source=container.querySelector<HTMLButtonElement>(`button[data-${attribute}=editor]`)!;
  const markdown=Boolean(doc&&isMarkdown(doc.path));source.textContent=markdown?'Source':'Editor';
- const content=doc?.kind==='text'&&doc.model?doc.model.getValue():null;
- let reason=doc?.liveError||(content!==null?liveMarkdownReason(doc!.path,content):'Choose a text file.');
+ const largeFile=Boolean(doc?.model&&isLargeModel(doc.model));
+ const content=doc?.kind==='text'&&doc.model&&!largeFile?doc.model.getValue():null;
+ let reason=doc?.liveError||(largeFile?'Large file.':content!==null?liveMarkdownReason(doc!.path,content):'Choose a text file.');
  const check=markdown&&!reason&&content!==null?richEligibility(content):undefined,pending=Boolean(check&&check.reason===undefined);reason=reason||check?.reason||null;
  const ticket={};checks.set(container,ticket);
  if(pending)void check!.pending!.then(()=>{if(checks.get(container)===ticket&&container.isConnected&&doc?.model?.getValue()===content){if(view==='preview'&&check!.reason===null)choose('live');else syncFileModeButtons(container,doc,view,choose,attribute);}});
- const preview=container.querySelector<HTMLButtonElement>(`button[data-${attribute}=preview]`);if(preview)preview.hidden=Boolean(markdown&&!reason&&!pending);
+ const preview=container.querySelector<HTMLButtonElement>(`button[data-${attribute}=preview]`);if(preview)preview.hidden=largeFile||Boolean(markdown&&!reason&&!pending);
  source.title=markdown&&reason?reason:'';
  let live=container.querySelector<HTMLButtonElement>(`button[data-${attribute}=live]`);
  if(markdown&&!reason){if(!live){live=document.createElement('button');live.type='button';live.dataset[attribute]='live';live.textContent='Live Editor';source.after(live);}}

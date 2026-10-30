@@ -31,6 +31,7 @@ import {createLinkPreferences} from '../features/browser/link-preferences.ts';
 import {createLinkOpener} from '../features/browser/link-opener.ts';
 import {setupLinkSettings} from '../features/browser/link-settings.ts';
 import {kind,language} from '../features/files/file-language.ts';
+import {isLargeText,markLargeModel,tuneEditorForSize} from '../features/files/large-file.ts';
 import {createFileTree} from '../features/files/file-tree.ts';
 import {setupFileActions} from '../features/files/file-actions.ts';
 import {confirmDiscardFile} from '../features/files/discard-dialog.ts';
@@ -145,6 +146,7 @@ const editor = monaco.editor.create($('#editor'), {
   editContext: false,
   wordWrap: 'off', bracketPairColorization: { enabled: true }, scrollbar: { verticalScrollbarSize: 9, horizontalScrollbarSize: 9 },
 });
+tuneEditorForSize(editor);
 editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveFile());
 
 let draggedProject:string|null=null,lastProjectDrag=0,reorderingProjects=false;
@@ -176,7 +178,7 @@ function checkpointWorkbench(){
  const dirty=[...documents.values()].filter(doc=>doc.dirty).length,terminals=terminalView.runningCount,busy=Boolean(gitView?.busy)||pendingApiWrites()>0||[...documents.values()].some(doc=>doc.saving);
  if(!workbenchReady)return {dirty,terminals,busy,saved:false};
  const views=new Map(workspaceTabStates);if(currentProject)views.set(currentProject.id,captureWorkspaceState());
- const value:WorkbenchJournal={version:1,selected:currentProject?.id||null,files:[...documents.values()].filter(doc=>doc.kind!=='diff').map(doc=>({project:doc.project,path:doc.path,pane:filePanes.has(doc.key),view:chooseFileView(doc,filePanes.get(doc.key)?.element.dataset.fileView||doc.view||'editor'),...(doc.dirty&&doc.model?{draft:doc.model.getValue(),version:doc.version}:{})})),views:[...views].map(([project,view])=>({...view,project,kind:view.kind==='agent'?'empty':view.kind})),layout:terminalView.captureLayout(),git:gitView?.openProjects||[],positions:captureTabPositions()};
+ const value:WorkbenchJournal={version:1,selected:currentProject?.id||null,files:[...documents.values()].filter(doc=>doc.kind!=='diff').map(doc=>({project:doc.project,path:doc.path,pane:filePanes.has(doc.key),view:chooseFileView(doc,filePanes.get(doc.key)?.element.dataset.fileView||doc.view||'editor'),...(doc.dirty&&doc.model&&doc.model.getValueLength()<=2*1024*1024?{draft:doc.model.getValue(),version:doc.version}:{})})),views:[...views].map(([project,view])=>({...view,project,kind:view.kind==='agent'?'empty':view.kind})),layout:terminalView.captureLayout(),git:gitView?.openProjects||[],positions:captureTabPositions()};
  return {dirty,terminals,busy,saved:terminalView.checkpoint()&&writeWorkbenchJournal(value)};
 }
 async function selectProject(project:Workspace|null,initial=false) {
@@ -310,7 +312,9 @@ async function openFile(project:string, path:string, {newTab=false,recovery=unde
   doc.dirty = false;
   if (doc.kind === 'text') {
     doc.savedContent = doc.content;
-    doc.model = monaco.editor.createModel(doc.content, language(path), monaco.Uri.parse(`ai-web://${project}/${path}`));
+    const largeText=isLargeText(doc.content);
+    doc.model = monaco.editor.createModel(doc.content, largeText?'plaintext':language(path), monaco.Uri.parse(`ai-web://${project}/${path}`));
+    if(largeText){markLargeModel(doc.model);toast(`${doc.name} is large, so syntax highlighting and some editor features are off.`);}
     doc.subscription = doc.model.onDidChangeContent(() => {
       doc.liveError=undefined;
       doc.dirty = doc.model!.getValue() !== doc.savedContent; renderTabs();
@@ -717,7 +721,8 @@ function setSecondaryView(view:FileView){
 for(const button of htmlChildren(secondarySwitch))button.onclick=()=>setSecondaryView(button.dataset.secondaryView==='preview'?'preview':'editor');
 const defaultViewRow=document.createElement('div');defaultViewRow.className='setting-row';defaultViewRow.innerHTML='<div><strong>Default file view</strong><small>Choose Editor or Preview whenever a file is opened</small></div><select aria-label="Default file view"><option value="editor">Editor</option><option value="preview">Preview</option></select>';document.querySelector<HTMLElement>('.settings-footnote')!.before(defaultViewRow);const defaultViewSelect=defaultViewRow.querySelector<HTMLSelectElement>('select')!;defaultViewSelect.value=defaultFileView;defaultViewSelect.onchange=()=>{defaultFileView=defaultViewSelect.value==='preview'?'preview':'editor';try{localStorage.setItem('ai-web.default-file-view',defaultFileView);}catch{}};
 function endFileSplit(){secondaryLive.hide();fileZoomAnimation?.cancel();$('#app').classList.remove('file-pane-maximized','file-pane-first');fileZoom.setAttribute('aria-label','Maximize file pane');fileZoom.setAttribute('aria-pressed','false');if(secondaryDocument&&secondaryEditor)secondaryDocument.secondaryViewState=secondaryEditor.saveViewState();secondaryDocument=null;secondaryEditor?.setModel(null);$('#secondary-file')?.setAttribute('hidden','');$('#app').classList.remove('file-file-split');}
-function showSecondary(doc:OpenDocument){if(secondaryDocument&&secondaryEditor)secondaryDocument.secondaryViewState=secondaryEditor.saveViewState();secondaryDocument=doc;const handle=secondaryPane.querySelector<HTMLElement>("header")!;handle.dataset.project=doc.project;handle.dataset.path=doc.path;secondaryPane.hidden=false;secondaryPane.querySelector<HTMLElement>('.secondary-file-title')!.textContent=doc.name;const code=secondaryPane.querySelector<HTMLElement>('.secondary-code')!,image=secondaryPane.querySelector<HTMLElement>('.secondary-image')!;code.hidden=doc.kind==='image';image.hidden=doc.kind!=='image';if(!secondaryEditor)secondaryEditor=monaco.editor.create(code,{model:null,theme:'ai-web',fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false});secondaryEditor.setModel(doc.model || null);if(doc.secondaryViewState)secondaryEditor.restoreViewState(doc.secondaryViewState);image.replaceChildren();if(doc.kind==='image')showImage(image,doc);setSecondaryView(defaultFileView);requestAnimationFrame(()=>secondaryEditor?.layout());}
+let secondaryTuned=false;
+function showSecondary(doc:OpenDocument){if(secondaryDocument&&secondaryEditor)secondaryDocument.secondaryViewState=secondaryEditor.saveViewState();secondaryDocument=doc;const handle=secondaryPane.querySelector<HTMLElement>("header")!;handle.dataset.project=doc.project;handle.dataset.path=doc.path;secondaryPane.hidden=false;secondaryPane.querySelector<HTMLElement>('.secondary-file-title')!.textContent=doc.name;const code=secondaryPane.querySelector<HTMLElement>('.secondary-code')!,image=secondaryPane.querySelector<HTMLElement>('.secondary-image')!;code.hidden=doc.kind==='image';image.hidden=doc.kind!=='image';if(!secondaryEditor)secondaryEditor=monaco.editor.create(code,{model:null,theme:'ai-web',fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false});if(!secondaryTuned){secondaryTuned=true;tuneEditorForSize(secondaryEditor);}secondaryEditor.setModel(doc.model || null);if(doc.secondaryViewState)secondaryEditor.restoreViewState(doc.secondaryViewState);image.replaceChildren();if(doc.kind==='image')showImage(image,doc);setSecondaryView(defaultFileView);requestAnimationFrame(()=>secondaryEditor?.layout());}
 function dropTab(key:string,zone:DropZone){
  const droppedKind=documents.get(key)?.kind;if(droppedKind==='diff'||droppedKind==='browser'){const doc=documents.get(key)!;mountFilePane(doc,typeof zone==='object'?zone.id:terminalView.activePaneId,typeof zone==='object'?zone.direction:zone==='bottom'?'down':'right');return;}
  if(key!=='ai'&&(typeof zone==='object'||zone==='right'||zone==='bottom')){const doc=documents.get(key);if(doc)void dropFile({project:doc.project,path:doc.path},zone);return;}
@@ -781,6 +786,7 @@ function mountFilePane(doc:OpenDocument,target:string|null|undefined,direction:'
     let diffHeader:ReturnType<typeof setupDiffHeader>|undefined;
     const paneEditor=doc.kind==='diff'?monaco.editor.createDiffEditor(code,{theme:'ai-web',readOnly:true,originalEditable:false,fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false,...diffEditorOptions()}):doc.model?monaco.editor.create(code,{model:doc.model,theme:'ai-web',fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false}):null;
     if(doc.kind==='diff'){(paneEditor as monaco.editor.IStandaloneDiffEditor).setModel({original:doc.diffModels[0],modified:doc.diffModels[1]});header.querySelector<HTMLElement>('.pane-file-view')!.hidden=true;diffHeader=setupDiffHeader({header,anchor:zoom,diff:paneEditor as monaco.editor.IStandaloneDiffEditor,doc:{path:doc.path,name:doc.name,baseline:doc.baseline,stat:doc.diffStat},icon});}
+    if(doc.kind!=='diff'&&paneEditor)tuneEditorForSize(paneEditor as monaco.editor.IStandaloneCodeEditor);
     if(doc.kind!=='diff')paneEditor?.addCommand(monaco.KeyMod.CtrlCmd|monaco.KeyCode.KeyS,()=>saveFile(doc));
     header.querySelector<HTMLElement>('.pane-file-view')!.hidden=doc.kind==='image'||doc.kind==='diff';
     const liveElement=document.createElement('div');element.append(liveElement);
