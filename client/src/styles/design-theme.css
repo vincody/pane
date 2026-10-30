@@ -1,26 +1,35 @@
-/* DESIGN.md: warm cream interface, coral actions and dark product surfaces. */
+/* DESIGN.md: Cloudflare palette (blue actions, neutral canvas) on clean glass surfaces. */
 :root{
-  --canvas:#faf9f5;--surface-soft:#f5f0e8;--surface-card:#efe9de;--surface-cream-strong:#e8e0d2;
-  --ink:#141413;--body:#3d3d3a;--body-strong:#252523;--muted-soft:#8e8b82;
-  --primary:#cc785c;--primary-active:#a9583e;--primary-hover:#cc785c;--on-primary:#ffffff;--on-primary-hover:#141413;
-  --hairline:#e6dfd8;--hairline-soft:#ebe6df;
-  --code-bg:#181715;--code-soft:#1f1e1b;--code-surface:#252320;--code-text:#faf9f5;--code-muted:#a09d96;--code-border:#403c36;
-  --success:#267341;--warning:#87620b;--error:#c64545;
-  --bg:var(--canvas);--sidebar:var(--surface-soft);--surface:var(--surface-card);--border:var(--hairline);
-  --text:var(--body);--strong:var(--ink);--ui-muted:#6c6a64;--muted:var(--ui-muted);--accent:var(--primary);--hover:var(--surface-cream-strong);
+  --canvas:#f4f6fa;--surface-soft:#ffffff;--surface-card:#ffffff;--surface-cream-strong:#eceff5;
+  --ink:#202124;--body:#2f3237;--body-strong:#202124;--muted-soft:#8a8f98;
+  --primary:#0a5cff;--primary-active:#0848c9;--primary-hover:#0848c9;--on-primary:#ffffff;--on-primary-hover:#ffffff;
+  --primary-soft:#eaf1ff;--brand-orange:#f6821f;
+  --hairline:#e3e6ec;--hairline-soft:#eceef3;
+  --code-bg:#ffffff;--code-soft:#f4f6fa;--code-surface:#eceff5;--code-text:#202124;--code-muted:#636872;--code-border:#e3e6ec;
+  --success:#0a7d33;--warning:#946200;--error:#c9341e;
+  --bg:var(--canvas);--sidebar:var(--glass);--surface:var(--surface-card);--border:var(--hairline);
+  --text:var(--body);--strong:var(--ink);--ui-muted:#636872;--muted:var(--ui-muted);--accent:var(--primary);--hover:var(--surface-cream-strong);
   --green:var(--success);--yellow:var(--warning);--red:var(--error);
+  --glass:rgba(255,255,255,.62);--glass-strong:rgba(255,255,255,.82);--glass-line:rgba(255,255,255,.7);--glass-edge:rgba(20,30,60,.08);
+  --glass-blur:blur(22px) saturate(160%);--glass-shadow:0 8px 28px rgba(20,30,60,.08),0 1px 2px rgba(20,30,60,.05);
+  --backdrop:radial-gradient(60% 50% at 8% 0%,rgba(10,92,255,.16),transparent 70%),radial-gradient(45% 40% at 100% 100%,rgba(246,130,31,.12),transparent 70%),#f4f6fa;
   --font-display:"Inter","Segoe UI",Arial,sans-serif;
   --font-ui:"Inter","Segoe UI",Arial,sans-serif;--font-code:"JetBrains Mono",Consolas,monospace;
-  --radius-sm:6px;--radius-md:8px;--radius-lg:12px;--radius-xl:16px;
+  --radius-xs:2px;--radius-sm:4px;--radius-md:6px;--radius-lg:10px;--radius-xl:10px;
   --space-xs:8px;--space-sm:12px;--space-md:16px;--space-lg:24px;--space-xl:32px;
   color:var(--text);background:var(--canvas);color-scheme:light;font-family:var(--font-ui);
 }
 :root[data-theme=dark]{
-  --canvas:#181715;--surface-soft:#1f1e1b;--surface-card:#252320;--surface-cream-strong:#34312c;
-  --ink:#faf9f5;--body:#e8e0d2;--body-strong:#faf9f5;--muted-soft:#8e8b82;--ui-muted:#a09d96;
-  --primary:#cc785c;--primary-active:#cc785c;--primary-hover:#de9275;--on-primary:#181715;--on-primary-hover:#181715;
-  --hairline:#403c36;--hairline-soft:#34312c;
-  --success:#a8ce9a;--warning:#e8b76c;--error:#f29b91;
+  --canvas:#111214;--surface-soft:#1a1c20;--surface-card:#1a1c20;--surface-cream-strong:#262a31;
+  --ink:#ededed;--body:#d6d9de;--body-strong:#ffffff;--muted-soft:#7c828c;--ui-muted:#a3a8b1;
+  --primary:#4d8dff;--primary-active:#7aa8ff;--primary-hover:#7aa8ff;--on-primary:#0b0b0b;--on-primary-hover:#0b0b0b;
+  --primary-soft:#142340;
+  --code-bg:#181a1f;--code-soft:#1f2228;--code-surface:#262a31;--code-text:#f4f6fa;--code-muted:#9aa0aa;--code-border:#3a3f48;
+  --hairline:#2e3238;--hairline-soft:#262a31;
+  --success:#3fb868;--warning:#e8b76c;--error:#ff6b57;
+  --glass:rgba(26,28,32,.58);--glass-strong:rgba(26,28,32,.82);--glass-line:rgba(255,255,255,.08);--glass-edge:rgba(255,255,255,.07);
+  --glass-shadow:0 8px 28px rgba(0,0,0,.35),0 1px 2px rgba(0,0,0,.3);
+  --backdrop:radial-gradient(60% 50% at 8% 0%,rgba(77,141,255,.20),transparent 70%),radial-gradient(45% 40% at 100% 100%,rgba(246,130,31,.10),transparent 70%),#111214;
   color-scheme:dark;
 }
 body,#app,main,#workspace,#editor-stack,#content-views{background:var(--canvas);color:var(--text)}
@@ -212,8 +221,8 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 .ssh-key-row{display:flex;align-items:center;gap:8px;min-width:0}.ssh-key-row input{flex:1;min-width:0}.ssh-key-row button{flex-shrink:0;white-space:nowrap}
 
 /* Spacevibe Deck workspace rail: repo > checkout > connected session rows. */
-.sidebar{--workspace-hover:color-mix(in srgb,var(--ink) 4%,transparent);--workspace-selected:#e6e3dd;--workspace-selected-ink:#20201e}
-:root[data-theme=dark] .sidebar{--workspace-selected:#e5e5e5;--workspace-selected-ink:#171717}
+.sidebar{--workspace-hover:color-mix(in srgb,var(--ink) 4%,transparent);--workspace-selected:var(--primary-soft);--workspace-selected-ink:var(--primary-active)}
+:root[data-theme=dark] .sidebar{--workspace-selected:var(--primary-soft);--workspace-selected-ink:var(--primary-active)}
 .terminal-tab[hidden]{display:none!important}
 .sidebar #projects .workspace-group{margin-bottom:22px;background:transparent;border:0}
 .sidebar #projects .workspace-group .project-row{display:flex;align-items:center;gap:2px;min-height:34px;border-radius:var(--radius-sm)}
@@ -364,3 +373,32 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 #app main>.topbar #save:disabled{color:var(--muted);opacity:.45}
 #app main>.topbar #save:hover:not(:disabled){background:var(--surface-card);border-color:var(--hairline);color:var(--ink)}
 #app main>.topbar #save:focus-visible{outline:2px solid var(--primary-active);outline-offset:1px}
+
+/* Flat three-column shell (PandaCode layout): no floating panels, no outer radius. Glass is the sidebars and the topbar; editor, preview and terminal stay opaque. */
+html,body{background:var(--backdrop) fixed}
+#app{gap:0;padding:0;background:transparent}
+main{background:var(--canvas);border:0;border-radius:0;box-shadow:none;overflow:hidden}
+.sidebar,.files-sidebar,#app .sidebar,#app .files-sidebar{background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:0;border-radius:0;box-shadow:none}
+#app .sidebar{border-right:1px solid var(--glass-edge)}
+#app .files-sidebar{border-left:1px solid var(--glass-edge)}
+.topbar,.tabs{background:color-mix(in srgb,var(--canvas) 84%,transparent);-webkit-backdrop-filter:blur(16px) saturate(1.15);backdrop-filter:blur(16px) saturate(1.15);border-radius:0;border-bottom:1px solid var(--hairline)}
+#workspace,#editor-stack,#content-views{background:var(--canvas)}
+.floating-menu,.context-menu,[role=menu],dialog,.app-dialog,#sub-workspace-dialog,#ssh-dialog,#toast{background:var(--glass-strong)!important;-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--glass-edge);border-radius:var(--radius-lg);box-shadow:var(--glass-shadow)}
+dialog::backdrop{background:rgba(20,30,60,.28)}
+.file-tab.active:before{background:var(--primary)}
+.primary-button,.save-button:not(:disabled){background:var(--primary);color:var(--on-primary)}
+.primary-button:hover,.save-button:hover:not(:disabled){background:var(--primary-hover);color:var(--on-primary)}
+.brand-mark span{color:var(--brand-orange)}
+:root{--scroll-thumb:color-mix(in srgb,var(--ink) 22%,transparent)}
+*{scrollbar-color:var(--scroll-thumb) transparent}
+@media(prefers-reduced-transparency:reduce){:root{--glass:var(--surface-card);--glass-strong:var(--surface-card)}}
+@supports not (backdrop-filter:blur(1px)){:root{--glass:var(--surface-card);--glass-strong:var(--surface-card)}}
+/* Flat editor and preview: no inset card. Dialog glass is near opaque so blurred content behind it never muddies the form. */
+#workspace>#editor-pane,#workspace>#preview-pane{border:0;border-radius:0}
+#editor{border-radius:0}
+:root{--glass-strong:rgba(255,255,255,.94)}
+:root[data-theme=dark]{--glass-strong:rgba(26,28,32,.94)}
+.workspace{padding:0;gap:0}
+#terminal-screens{padding:0;gap:1px;background:var(--code-border)}
+#terminal-screens .terminal-screen,#terminal-screens .terminal-screen.pane-focused,#app[data-file-focused=true] #terminal-screens .terminal-screen.pane-focused{border:0;border-radius:0}
+#terminal-screens .terminal-screen.pane-focused>.terminal-pane-header{box-shadow:inset 0 2px 0 var(--primary)}

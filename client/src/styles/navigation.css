@@ -16,7 +16,7 @@
 .workspace-group .project-button.active{font-weight:700}
 .workspace-group .project-button.active svg{color:var(--accent)}
 .sidebar #projects .workspace-group .project-button{font-weight:500;color:var(--muted)}
-.sidebar #projects .workspace-group.selected .project-button{font-weight:700;color:var(--strong);background:#d9775710;box-shadow:inset 2px 0 var(--accent)}
+.sidebar #projects .workspace-group.selected .project-button{font-weight:700;color:var(--strong);background:color-mix(in srgb,var(--primary) 6%,transparent);box-shadow:inset 2px 0 var(--accent)}
 .sidebar #projects .workspace-group.selected .project-button .project-text{font-weight:700;color:var(--strong)}
 .topbar .terminal-toggle{margin-left:3px}
 #app main>.topbar #tabs:empty{display:none}

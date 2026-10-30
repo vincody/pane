@@ -25,6 +25,15 @@ export type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions} from './term
 import type {ExternalFilePane,TerminalSnapshot,TerminalViewOptions,PaneSession,PaneGroup} from './terminal-types.ts';
 import {createTerminalConnection} from './terminal-connection.ts';
 
+
+// Light surfaces need a darker ANSI palette: xterm's default white and bright colours vanish on white.
+const ansiLight={black:'#202124',red:'#c9341e',green:'#0a7d33',yellow:'#946200',blue:'#0a5cff',magenta:'#8a3fc7',cyan:'#007a8a',white:'#5f6368',brightBlack:'#6b7078',brightRed:'#d94a35',brightGreen:'#1a9444',brightYellow:'#a87400',brightBlue:'#2f73ff',brightMagenta:'#a050e0',brightCyan:'#0c92a3',brightWhite:'#202124'};
+function terminalTheme(){
+  const styles=getComputedStyle(document.documentElement);
+  const color=(name:string,fallback:string)=>styles.getPropertyValue(name).trim()||fallback;
+  const accent=color('--primary','#4d8dff'),light=document.documentElement.dataset.theme!=='dark';
+  return {background:color('--code-bg','#181a1f'),foreground:color('--code-text','#f4f6fa'),cursor:accent,cursorAccent:color('--code-bg','#181a1f'),selectionBackground:/^#[\da-f]{6}$/i.test(accent)?`${accent}44`:accent,...(light?ansiLight:{})};
+}
 export function createTerminalView({token, icon, onClose, onSessionsChange, onSelect, onOpenBrowser, onOpenLink, onLocalAddress, onNotice}:TerminalViewOptions) {
   const workspace = document.querySelector<HTMLElement>('#workspace')!;
   const panel = document.createElement('section');
@@ -76,6 +85,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   $('#terminal-new').setAttribute('aria-haspopup','dialog');$('#terminal-new').setAttribute('aria-expanded','false');$('#terminal-new').title='New session';$('#terminal-new').setAttribute('aria-label','New session');
   function closeLauncher(){launcher.hidden=true;$('#terminal-new').setAttribute('aria-expanded','false');}
   const sessions:PaneSession[] = [];
+  new MutationObserver(()=>{for(const item of sessions)if(item.terminal)item.terminal.options.theme=terminalTheme();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   const savedTerminals=readTerminalJournal();
   const sshConnections=createSshConnections(token);
   function journal(){return saveTerminalJournal(sessions.filter(session=>!session.external&&(session.serverId||session.restorePending)&&session.state!=='closed').map(session=>({sessionId:session.serverId||session.id,...(session.restorePending?{ended:true}:{}),projectId:session.project.id,launch:session.launch,name:terminalName(session),...(session.startedAt?{openedAt:session.startedAt}:{}),...conversationOf(session),...(session.ssh?{ssh:session.ssh}:{})})));}
@@ -376,17 +386,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       // Agent CLIs print OSC 8 hyperlinks. xterm's default handler confirms with a native dialog and then opens the system browser,
       // which skips the Settings → Links choice and needs no modifier key, so those links go the same way as plain URLs.
       linkHandler: {activate:(event,uri)=>{if(event.ctrlKey||event.metaKey)onOpenLink?.(uri,project);}},
-      theme: (() => {
-        const styles = getComputedStyle(document.documentElement);
-        const color = (name:string,fallback:string) => styles.getPropertyValue(name).trim() || fallback;
-        const accent = color('--accent', '#d97757');
-        return {
-          background: color('--code-bg', '#181715'),
-          foreground: color('--code-text', '#faf9f5'),
-          cursor: accent,
-          selectionBackground: /^#[\da-f]{6}$/i.test(accent) ? `${accent}44` : accent,
-        };
-      })(),
+      theme: terminalTheme(),
     });
     const fit = new FitAddon(),addresses=createAddressDetector();
     terminal.loadAddon(fit);

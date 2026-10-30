@@ -22,7 +22,7 @@ html[data-desktop=true] .desktop-window-controls button:focus-visible{outline:2p
 html[data-desktop=true][data-window-focused=false] :is(.desktop-app-menu,.desktop-window-controls){opacity:.65}
 html[data-desktop=true] #app main>.topbar #show-sidebar{display:inline-flex}
 /* Keep the caption distinct from the canvas, including when no tabs are open. */
-html[data-desktop=true] #app main>.topbar{background:var(--surface-soft)}
+html[data-desktop=true] #app main>.topbar{background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-bottom:1px solid var(--glass-edge)}
 html[data-desktop=true] #app main>.topbar>#unified-tabs [role=tab][aria-selected=true]{background:var(--canvas)}
 html[data-desktop=true] .desktop-titlebar-right{justify-content:space-between}
 html[data-desktop=true] #app main>.topbar .desktop-titlebar-right>.topbar-right{margin:0;padding:0 0 0 12px;gap:0}
