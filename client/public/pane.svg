@@ -1,16 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <defs>
-    <linearGradient id="pane-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2823"/><stop offset="1" stop-color="#11100e"/></linearGradient>
-    <linearGradient id="pane-gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".10"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/></linearGradient>
-    <linearGradient id="pane-coral" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f0957a"/><stop offset="1" stop-color="#cf7357"/></linearGradient>
-    <linearGradient id="pane-cream" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4efe6"/><stop offset="1" stop-color="#d6cfc2"/></linearGradient>
-    <filter id="pane-lift" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000" flood-opacity=".38"/></filter>
-  </defs>
-  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#pane-bg)"/>
-  <rect x="8.5" y="8.5" width="239" height="239" rx="57.5" fill="url(#pane-gloss)" stroke="#fff" stroke-opacity=".13"/>
-  <g filter="url(#pane-lift)">
-    <rect x="60" y="60" width="60" height="60" rx="13" fill="url(#pane-cream)"/>
-    <rect x="60" y="136" width="60" height="60" rx="13" fill="url(#pane-cream)"/>
-    <rect x="136" y="60" width="60" height="136" rx="13" fill="url(#pane-coral)"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-420 -420 840 840">
+<defs>
+<linearGradient id="b" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="70" y2="265"><stop offset="0" stop-color="#ffb27a"/><stop offset=".24" stop-color="#8a8cf6"/><stop offset=".55" stop-color="#2f66f2"/><stop offset="1" stop-color="#0a2a9c"/></linearGradient>
+<linearGradient id="f" gradientUnits="userSpaceOnUse" x1="120" y1="0" x2="300" y2="200"><stop offset="0" stop-color="#a5e6ff"/><stop offset=".55" stop-color="#6aa8ff"/><stop offset="1" stop-color="#4d7dff"/></linearGradient>
+<linearGradient id="d" gradientUnits="userSpaceOnUse" x1="0" y1="150" x2="0" y2="265"><stop offset="0" stop-color="#0a2a9c" stop-opacity=".15"/><stop offset="1" stop-color="#071a6b" stop-opacity=".65"/></linearGradient>
+<g id="sil"><circle cx="135" cy="130" r="135"/><circle cx="318" cy="177" r="88"/><rect x="135" y="130" width="183" height="135"/></g>
+<clipPath id="ks"><circle cx="135" cy="130" r="135"/><circle cx="318" cy="177" r="88"/><rect x="135" y="130" width="183" height="135"/></clipPath>
+<g id="p">
+<use href="#sil" fill="url(#b)"/>
+<g clip-path="url(#ks)">
+<path d="M-10 125C40 215 150 240 280 235 340 233 390 205 420 165L420 300-10 300Z" fill="url(#d)"/>
+<path d="M-10 125C40 215 150 240 280 235 340 233 390 205 420 165" fill="none" stroke="#0a2a9c" stroke-opacity=".7" stroke-width="7"/>
+<path d="M68 -20C75 70 130 160 275 190 330 197 385 175 415 148L430 -20Z" fill="url(#f)"/>
+<path d="M68 -20C75 70 130 160 275 190 330 197 385 175 415 148" fill="none" stroke="#d4e4ff" stroke-width="8"/>
+</g></g>
+</defs>
+<g id="all">
+<use href="#p" transform="translate(-163 -416)"/>
+<use href="#p" transform="rotate(90) translate(-163 -416)"/>
+<use href="#p" transform="rotate(180) translate(-163 -416)"/>
+<use href="#p" transform="rotate(270) translate(-163 -416)"/>
+</g></svg>
