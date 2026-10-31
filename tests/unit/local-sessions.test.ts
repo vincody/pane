@@ -63,3 +63,12 @@ test('session follows its latest working directory after the folder moves, and u
 test('a stopped web-owned turn is not mistaken for external work; a later native turn is detected',async t=>{
  const {home,stateDir,file}=await fixture(t);const local=await createLocalSessions({home,stateDir,codexHome:path.join(home,'.codex')});const [record]=await local.list();let occupied=false;const runner=createLocalRunner({local,codexEngineFactory:fakeCodexFactory({busy:()=>occupied})});t.after(()=>runner.close());const {agent}=await runner.resume(record.id);await runner.input(paneId(agent),uuid,{type:'prompt',value:'Web turn'});const append=(turn: string)=>fs.appendFile(file,JSON.stringify({type:'event_msg',timestamp:'2026-10-13T10:00:00Z',payload:{type:'task_started',turn_id:turn}})+'\n');await append('owned');let read=await runner.read(paneId(agent),uuid);assert.equal(read.agent.canStop,true);assert.equal(read.agent.externalWorking,false);await runner.input(paneId(agent),uuid,{type:'key',value:'ctrl+c'});read=await runner.read(paneId(agent),uuid);assert.equal(read.agent.agent_status,'idle');assert.equal(read.agent.externalWorking,false);await runner.release(paneId(agent),uuid);occupied=true;await append('external-new');await runner.resume(record.id);read=await runner.read(paneId(agent),uuid);assert.equal(read.agent.externalWorking,true);assert.equal(read.agent.canStop,false);
 });
+test('parsed session logs are cached on disk and a tampered cache cannot redirect the log path',async t=>{
+ const {home,stateDir}=await fixture(t),codexHome=path.join(home,'.codex'),cacheFile=path.join(stateDir,'local-session-cache.json');
+ const first=await createLocalSessions({home,stateDir,codexHome}),before=await first.list();assert.equal(before.length,1);
+ for(let attempt=0;attempt<100&&!await fs.stat(cacheFile).catch(()=>null);attempt++)await new Promise(resolve=>setTimeout(resolve,20));
+ const saved=JSON.parse(await fs.readFile(cacheFile,'utf8'));assert.equal(saved.version,1);assert.equal(saved.entries.length,1);
+ saved.entries[0][1].record.file=path.join(home,'elsewhere.jsonl');saved.entries[0][1].record.root=home;await fs.writeFile(cacheFile,JSON.stringify(saved));
+ const second=await createLocalSessions({home,stateDir,codexHome});assert.deepEqual(await second.list(),before);
+ assert.deepEqual(await second.history(before[0].id),await first.history(before[0].id));
+});

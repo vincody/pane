@@ -16,10 +16,18 @@ export function parseStatus(text: string): GitStatuses {const parts=text.split('
 export async function changes(cwd: string | undefined): Promise<GitChanges>{
  if(!cwd)return {available:false,files:[]};
  try{
-  const root=await fs.realpath(cwd);await git(root,['rev-parse','--show-toplevel']);
-  const baseline=await git(root,['rev-parse','--verify','HEAD']).then(()=> 'HEAD' as const,()=>null);
-  const [stat,statusText]=await Promise.all([baseline?git(root,['diff','--no-ext-diff','--no-textconv','--relative','--numstat','-z','HEAD','--','.']):Promise.resolve(''),git(root,['status','--porcelain=v1','-z','--untracked-files=all','--','.'])]);
-  const prefix=(await git(root,['rev-parse','--show-prefix'])).trim();
+  const root=await fs.realpath(cwd);
+  // Four independent questions for git, asked together: every one is a process start, and they used to run one after another.
+  const [info,baseline,diff,statusText]=await Promise.all([
+   git(root,['rev-parse','--show-toplevel','--show-prefix']),
+   git(root,['rev-parse','--verify','HEAD']).then(()=> 'HEAD' as const,()=>null),
+   // Speculative: with no commit yet there is no HEAD to diff against, and the outcome is then ignored.
+   git(root,['diff','--no-ext-diff','--no-textconv','--relative','--numstat','-z','HEAD','--','.']).then(text=>({ok:true as const,text}),()=>({ok:false as const,text:''})),
+   git(root,['status','--porcelain=v1','-z','--untracked-files=all','--','.']),
+  ]);
+  if(baseline&&!diff.ok)throw new Error('git diff failed');
+  const stat=baseline?diff.text:'';
+  const prefix=(info.split(/\r?\n/)[1]??'').trim();
   const statuses: GitStatuses={};for(const [file,status] of Object.entries(parseStatus(statusText))){if(prefix&&!file.startsWith(prefix))continue;const relative=prefix?file.slice(prefix.length):file;statuses[relative]={...status,...(status.originalPath?{originalPath:prefix&&status.originalPath.startsWith(prefix)?status.originalPath.slice(prefix.length):status.originalPath}:{})};}
   const files=parseNumstat(stat);
   const additions=Object.keys(statuses).filter(file=>!baseline||statuses[file].code==='??'||/A/.test(statuses[file].code)&&!files.some(entry=>entry.path===file));

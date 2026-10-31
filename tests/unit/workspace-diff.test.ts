@@ -17,3 +17,12 @@ test('refreshes each workspace at most once per interval, reports only changes a
  diffs.refresh(['one','two','bad']);await new Promise(resolve=>setTimeout(resolve,20));assert.equal(calls.length,3);
  diffs.refresh(['two']);assert.equal(diffs.stats().has('one'),false);
 });
+test('waits while nobody can see the totals and fetches the same workspaces once they can',async()=>{
+ const calls:string[]=[];let shown=false;
+ const api=(async(route:string)=>{calls.push(new URLSearchParams(route.split('?')[1]).get('project')!);return changes([{path:'f',added:1,removed:0,binary:false}]);}) as Api;
+ const diffs=createWorkspaceDiffs(api,()=>{},()=>shown);
+ diffs.refresh(['one','two']);await new Promise(resolve=>setTimeout(resolve,20));
+ assert.deepEqual(calls,[],'no git work while hidden or unfocused');
+ shown=true;diffs.refresh(['one','two']);await new Promise(resolve=>setTimeout(resolve,20));
+ assert.deepEqual(calls.sort(),['one','two']);
+});

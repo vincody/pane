@@ -57,6 +57,14 @@ import '../styles/links.css';
 import '../styles/settings.css';
 
 setupEditorWorkers();
+// The editor has no project to resolve imports against, so TypeScript's checks would flag every import. Its language features also run in
+// a worker that costs over 100 MB the first time a .ts or .js file opens, so they are all off: highlighting does not need it.
+for(const defaults of [monaco.typescript.typescriptDefaults,monaco.typescript.javascriptDefaults]){
+  defaults.setDiagnosticsOptions({noSemanticValidation:true,noSyntaxValidation:true,noSuggestionDiagnostics:true});
+  defaults.setModeConfiguration(Object.fromEntries(Object.keys(defaults.modeConfiguration).map(feature=>[feature,false])) as typeof defaults.modeConfiguration);
+  defaults.setCompilerOptions({...defaults.getCompilerOptions(),noLib:true});
+  defaults.setEagerModelSync(false);
+}
 
 import {uiQuery as $,eventElement,htmlChildren} from '../lib/dom.ts';
 import {createApi,ApiError,pendingApiWrites} from '../lib/api.ts';
@@ -676,7 +684,9 @@ async function start() {
     document.addEventListener('visibilitychange',()=>{if(document.hidden)checkpointWorkbench();});
   }
   updateToolbar(); refreshSessions();
-  setInterval(() => { refreshSessions(); }, 8000);
+  // A hidden or minimised window has nobody to show sessions to; catch up as soon as it is visible again.
+  setInterval(() => { if(!document.hidden)refreshSessions(); }, 8000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshSessions();});
   $('#show-sidebar').setAttribute('aria-expanded',String(!$('#app').classList.contains('sidebar-hidden')));
 }
 const usagePanel=createUsagePanel({api});

@@ -66,7 +66,10 @@ export function setupChanges({api,icon,getProject,onOpenDiff,onError,onStatuses}
  for(const button of tabs.querySelectorAll<HTMLButtonElement>('button'))button.onclick=()=>select(button.dataset.filesView==='changes'?'changes':'files');
  tabs.onkeydown=event=>{if(!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();const next=mode==='files'?'changes':'files';select(next);tabs.querySelector<HTMLButtonElement>(`[data-files-view="${next}"]`)!.focus();};
  const refreshButton=sidebar.querySelector<HTMLButtonElement>('#refresh-files')!,refreshFiles=refreshButton.onclick;refreshButton.onclick=event=>{if(mode==='files')refreshFiles?.call(refreshButton,event);void refresh();};
- setInterval(()=>{if(!document.hidden&&!document.querySelector<HTMLElement>('#app')!.classList.contains('files-hidden'))void refresh();},5000);
+ // Each refresh runs several git processes, so it waits while the window is hidden or another app has focus, and catches up when focus returns.
+ const filesShown=()=>!document.querySelector<HTMLElement>('#app')!.classList.contains('files-hidden');
+ setInterval(()=>{if(!document.hidden&&document.hasFocus()&&filesShown())void refresh();},5000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)void refresh();});
+ window.addEventListener('focus',()=>{if(filesShown())void refresh();});
  return {refresh,projectChanged(){pendingProject=null;projectId=null;data=null;collapsed.clear();sequence++;onStatuses?.(getProject()?.id||null,null);void refresh();}};
 }

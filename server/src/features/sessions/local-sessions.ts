@@ -30,6 +30,10 @@ async function contextSince(file: string,start=0){
 export async function createLocalSessions({home=os.homedir(),stateDir,codexHome=process.env.CODEX_HOME || path.join(home,'.codex'),claudeHome=process.env.CLAUDE_CONFIG_DIR || path.join(home,'.claude')}: LocalSessionOptions){
  const preferencesFile=path.join(stateDir,'local-session-preferences.json');let preferences: Record<string,Preference>={};try{preferences=readPreferences(JSON.parse(await fs.readFile(preferencesFile,'utf8')));}catch{}
  let records=new Map<string,SessionRecord>(),cache=new Map<string,SessionCache>(),activityCache=new Map<string,ActivityCache>(),expires=0,pending: Promise<void> | null = null,queue=Promise.resolve();
+ const cacheFile=path.join(stateDir,'local-session-cache.json');let persisting=Promise.resolve();
+ // Unchanged logs (same size and mtime) keep their parsed record across restarts, so launching Pane no longer re-reads every session log.
+ try{const saved=object(JSON.parse(await fs.readFile(cacheFile,'utf8')));if(saved.version===1&&Array.isArray(saved.entries))for(const entry of saved.entries){const [file,raw]=Array.isArray(entry)?entry:[],data=object(raw),record=restoredSession(data.record);if(typeof file==='string'&&record&&typeof data.stamp==='string'&&typeof data.size==='number')cache.set(file,{stamp:data.stamp,record,size:data.size});}}catch{}
+ const persist=(entries: Map<string,SessionCache>)=>(persisting=persisting.then(async()=>{try{await fs.mkdir(stateDir,{recursive:true});const temp=cacheFile+'.tmp';await fs.writeFile(temp,JSON.stringify({version:1,entries:[...entries]}));await fs.rename(temp,cacheFile);}catch{}}));
  const roots: {agent: Provider; root: string; depth: number}[]=[{agent:'codex',root:path.join(codexHome,'sessions'),depth:3},{agent:'claude',root:path.join(claudeHome,'projects'),depth:1}];
  async function scan(){
   const names=new Map<string,string>();try{for(const row of rows(await chunk(path.join(codexHome,'session_index.jsonl'),2*1024*1024,true)))if(row.id&&uuid.test(row.id)&&typeof row.thread_name==='string')names.set(row.id,row.thread_name);}catch{}
@@ -38,10 +42,10 @@ export async function createLocalSessions({home=os.homedir(),stateDir,codexHome=
    async function walk(dir: string,depth: number): Promise<void>{for(const entry of await fs.readdir(dir,{withFileTypes:true}).catch(()=>[])){if(found.length>=10000)break;const file=path.join(dir,entry.name);if(entry.isDirectory()&&depth>0)await walk(file,depth-1);else if(entry.isFile()&&entry.name.endsWith('.jsonl'))found.push({...source,root,file});}}
    await walk(root,source.depth);
   }
-  const next=new Map<string,SessionRecord>(),nextCache=new Map<string,SessionCache>();let cursor=0;
+  const next=new Map<string,SessionRecord>(),nextCache=new Map<string,SessionCache>(),before=cache.size;let cursor=0,parsed=0;
   async function worker(){while(cursor<found.length){const source=found[cursor++];try{
-   const real=await fs.realpath(source.file);if(!isWithin(source.root,real))continue;const stat=await fs.stat(real),stamp=`${stat.size}:${stat.mtimeMs}`,cachedRecord=cache.get(real);let record=cachedRecord?.stamp===stamp?cachedRecord.record:null;
-   if(!record){const head=rows(await chunk(real,128*1024)),tailText=await chunk(real,2*1024*1024,true),tail=rows(tailText);
+   const real=await fs.realpath(source.file);if(!isWithin(source.root,real))continue;const stat=await fs.stat(real),stamp=`${stat.size}:${stat.mtimeMs}`,cachedRecord=cache.get(real);let record=cachedRecord?.stamp===stamp?{...cachedRecord.record,file:real,root:source.root}:null;
+   if(!record){parsed++;const head=rows(await chunk(real,128*1024)),tailText=await chunk(real,2*1024*1024,true),tail=rows(tailText);
     const meta=source.agent==='codex'?head.find(row=>row.type==='session_meta')?.payload:head.find(row=>row.cwd && row.sessionId);
     const nativeId=source.agent==='codex'?(meta?.id || meta?.session_id):meta?.sessionId;
     if(!nativeId||!uuid.test(nativeId)||!meta?.cwd || !path.isAbsolute(meta.cwd)||meta.source?.subagent || meta.isSidechain)continue;
@@ -58,7 +62,7 @@ export async function createLocalSessions({home=os.homedir(),stateDir,codexHome=
    const indexedName=names.get(record.agent_session.value);if(source.agent==='codex'&&indexedName!==undefined)record={...record,name:indexedName.replace(/\s+/g,' ').trim().slice(0,120)};
    nextCache.set(real,{stamp,record,size:stat.size});const existing=next.get(record.id);if(!existing||existing.updatedAt<record.updatedAt)next.set(record.id,record);
   }catch{}}}
-  await Promise.all(Array.from({length:8},worker));for(const [id,preference] of Object.entries(preferences)){const created=preference?.created;if(!next.has(id)&&created&&uuid.test(created.agent_session?.value || '')&&['codex','claude'].includes(created.agent)&&path.isAbsolute(created.cwd || '')&&sessionId(created)===id)next.set(id,created);}records=next;cache=nextCache;expires=Date.now()+8000;
+  await Promise.all(Array.from({length:4},worker));for(const [id,preference] of Object.entries(preferences)){const created=preference?.created;if(!next.has(id)&&created&&uuid.test(created.agent_session?.value || '')&&['codex','claude'].includes(created.agent)&&path.isAbsolute(created.cwd || '')&&sessionId(created)===id)next.set(id,created);}records=next;cache=nextCache;expires=Date.now()+8000;if(parsed||nextCache.size!==before)await persist(nextCache);
  }
  async function refresh(force=false){if(pending)return pending;if(!force&&Date.now()<expires)return;pending=scan().finally(()=>pending=null);return pending;}
  const publicRecord=(record: SessionRecord)=>{const {file,root,...value}=record;return {...value,name:preferences[record.id]?.name || value.name};};

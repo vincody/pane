@@ -15,7 +15,7 @@ export function setupDevServers({api,getProjects,onError,onOpenUrl}:Options){
  let timer:ReturnType<typeof setTimeout>|undefined,confirmTimer:ReturnType<typeof setTimeout>|undefined,confirming:string|null=null;
  const stopping=new Set<string>();
  let expiryTimer:ReturnType<typeof setTimeout>|undefined;
- function schedule(){clearTimeout(timer);if(disposed||document.hidden||!getProjects().length)return;timer=setTimeout(()=>void refresh(),opened?3000:15000);}
+ function schedule(){clearTimeout(timer);if(disposed||document.hidden||!document.hasFocus()||!getProjects().length)return;timer=setTimeout(()=>void refresh(),opened?3000:15000);}
  function position(){if(!opened)return;const anchor=trigger.getBoundingClientRect(),rect=panel.getBoundingClientRect();panel.style.left=`${Math.max(8,Math.min(anchor.left,window.innerWidth-rect.width-8))}px`;panel.style.top=`${Math.max(8,Math.min(anchor.top-rect.height-8,window.innerHeight-rect.height-8))}px`;}
  function close(restore=true){opened=false;panel.hidden=true;trigger.setAttribute('aria-expanded','false');schedule();if(restore)trigger.focus();}
  async function copy(id:string,url:string){try{await navigator.clipboard.writeText(url);if(disposed)return;copied=id;render();}catch{onError('Could not copy the server URL.');}}
