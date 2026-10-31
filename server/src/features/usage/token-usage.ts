@@ -4,6 +4,7 @@ import {createInterface} from 'node:readline';
 import path from 'node:path';
 import os from 'node:os';
 import {FileError,isWithin} from '../files/files.ts';
+import {native} from '../../lib/native.ts';
 import type {Provider,TokenCounters,TokenUsageSnapshot} from '../../../../shared/contracts.ts';
 
 const object=(value:unknown):Record<string,unknown>=>value!==null&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
@@ -16,6 +17,12 @@ const add=(a:TokenCounters,b:TokenCounters)=>{for(const key of ['input','output'
 
 /** Only usage metadata is retained; message text never leaves the reader. */
 export async function parseTokenLog(file:string,provider:'codex'|'claude'):Promise<Parsed>{
+ // The addon reads the log on a background thread without building a string per line; the code below is the reference it was written against.
+ const addon=native();
+ if(addon?.parseTokenLog)try{return JSON.parse(await addon.parseTokenLog(file,provider)) as Parsed;}catch{}
+ return parseTokenLogInJs(file,provider);
+}
+export async function parseTokenLogInJs(file:string,provider:'codex'|'claude'):Promise<Parsed>{
  const entries:Entry[]=[],messages=new Map<string,Entry>();let session=path.basename(file,'.jsonl'),previous=empty(),partial=false;
  const stream=createReadStream(file,{encoding:'utf8'}),lines=createInterface({input:stream,crlfDelay:Infinity});
  try{for await(const line of lines){

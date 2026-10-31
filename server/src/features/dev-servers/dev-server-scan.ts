@@ -3,6 +3,7 @@ import {promisify} from 'node:util';
 import fs from 'node:fs/promises';
 import {isIP} from 'node:net';
 import {readProcesses, type ProcessRow} from '../terminal/terminal-agents.ts';
+import {native} from '../../lib/native.ts';
 
 export interface Listener {pid:number;host:string;port:number;processName?:string;commandLine?:string;cwd?:string;startTime?:string}
 export interface PortScan {listeners:Listener[];processes:ProcessRow[];complete:boolean;error?:string;unresolvedPorts?:number[]}
@@ -29,7 +30,12 @@ export async function collectDevServerPorts(options:ScanOptions={}):Promise<Port
  let processes:ProcessRow[]=[];
  try{
   processes=await (options.processes??readProcesses)();let listeners:Listener[]=[],complete=true,unresolvedPorts:number[]|undefined;
-  if(platform==='win32')listeners=parseNetstatListeners(await execute('netstat.exe',['-ano','-p','tcp']));
+  if(platform==='win32'){
+   // Only the real scan uses the addon: a caller that supplies `run` or `platform` is testing the netstat path.
+   const addon=options.run===undefined&&options.platform===undefined?native():null;let direct:Listener[]|undefined;
+   if(addon)try{direct=unique((JSON.parse(addon.listTcpListeners()) as {pid:number;host:string;port:number}[]).filter(row=>row.pid>0));}catch{}
+   listeners=direct??parseNetstatListeners(await execute('netstat.exe',['-ano','-p','tcp']));
+  }
   else if(platform==='linux'){
    const root=options.procRoot??'/proc',inodes=new Map<string,{host:string;port:number}[]>();
    for(const version of ['tcp','tcp6']){let content:string;try{content=await fs.readFile(`${root}/net/${version}`,'utf8');}catch{complete=false;continue;}

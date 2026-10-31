@@ -19,3 +19,10 @@ playwright-report/
 /tests/helpers/check-*.mjs
 .DS_Store
 Thumbs.db
+
+# Native addon
+native/pane-native/target/
+native/*.node
+
+# Scratch output (logo concepts etc.)
+/temp/

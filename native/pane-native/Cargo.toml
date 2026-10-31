@@ -1,0 +1,29 @@
+[package]
+name = "pane-native"
+version = "0.1.0"
+description = "Native helpers for Pane's local backend: process and listening-port discovery."
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+memchr = "2"
+napi = { version = "3", default-features = false, features = ["napi4"] }
+napi-derive = "3"
+serde_json = "1"
+sysinfo = { version = "0.40", default-features = false, features = ["system"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_System_ProcessStatus", "Win32_System_Threading"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = "s"
+panic = "abort"
+strip = true

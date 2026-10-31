@@ -10,6 +10,7 @@ import {readClipboardForPaste,type ClipboardLike} from './clipboard.ts';
 import {installInAppDialogs} from './in-app-dialog.ts';
 import {createApp} from '../server/src/app.ts';
 import {installBrowserGuards} from './browser-guard.ts';
+import {native} from '../server/src/lib/native.ts';
 
 const dataOverride=process.env.PANE_DESKTOP_DATA_DIR;
 if(dataOverride)app.setPath('userData',path.resolve(dataOverride));
@@ -155,6 +156,11 @@ async function boot(){
  let boundsTimer:ReturnType<typeof setTimeout>|undefined;
  const saveBounds=()=>{clearTimeout(boundsTimer);boundsTimer=setTimeout(()=>{if(window&&!window.isDestroyed()&&!window.isMinimized())void fs.writeFile(path.join(stateDir,'window.json'),JSON.stringify(window.getNormalBounds())).catch(()=>{});},250);};
  window.on('resize',saveBounds);window.on('move',saveBounds);
+ // A window that is minimised or hidden in the tray keeps all of its pages resident for nobody. After a short wait, hand the idle ones back to Windows.
+ let trimTimer:ReturnType<typeof setTimeout>|undefined;
+ const trimSoon=()=>{clearTimeout(trimTimer);trimTimer=setTimeout(()=>{if(!window||window.isDestroyed()||(window.isVisible()&&!window.isMinimized()))return;native()?.trimWorkingSets?.([process.pid,...app.getAppMetrics().map(metric=>metric.pid)]);},20_000);};
+ const trimCancel=()=>clearTimeout(trimTimer);
+ window.on('minimize',trimSoon);window.on('hide',trimSoon);window.on('restore',trimCancel);window.on('show',trimCancel);window.on('focus',trimCancel);
  contents.on('will-prevent-unload',event=>{if(quitting)event.preventDefault();});
  const menu:Electron.MenuItemConstructorOptions[]=[{label:'Pane',submenu:[{label:'Show Pane',click:show},{label:'Hide to tray',click:()=>window?.hide()},{type:'separator'},{label:'Open diagnostics folder',click:()=>{void shell.openPath(stateDir);}},{label:'Quit Pane',accelerator:'CmdOrCtrl+Q',click:()=>void requestClose(false)}]},{role:'editMenu'},{label:'View',submenu:[{role:'reload'},{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'},{role:'togglefullscreen'},...(!app.isPackaged?[{role:'toggleDevTools' as const}]:[])]}];
  const applicationMenu=Menu.buildFromTemplate(menu);Menu.setApplicationMenu(applicationMenu);window.removeMenu();

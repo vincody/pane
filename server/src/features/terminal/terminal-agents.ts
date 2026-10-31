@@ -1,5 +1,6 @@
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
+import {native} from '../../lib/native.ts';
 const exec = promisify(execFile);
 
 export interface ProcessRow {ProcessId:number|string;ParentProcessId:number|string;Name?:string;CommandLine?:string;CreationDate?:string;WorkingSetSize?:number|string;KernelModeTime?:number|string;UserModeTime?:number|string}
@@ -33,6 +34,9 @@ export function parsePsRows(stdout:string):ProcessRow[] {
 }
 async function collectProcesses():Promise<ProcessRow[]> {
   if (process.platform === 'win32') {
+    // The addon reads the process table directly; PowerShell and WMI cost over a second and a tens-of-MB process each time.
+    const addon = native();
+    if (addon) try { return JSON.parse(addon.listProcesses()) as ProcessRow[]; } catch {}
     const {stdout} = await exec('powershell.exe', ['-NoLogo', '-NoProfile', '-Command', 'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CommandLine,WorkingSetSize,KernelModeTime,UserModeTime,@{Name="CreationDate";Expression={$_.CreationDate.ToUniversalTime().ToString("o")}} | ConvertTo-Json -Compress'], {windowsHide:true, maxBuffer:8*1024*1024, timeout:5000});
     const rows = JSON.parse(stdout || '[]');
     return Array.isArray(rows) ? rows : [rows];

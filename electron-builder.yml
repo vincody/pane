@@ -10,10 +10,12 @@ directories:
 files:
   - desktop-build/**
   - dist/**
+  - native/*.node
   - package.json
 asar: true
 asarUnpack:
   - node_modules/node-pty/**
+  - native/*.node
 npmRebuild: false
 win:
   icon: desktop-build/icon.ico

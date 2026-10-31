@@ -146,3 +146,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ## pdf.js
 
 The PDF viewer uses [pdfjs-dist](https://github.com/mozilla/pdf.js) (Apache License 2.0, Copyright Mozilla Foundation) and loads its document, viewer and find controller the way [stablyai/orca](https://github.com/stablyai/orca) does in `PdfViewer.tsx` and `pdf-viewer-session.ts`.
+
+## Native addon (Rust)
+
+`native/pane-native` is compiled into the Windows app. It includes these open-source crates, all under licenses that allow redistribution. Each crate publishes its full license text in its repository on crates.io.
+
+- napi, napi-derive and napi-build (MIT), from napi-rs
+- sysinfo (MIT), from GuillaumeGomez/sysinfo
+- serde and serde_json (MIT OR Apache-2.0)
+- memchr (Unlicense OR MIT)
+- windows-sys (MIT OR Apache-2.0), from Microsoft

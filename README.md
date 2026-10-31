@@ -7,6 +7,7 @@ A local workspace for AI agent terminals, files and Git. Pane runs Codex and Cla
 - Node.js 22+ and npm (not needed for the packaged desktop app).
 - Git. Codex and/or Claude Code installed and signed in separately; shell terminals work without them.
 - Windows is the primary platform; others are not manually verified.
+- Rust (optional, for development). `npm run native:build` compiles the native addon in `native/pane-native`, which reads processes, listening ports and token-usage logs much faster than PowerShell, `netstat` and TypeScript. Without it Pane falls back to those slower paths; release builds always include it. `npm run desktop:build` runs it when Rust is installed.
 
 ## Run
 

@@ -30,6 +30,19 @@ jobs:
           if ($env:GITHUB_REF_NAME -cne "v$version") { throw "Tag must match package.json version: v$version" }
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Only stable versions are supported by this workflow.' }
       - run: npm ci
+      - name: Build and test the native addon
+        shell: pwsh
+        run: |
+          # The release must ship the addon: without it Pane silently falls back to the slower PowerShell and netstat paths.
+          rustup toolchain install stable --profile minimal --no-self-update
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install the Rust toolchain.' }
+          rustup default stable
+          cargo --version
+          cargo test --manifest-path native/pane-native/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { throw 'Native addon tests failed.' }
+          npm run native:build
+          if ($LASTEXITCODE -ne 0) { throw 'Native addon build failed.' }
+          if (!(Test-Path -LiteralPath 'native/pane-native.node')) { throw 'The native addon was not built.' }
       - run: npm run typecheck
       - run: npm test
       - run: npm run desktop:build
@@ -40,6 +53,7 @@ jobs:
       - name: Verify packaged native runtime and updater
         shell: pwsh
         run: |
+          if (!(Test-Path -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'release/win-unpacked/resources/app.asar.unpacked/native/pane-native.node'))) { throw 'The packaged app does not contain the native addon.' }
           $env:PANE_DESKTOP_EXECUTABLE = Join-Path $env:GITHUB_WORKSPACE 'release/win-unpacked/Pane.exe'
           npx playwright test --config config/playwright/desktop.config.ts
       - name: Preserve build artifacts
