@@ -20,7 +20,7 @@ function MiniUsage({state,onOpen}:{state:Snapshot;onOpen:()=>void}){
      <span className="compact-usage-metric">{formatWin('5h')}<span className="compact-usage-sep">{' · '}</span>{formatWin('7d')}</span>
    ):shown.length?(
      <span className={`compact-usage-metric${shown[0].remaining<20?' near-limit':''}`}>{shown[0].remaining}% · {shown[0].label}</span>
-   ):<span className="compact-usage-metric">{state.mode==='auto'?'—':`${state.mode} —`}</span>;
+   ):<span className="compact-usage-metric compact-usage-idle">{state.mode==='auto'?'Unavailable':`${state.mode} unavailable`}</span>;
    const details=windows.map(window=>`${window.label}: ${window.remaining}% remaining${window.resetsAt?`; resets ${new Date(window.resetsAt).toLocaleString()}`:''}`);
    const title=[label,...(details.length?details:[value?.message||(!value?'Loading account usage':'Limit unavailable or expired')]),...(value?.stale?['Last known quota; refresh unavailable']:[]),'Open usage details'].join('\n');
    return <button key={provider} type="button" className="compact-usage-line" onClick={onOpen} title={title} aria-label={`${label}: ${details.join('; ')||'Quota unavailable'}. Open usage details`}><span>{label}</span>{content}</button>;
@@ -35,7 +35,7 @@ function UsageDetails({state,onClose,onRefresh,onRange}:{state:Snapshot;onClose:
  return <><header className="usage-dialog-head"><div><span className="usage-eyebrow">YOUR AI WORKSPACE</span><strong id="usage-title">Usage overview</strong></div><button type="button" className="icon-button" aria-label="Close usage" onClick={onClose}>×</button></header>
  <p className="usage-dialog-caption">Tokens used. Limits remaining. All in one place.</p>
  <div className="usage-token-overview">
-  <div><span className="usage-section-label">Total recorded tokens</span><strong className="usage-token-total" aria-live="polite">{state.tokenPending?'…':total===undefined?'—':<TokenNumber value={total}/>}</strong><span className="usage-hero-caption">Across all workspaces on this machine</span></div>
+  <div><span className="usage-section-label">Total recorded tokens</span><strong className="usage-token-total" aria-live="polite">{state.tokenPending?<span className="usage-loading usage-loading-total">Reading…</span>:total===undefined?'—':<TokenNumber value={total}/>}</strong><span className="usage-hero-caption">Across all workspaces on this machine</span></div>
   <div className="usage-range" role="group" aria-label="Token usage period">{([['today','Today'],['7d','7 days'],['30d','30 days'],['all','All']] as const).map(([range,label])=><button key={range} type="button" aria-pressed={state.tokenRange===range} onClick={()=>onRange(range)}>{label}</button>)}</div>
  </div>
  {state.tokenError&&<p className="usage-data-warning" role="status">{state.tokenError}</p>}

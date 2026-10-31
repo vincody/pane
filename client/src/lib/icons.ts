@@ -35,6 +35,7 @@ const paths:Record<string,string> = {
   stop: 'M7 7h10v10H7Z',
   close: 'm6 6 12 12 M18 6 6 18',
   terminal: 'M4 5h16v14H4Z M7 9l3 3-3 3 M12 15h4',
+  ssh: 'M4 4h16v6H4Z M4 14h16v6H4Z M12 10v4 M7 7h2 M7 17h2',
   maximize: 'M8 3H3v5 M3 3l7 7 M16 21h5v-5 M21 21l-7-7',
   'chevron-right': 'm9 5 7 7-7 7',
   'chevron-up': 'm5 15 7-7 7 7',

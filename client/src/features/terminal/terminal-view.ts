@@ -60,7 +60,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   const choices=document.createElement('div');choices.className='terminal-launch-choices';
   for(const [kind,label] of [['claude','Claude Code'],['codex','Codex'],['agy','Antigravity'],['shell','Shell'],['ssh','SSH'],...(window.paneDesktop?.browserVersion===1?[['browser','Browser']]:[])]){
     const button=document.createElement('button');button.type='button';button.dataset.launch=kind;
-    if(kind==='shell'||kind==='ssh')button.append(icon('terminal'));else if(kind==='browser')button.append(icon('globe'));else{const image=document.createElement('img');image.src=`/agents/${kind}.svg`;image.alt='';button.append(image);}
+    if(kind==='shell')button.append(icon('terminal'));else if(kind==='ssh')button.append(icon('ssh'));else if(kind==='browser')button.append(icon('globe'));else{const image=document.createElement('img');image.src=`/agents/${kind}.svg`;image.alt='';button.append(image);}
     button.append(document.createTextNode(label));choices.append(button);
   }
   launcher.append(heading,description,choices);document.body.append(launcher);

@@ -44,7 +44,9 @@
 :root,:root[data-theme=dark]{--sidebar:var(--canvas)}
 .dev-server-count:empty{display:none}
 .sidebar #projects .workspace-context.selected{background:transparent;border-color:transparent}
-.sidebar #projects .workspace-context.selected>.workspace-context-row{background:var(--workspace-hover)}
+.sidebar #projects .workspace-context.selected>.workspace-context-row{background:transparent}
+.sidebar #projects .workspace-context.selected>.workspace-context-row:hover{background:var(--workspace-hover)}
+.sidebar #projects .workspace-context-sessions{margin:0}
 .sidebar #projects .workspace-context .terminal-agent-card{min-height:32px;padding:4px 8px;gap:8px}
 .sidebar #projects .workspace-context .provider-mark{width:18px;height:20px}
 .sidebar #projects .workspace-context .provider-mark>.agent-state{top:13px}
