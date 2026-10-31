@@ -19,13 +19,13 @@ test('the quit confirmation is drawn inside the app and its buttons keep, hide o
   await expect(dialog).toBeVisible({timeout:15000});await expect(dialog.getByRole('heading')).toHaveText('Keep Pane running in the background?');
   await expect(dialog).toContainText('1 terminal session(s)');
   await expect(dialog.getByRole('button')).toHaveText(['Keep running in tray','Quit Pane','Cancel']);
-  await page.screenshot({path:'C:/Users/ASUS/AppData/Local/Temp/claude/C--UIT-ai-web/f53232b4-e1db-472f-b603-26857cd0d93f/scratchpad/quit-dialog.png'});
   // Escape is Cancel: the window stays.
   await page.keyboard.press('Escape');await expect(dialog).toBeHidden();
   expect(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible())).toBe(true);
-  // Keep running in tray hides the window instead of quitting.
-  await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].close();});
-  await expect(dialog).toBeVisible();await dialog.getByRole('button',{name:'Keep running in tray'}).click();
+  // Keep running in tray hides the window instead of quitting. A close that arrives while the app is still finishing the previous answer is
+  // ignored on purpose (a double click on X must not ask twice), so ask again until the confirmation shows.
+  await expect(async()=>{await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].close();});await expect(dialog).toBeVisible({timeout:2000});}).toPass({timeout:20000});
+  await dialog.getByRole('button',{name:'Keep running in tray'}).click();
   await expect.poll(()=>app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible())).toBe(false);
   // Quitting from the hidden window brings it back to ask first, then really quits.
   const exited=new Promise<void>(resolve=>app.process().once('exit',()=>resolve()));
