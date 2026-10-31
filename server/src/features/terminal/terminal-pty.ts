@@ -9,6 +9,7 @@ import type { Workspace, TerminalServerMessage } from '../../../../shared/contra
 import {agentInProcessTree, readProcesses} from './terminal-agents.ts';
 import {protectSshKey} from './ssh-key-permissions.ts';
 import {parseStartupLaunch,powerShellStartupArgs} from './terminal-startup.ts';
+import {createCurrentPath} from './windows-path.ts';
 
 const maxCols = 300;
 const maxRows = 150;
@@ -17,6 +18,7 @@ export interface TerminalPtyOptions { token: string; getProject: (id: string) =>
 interface TerminalSession {id:string;pty:pty.IPty;client:WebSocket|null;send:(message:TerminalServerMessage)=>void;agent:string|null;exited?:boolean;detachable:boolean;project:Workspace;shell:string;output:string[];outputSize:number;ssh:boolean}
 
 export function attachTerminalPty(server: Server, { token, getProject, ptyApi = pty,protectKey=protectSshKey,onStart,onStop,onOutput }: TerminalPtyOptions){
+  const currentPath = createCurrentPath();
   const websocketServer = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024, perMessageDeflate: false });
   const sessions=new Map<string,TerminalSession>();
   const sendTo=(client:WebSocket|null,message:TerminalServerMessage)=>{if(client?.readyState===WebSocket.OPEN)client.send(JSON.stringify(message));};
@@ -93,7 +95,7 @@ export function attachTerminalPty(server: Server, { token, getProject, ptyApi = 
           if(!launch||message.ssh!==undefined){send({type:'error',code:'SESSION_START_FAILED',message:'Invalid session launch.'});client.close(1008,'Invalid session launch');return;}
           if(process.platform==='win32'){args=powerShellStartupArgs(launch);startupDelivered=true;}
         }
-        const env:NodeJS.ProcessEnv={...process.env,TERM:'xterm-256color',COLORTERM:'truecolor'};
+        const env:NodeJS.ProcessEnv=currentPath({...process.env,TERM:'xterm-256color',COLORTERM:'truecolor'});
         for(const key of Object.keys(env))if(['NO_COLOR','FORCE_COLOR','CLICOLOR','CLICOLOR_FORCE','TERM_PROGRAM','TERM_PROGRAM_VERSION'].includes(key.toUpperCase()))delete env[key];
         try{
           const child=ptyApi.spawn(shell,args,{name:'xterm-256color',cols:message.cols as number,rows:message.rows as number,cwd:project.root,env,...(process.platform==='win32'?{useConptyDll:true}:{})});
