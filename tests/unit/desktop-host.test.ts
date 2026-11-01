@@ -21,6 +21,6 @@ test('desktop serves bundled assets and owns authenticated native pickers withou
  assert.deepEqual(await (await fetch(base+'/api/project-defaults',{headers})).json(),{parent:path.join(root,'Downloads')});
  assert.equal((await fetch(base+'/api/integrations/tools')).status,403);
  const result=await (await fetch(base+'/api/integrations/tools',{headers})).json() as {tools:LocalToolStatus[]};
- assert.deepEqual(result.tools.map(tool=>tool.id),['git','ssh','codex','claude','agy']);assert.ok(result.tools.every(tool=>typeof tool.installed==='boolean'||tool.installed===null));
+ assert.deepEqual(result.tools.map(tool=>tool.id),['git','ssh','codex','claude','agy','opencode']);assert.ok(result.tools.every(tool=>typeof tool.installed==='boolean'||tool.installed===null));
  assert.ok(result.tools.every(tool=>!('path' in tool)));
 });

@@ -1,6 +1,6 @@
 import type {StartupLaunch} from '../../../../shared/contracts.ts';
 
-const AGENTS=['claude','codex','agy'];
+const AGENTS=['claude','codex','agy','opencode'];
 const UUID=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const MAX_CWD=2048;
 
