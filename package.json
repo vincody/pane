@@ -13,6 +13,7 @@
     "dev": "npm run build && node --import tsx --watch server/src/index.ts",
     "typecheck": "tsc -p config/typescript/client.json && tsc -p config/typescript/server.json && tsc -p config/typescript/tests.json && tsc -p config/typescript/desktop.json",
     "native:build": "node scripts/build-native.mjs",
+    "desktop:dev": "node scripts/desktop-dev.mjs",
     "desktop:build": "npm run build && npm run native:build && node scripts/build-desktop.mjs",
     "desktop": "npm run desktop:build && electron .",
     "desktop:pack": "npm run desktop:build && electron-builder --dir --win --x64 --publish never",
