@@ -75,8 +75,8 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 :root{--bg:var(--canvas);--sidebar:var(--canvas);--surface:var(--surface-card);--border:var(--hairline);}
 .agent-card[data-status=working] .provider-mark>.agent-state,.sidebar .agents-section .agent-card[data-status=working] .provider-mark>.agent-state{inset:auto auto -4px -4px;display:grid;place-items:center;width:12px;height:15px;margin:0;background:var(--sidebar);border:0;border-radius:3px;box-shadow:none;animation:none;opacity:1;transform:none;color:var(--accent);font:15px/1 "Segoe UI Symbol","JetBrains Mono",monospace}
 .agent-card.selected[data-status=working] .provider-mark>.agent-state{background:var(--surface)}
-.ai-session-tab[data-status=working] .ai-tab-indicator{display:grid;place-items:center;inset:auto auto -3px -3px;width:10px;height:12px;background:var(--sidebar);border:0;border-radius:2px;color:var(--accent);font:13px/1 "Segoe UI Symbol","JetBrains Mono",monospace;animation:none;transform:none}
-.ai-session-tab.active[data-status=working] .ai-tab-indicator{background:var(--surface)}
+.ai-session-tab[data-status=working] .ai-tab-indicator{display:grid;place-items:center;inset:auto auto -3px -3px;width:10px;height:12px;background:none;border:0;border-radius:2px;color:var(--accent);font:13px/1 "Segoe UI Symbol","JetBrains Mono",monospace;animation:none;transform:none}
+.ai-session-tab.active[data-status=working] .ai-tab-indicator{background:none}
 .ai-session-tab[data-status=working] .ai-tab-indicator::before{content:none;animation:none}
 .workspace-children .agent-card.selected{background:var(--surface);color:var(--text)}
 .workspace-children .agent-card.selected .agent-meta{color:var(--muted)}
@@ -126,7 +126,7 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .workspace-children .terminal-agent-card.selected .provider-mark{color:var(--canvas)}
 .workspace-children .terminal-agent-card.selected .provider-mark>.agent-state{border-color:var(--text)}
 .workspace-children .terminal-agent-card.selected[data-provider=codex] .provider-mark img{filter:brightness(.3)}
-.workspace-children .terminal-agent-card.selected[data-status=working] .provider-mark>.agent-state{background:var(--text);color:#843c25}
+.workspace-children .terminal-agent-card.selected[data-status=working] .provider-mark>.agent-state{background:none;color:var(--accent)}
 .workspace-children .terminal-agent-card.selected[data-status=idle] .provider-mark>.agent-state{background:#625b51}
 .workspace-children .terminal-agent-card.selected[data-status=blocked] .provider-mark>.agent-state{background:var(--warning);color:#fffaf2}
 .terminal-agent-card[data-status=idle] .agent-state{background:var(--muted)}
@@ -574,7 +574,7 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .terminal-launch-hint.terminal-launch-note{flex-basis:auto;margin:0;color:var(--warning,var(--muted))}
 .terminal-launch-choices button:has(.terminal-launch-note){flex-wrap:nowrap}
 /* Terminal tabs size to their label (a bare number stays compact) and grow with longer names. */
-#app main>.topbar>#unified-tabs .terminal-tab,.topbar .terminal-tab,#unified-tabs .terminal-tab{min-width:0;width:auto;flex:none;gap:7px;padding:0 8px}
+#app main>.topbar>#unified-tabs .terminal-tab,.topbar .terminal-tab,#unified-tabs .terminal-tab{min-width:76px;width:auto;flex:none;gap:8px;padding:0 14px}
 .terminal-tab-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Working directory shown after the pane title. */
 .terminal-pane-cwd{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left;font-size:11px;color:var(--code-muted,var(--muted))}
@@ -586,3 +586,11 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .terminal-tab:not([data-status=working]) .terminal-tab-state{font-size:0}
 .terminal-tab:not([data-status=working]):not([data-status=blocked]) .terminal-tab-state{display:none}
 .terminal-tab[data-status=blocked] .terminal-tab-state:after{content:'!';font-size:12px;font-weight:600;color:var(--warning)}
+/* Result dots (done / blocked / error): 12px, a tint of the state colour with a fine ring and a crisp glyph, instead of a flat saturated fill. */
+.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=done] .provider-mark>.agent-state,.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=blocked] .provider-mark>.agent-state,.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=error] .provider-mark>.agent-state,.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=failed] .provider-mark>.agent-state{display:grid;place-items:center;width:14px;height:14px;box-sizing:border-box;border-radius:50%;border:1px solid color-mix(in srgb,var(--state) 45%,transparent);background:color-mix(in srgb,var(--state) 16%,transparent);color:var(--state);box-shadow:none;font:700 9px/1 Inter,"Segoe UI",sans-serif}
+.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=done]{--state:var(--success)}
+.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=blocked]{--state:var(--warning)}
+.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=error],.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=failed]{--state:var(--error)}
+/* Working: a round spinner ring (accent arc, no fill) in place of the braille frames, whose text is hidden. */
+.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=working] .provider-mark>.agent-state,.ai-session-tab.ai-session-tab[data-status=working] .ai-tab-indicator,.terminal-pane-header[data-status=working] .terminal-pane-state,.terminal-tab[data-status=working] .terminal-tab-state,.agent-card.agent-card[data-status=working] .provider-mark>.agent-state{display:block;width:12px;height:12px;box-sizing:border-box;border:2px solid color-mix(in srgb,var(--accent) 25%,transparent);border-top-color:var(--accent);border-radius:50%;background:none;box-shadow:none;font-size:0;line-height:0;color:transparent}
+@media(prefers-reduced-motion:no-preference){.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=working] .provider-mark>.agent-state,.ai-session-tab.ai-session-tab[data-status=working] .ai-tab-indicator,.terminal-pane-header[data-status=working] .terminal-pane-state,.terminal-tab[data-status=working] .terminal-tab-state,.agent-card.agent-card[data-status=working] .provider-mark>.agent-state{animation:agent-spin 1s linear infinite}}

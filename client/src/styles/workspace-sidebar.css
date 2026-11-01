@@ -38,7 +38,8 @@
 .sidebar #projects .workspace-context-row:has(.project-more):is(:hover,:focus-within) .workspace-diff{display:none}
 .workspace-attention{display:inline-flex;flex:none;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 5px;border-radius:8px;background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning);font:600 10px/1 var(--font-ui)}
 .workspace-attention-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-.sidebar #projects .workspace-context .terminal-agent-card.selected:is([data-status=blocked],[data-status=error],[data-status=failed]){background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--ink)}
+.sidebar #projects .workspace-context .terminal-agent-card.selected[data-status=blocked]{background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--ink)}
+.sidebar #projects .workspace-context .terminal-agent-card.selected:is([data-status=error],[data-status=failed]){background:color-mix(in srgb,var(--error) 14%,transparent);color:var(--ink)}
 
 /* Quieter sidebars: one background tone, no box around the selected workspace, one-line session rows. */
 :root,:root[data-theme=dark]{--sidebar:var(--canvas)}
@@ -63,6 +64,9 @@
 .sidebar #projects .workspace-context .terminal-agent-card .provider-mark>.agent-state{left:auto;right:12px;top:0;bottom:0;margin-block:auto}
 /* Selected session row: status colors come from the theme tokens, not the old brown palette. */
 .sidebar #projects .workspace-context .terminal-agent-card.selected .agent-meta{color:var(--muted)}
-.sidebar #projects .workspace-context .terminal-agent-card.selected[data-status=working] .provider-mark>.agent-state{background:var(--primary);color:var(--on-primary);border-color:transparent}
+.sidebar #projects .workspace-context .terminal-agent-card.selected[data-status=working] .provider-mark>.agent-state{background:none;color:var(--accent);border-color:transparent;box-shadow:none}
 .sidebar #projects .workspace-context .terminal-agent-card.selected[data-status=idle] .provider-mark>.agent-state{background:var(--muted)}
 .sidebar #projects .workspace-context .terminal-agent-card.selected[data-status=blocked] .provider-mark>.agent-state{background:var(--warning);color:var(--on-primary)}
+/* An agent whose workspace is no longer the focused one fades to grey like the "local main" row; the status dot stays at full strength so attention is not hidden. Hover or focus brings it back. */
+.sidebar #projects .workspace-context:not(.selected) .terminal-agent-card:not(:hover,:focus-visible) .terminal-agent-content strong{color:var(--muted)}
+.sidebar #projects .workspace-context:not(.selected) .terminal-agent-card:not(:hover,:focus-visible) .provider-mark>img{opacity:.5;filter:grayscale(1)}
