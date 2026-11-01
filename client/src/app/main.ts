@@ -11,6 +11,7 @@ import {setupDevServers} from '../features/dev-servers/DevServers.tsx';
 import {setupResources} from '../features/resources/Resources.tsx';
 import {createFileGitDecorations} from '../features/files/file-git-status.ts';
 import {createWorkspaceSidebar} from '../features/workspaces/WorkspaceSidebar.tsx';
+import {createAgentLounge,setupOfficeSetting} from '../features/agents/agent-lounge.ts';
 import {createWorktreeDialog} from '../features/workspaces/worktree-dialog.ts';
 import {createWorkspaceDiffs} from '../features/workspaces/workspace-diff.ts';
 import {createAddWorkspaceDialog} from '../features/workspaces/add-workspace.ts';
@@ -51,6 +52,7 @@ import '../styles/design-theme.css';
 import '../styles/git.css';
 import '../styles/selects.css';
 import '../styles/workspace-sidebar.css';
+import '../styles/agent-lounge.css';
 import '../styles/dividers.css';
 import '../styles/browser.css';
 import '../styles/links.css';
@@ -84,6 +86,7 @@ const documents = new Map<string,OpenDocument>();
 let notifications:ReturnType<typeof createNotifications>|undefined;
 let titlebar:ReturnType<typeof setupTitlebar>|undefined;
 let workspaceSidebar:ReturnType<typeof createWorkspaceSidebar>|undefined;
+let agentLounge:ReturnType<typeof createAgentLounge>|undefined;
 const workspaceDiffs=createWorkspaceDiffs(api,()=>renderProjects());
 let changesView:ReturnType<typeof setupChanges>|undefined;
 let gitView:ReturnType<typeof createGitPanel>|undefined;
@@ -185,6 +188,7 @@ function setupProjectDrag(project:Workspace,button:HTMLButtonElement,group:HTMLE
 }
 function renderProjects() {
   workspaceSidebar?.render({projects:[...projects],currentProjectId:currentProject?.id||null,agents:[...terminalAgents],diffs:workspaceDiffs.stats()});
+  agentLounge?.update(terminalAgents,currentProject?.id||null);
   workspaceDiffs.refresh(projects.map(project=>project.id));
   titlebar?.refresh();
 }
@@ -822,7 +826,7 @@ tabDrag=setupTabDrag({tabs:$('#tabs'),content:contentViews,onReorder:()=>{},canD
 
 notifications=createNotifications({icon,isViewing:agent=>!document.hidden&&document.hasFocus()&&(agent.terminalSession?Boolean(terminalAgents.find(item=>item.id===agent.id)?.selected):agentView.visible&&Boolean(agent.agent_session?.value?agentView.selected?.agent_session?.value===agent.agent_session.value:agent.pane_id&&agentView.selected?.pane_id===agent.pane_id)),onOpen:agent=>{if(agent.terminalSession){agentView.close();if(agent.id)openTerminalAgent(agent.id);}else{agentView.open(agent);agentView.focusLatest();}}});
 if(window.paneDesktop?.browserVersion===1)setupLinkSettings(linkPreferences);
-setupColorTheme();setupSettings({icon,api});
+setupColorTheme();setupOfficeSetting();setupSettings({icon,api});
 setupFileActions({tree:$('#tree'),api,icon,getProject:()=>currentProject,guard:guardFileAction,changed:fileActionChanged,toast});
 const subWorkspaceDialog=createWorktreeDialog({api,getProjects:()=>projects,onCreated:async (project,launch)=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);if(launch)terminalView.startSession(existing||project,launch);toast(`Opened ${project.branch||project.name}`);}});
 workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{void subWorkspaceDialog.open(project);},onSelect:project=>{if(Date.now()-lastProjectDrag>300)void selectProject(project);},onAgentSelect:openTerminalAgent,onMenu:showWorkspaceMenu,setupDrag:setupProjectDrag});
@@ -833,6 +837,7 @@ setupHistory({api,getProjects:()=>projects,getCurrentProject:()=>currentProject,
 gitView=createGitPanel({api,icon,getProject:()=>currentProject,onTabsChanged:renderTabs,onActivate:project=>{if(currentProject?.id!==project.id)void selectProject(project);agentView.suspend();(document.activeElement as HTMLElement|null)?.blur();terminalView.setFocused(false);},onDeactivate:()=>{if(terminalView.visible)terminalView.setFocused(true);},onStartIssue:(project,issue)=>{const parent=project.parentId?projects.find(item=>item.id===project.parentId):project;if(parent)void subWorkspaceDialog.open(parent,{name:`issue-${issue.number}-${worktreeSlug(issue.title)}`.replace(/-$/,'').slice(0,80),note:`Issue #${issue.number}: ${issue.title}\n${issue.url}\n\n${issue.body}`});},onChanged:()=>{void changesView?.refresh();void refreshTree();void refreshSessions();},onOpenDiff:async(project,hash,file)=>{await openDiff(project,{path:file.path,added:null,removed:null,binary:false},hash);}});
 titlebar=setupTitlebar({getProject:()=>projects.find(project=>project.id===(activeFileKey?documents.get(activeFileKey)?.project:terminalView.visible?terminalView.focusedProjectId:null))||currentProject,getAttention:()=>terminalAgents.map(agent=>({...agent,open:()=>openTerminalAgent(agent.id)}))});
 startWorkingAnimation();
+agentLounge=createAgentLounge({host:document.querySelector<HTMLElement>('#projects-sidebar')!});document.querySelector('#projects-sidebar')!.insertBefore(document.querySelector('#agent-lounge')!,document.querySelector('#projects-sidebar .sidebar-footer'));
 start().catch(error => { status(errorMessage(error,'Operation failed.'), true); toast(errorMessage(error,'Operation failed.')); });
 
 // Refresh Monaco metrics when the bundled font has finished loading.
