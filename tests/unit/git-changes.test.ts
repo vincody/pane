@@ -27,3 +27,11 @@ test('new repositories show staged and untracked additions before the first comm
  const diff=await fileDiff(root,'staged.txt');assert.equal(diff.original,'');assert.equal(diff.modified,'staged\n');
  const nested=await changes(path.join(root,'sub'));assert.deepEqual(nested.files.map(file=>file.path),['new.txt']);assert.equal((await fileDiff(path.join(root,'sub'),'new.txt')).modified,'new\n');
 });
+test('gitignored files and folders are reported as ignored without joining the change list',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'ai-web-ignored-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ await execute('git',['init'],{cwd:root,windowsHide:true});
+ await fs.writeFile(path.join(root,'.gitignore'),'dist/\n.env\n');await fs.mkdir(path.join(root,'dist'));await fs.writeFile(path.join(root,'dist','a.js'),'x');await fs.writeFile(path.join(root,'.env'),'K=1');
+ const summary=await changes(root);assert.equal(summary.available,true);
+ assert.equal(summary.available&&summary.statuses['dist'].code,'!!');assert.equal(summary.available&&summary.statuses['.env'].code,'!!');
+ assert.deepEqual(summary.files.map(file=>file.path),['.gitignore']);
+});
