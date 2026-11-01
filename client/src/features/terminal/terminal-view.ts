@@ -58,10 +58,16 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   const heading=document.createElement('strong');heading.textContent='New session';
   const description=document.createElement('p');description.textContent='Choose an agent, local shell or SSH connection.';
   const choices=document.createElement('div');choices.className='terminal-launch-choices';
-  for(const [kind,label] of [['claude','Claude Code'],['codex','Codex'],['agy','Antigravity'],['shell','Shell'],['ssh','SSH'],...(window.paneDesktop?.browserVersion===1?[['browser','Browser']]:[])]){
-    const button=document.createElement('button');button.type='button';button.dataset.launch=kind;
+  const groupLabel=(text:string)=>{const node=document.createElement('div');node.className='terminal-launch-group';node.textContent=text;node.setAttribute('role','presentation');choices.append(node);};
+  const entries:Array<[string,string,string]>=[['claude','Claude Code','Anthropic'],['codex','Codex','OpenAI'],['agy','Antigravity','Google'],['shell','Terminal','Local shell'],['ssh','SSH','Remote host'],...(window.paneDesktop?.browserVersion===1?[['browser','Browser','Built-in pane'] as [string,string,string]]:[])];
+  for(const [kind,label,hint] of entries){
+    if(kind==='claude')groupLabel('Agents');else if(kind==='shell')groupLabel('Tools');
+    const button=document.createElement('button');button.type='button';button.dataset.launch=kind;button.setAttribute('aria-label',label);
     if(kind==='shell')button.append(icon('terminal'));else if(kind==='ssh')button.append(icon('ssh'));else if(kind==='browser')button.append(icon('globe'));else{const image=document.createElement('img');image.src=`/agents/${kind}.svg`;image.alt='';button.append(image);}
-    button.append(document.createTextNode(label));choices.append(button);
+    const text=document.createElement('span');text.className='terminal-launch-text';
+    const name=document.createElement('span');name.className='terminal-launch-name';name.textContent=label;
+    const sub=document.createElement('span');sub.className='terminal-launch-hint';sub.textContent=hint;
+    text.append(name,sub);button.append(text);choices.append(button);
   }
   launcher.append(heading,description,choices);document.body.append(launcher);
   // An agent whose CLI is missing (as Settings -> Integrations reports) cannot start a session, so its choice is locked.
@@ -76,8 +82,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
         const button=choices.querySelector<HTMLButtonElement>(`[data-launch=${kind}]`);if(!button)continue;
         const missing=tools.find(tool=>tool.id===kind)?.installed===false;
         button.disabled=missing;button.title=missing?`${label} is not installed. Install it, then check Settings → Integrations.`:'';
-        button.querySelector('.terminal-launch-note')?.remove();
-        if(missing){const note=document.createElement('small');note.className='terminal-launch-note';note.textContent='Not installed';button.append(note);}
+        const hint=button.querySelector<HTMLElement>('.terminal-launch-hint');
+        if(hint){hint.dataset.default??=hint.textContent||'';hint.textContent=missing?'Not installed':hint.dataset.default;hint.classList.toggle('terminal-launch-note',missing);}
       }
     }catch{/* An unknown state leaves the choices as they are. */}
   }
@@ -91,6 +97,15 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   function journal(){return saveTerminalJournal(sessions.filter(session=>!session.external&&(session.serverId||session.restorePending)&&session.state!=='closed').map(session=>({sessionId:session.serverId||session.id,...(session.restorePending?{ended:true}:{}),projectId:session.project.id,launch:session.launch,name:terminalName(session),...(session.startedAt?{openedAt:session.startedAt}:{}),...conversationOf(session),...(session.ssh?{ssh:session.ssh}:{})})));}
   function conversationOf(session:PaneSession):{conversation?:SavedConversation}{const record=session.resume;const conversation:SavedConversation|undefined=record&&(record.agent==='codex'||record.agent==='claude')?{agent:record.agent,id:record.agent_session.value,cwd:record.cwd}:session.savedConversation;return conversation?{conversation}:{};}
 
+  // Plain terminals are numbered per workspace, reusing the lowest free number.
+  const nextTerminalNumber=(projectId:string)=>{const used=new Set(sessions.filter(item=>item.project.id===projectId&&item.number).map(item=>item.number));let n=1;while(used.has(n))n++;return n;};
+  // Show a home-relative path (~/code/app): the home folder is read from the path itself, no server call.
+  function shortenPath(path:string){
+    if(!path)return '';
+    const normalized=path.split('\\').join('/').replace(/\/+$/,'');
+    const home=normalized.match(/^(?:[A-Za-z]:)?\/(?:Users|home)\/[^/]+/i)?.[0];
+    return home&&normalized.toLowerCase().startsWith(home.toLowerCase())?`~${normalized.slice(home.length)}`:normalized;
+  }
   let useOrder = 0;
   let activeSession:PaneSession|null|undefined,menuSession:PaneSession|undefined,lastProject:Workspace|null|undefined,visible=false;
   let menuAnchor={x:8,y:8};
@@ -269,7 +284,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
         mark.classList.add('terminal-tab-icon');
         const label = document.createElement('span');
         label.className = 'terminal-tab-label';
-        session.tab.append(status, mark, label);
+        const tabState=document.createElement('span');tabState.className='terminal-tab-state';tabState.setAttribute('aria-hidden','true');
+        session.tab.append(status, mark, label, tabState);
         const close = document.createElement('button'); close.type='button'; close.className='terminal-tab-close'; close.append(icon('close')); close.setAttribute('aria-label','Close terminal'); close.onclick=event=>{event.stopPropagation();destroySession(session);}; session.tab.append(close);
         session.tab.onclick = event => {
           if (event.detail >= 2) { event.preventDefault(); requestAnimationFrame(() => beginRename(session)); }
@@ -298,11 +314,24 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       const provider=terminalProvider(session);
       const name=terminalName(session);
       if (label) label.textContent = name;
-      session.paneTitle!.textContent=name;session.paneTitle!.title=name;
+      const tabMark = session.tab.querySelector<HTMLElement>('.terminal-tab-icon')!;
+      const tabProvider = ['codex','claude','opencode','agy'].includes(provider || '') ? (provider as string) : '';
+      if (tabMark.dataset.provider !== tabProvider) {
+        tabMark.dataset.provider = tabProvider;
+        let next: Element;
+        if (tabProvider) { const image = document.createElement('img'); image.src = `/agents/${tabProvider}.svg`; image.alt = ''; next = image; }
+        else next = icon('terminal');
+        next.classList.add('terminal-tab-icon');
+        (next as HTMLElement).dataset.provider = tabProvider;
+        tabMark.replaceWith(next);
+      }
+      const paneName=terminalName({...session,number:undefined});session.paneTitle!.textContent=paneName;session.paneTitle!.title=paneName;
+      {const cwd=session.ssh?'':session.resume?.cwd||session.project.root||'';const shown=shortenPath(cwd),paneCwd=session.paneTitle!.nextElementSibling as HTMLElement|null;if(paneCwd?.classList.contains('terminal-pane-cwd')){paneCwd.textContent=shown;paneCwd.title=cwd;paneCwd.hidden=!shown;}}
       const zoomed=maximizedSession===session;
       session.paneZoom.setAttribute('aria-label',zoomed?'Restore terminal pane':'Maximize terminal pane');session.paneZoom.title=zoomed?'Restore pane':'Maximize pane';session.paneZoom.setAttribute('aria-pressed',String(zoomed));
       session.paneZoom.disabled=!zoomed && leaves(session.group.root).length<2 && !document.querySelector<HTMLElement>('#app')!.classList.contains('file-file-split');
       session.paneHeader.dataset.status=session.agent ? session.agentStatus || 'idle' : session.state;
+      session.tab.dataset.status=session.paneHeader.dataset.status;
       if(session.paneProvider!==provider){session.paneProvider=provider;session.paneMark!.replaceChildren();if(['codex','claude','opencode','agy'].includes(provider || '')){const image=document.createElement('img');image.src=`/agents/${provider}.svg`;image.alt=provider || '';session.paneMark!.append(image);}else session.paneMark!.append(icon('terminal'));}
     }
   }
@@ -369,7 +398,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     const paneClose=document.createElement('button');paneClose.type='button';paneClose.className='terminal-pane-close';paneClose.setAttribute('aria-label','Close terminal pane');paneClose.append(icon('close'));
     const paneZoom=document.createElement('button');paneZoom.type='button';paneZoom.className='terminal-pane-zoom';paneZoom.setAttribute('aria-label','Maximize terminal pane');
     paneZoom.innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 2H2v4M10 2h4v4M2 10v4h4M14 10v4h-4"/></svg>';
-    paneHeader.append(paneMark,paneTitle,paneState,paneZoom,paneClose);
+    const paneCwd=document.createElement('span');paneCwd.className='terminal-pane-cwd';
+    paneHeader.append(paneMark,paneTitle,paneCwd,paneState,paneZoom,paneClose);
     const body=document.createElement('div');body.className='terminal-pane-body';element.append(paneHeader,body);
     const terminal = new Terminal({
       cursorBlink: true,
@@ -406,7 +436,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     try{if(localStorage.getItem('ai-web.terminal-renderer')!=='dom'){const webgl=new WebglAddon();webgl.onContextLoss(()=>webgl.dispose());terminal.loadAddon(webgl);}}catch{}
     $('#terminal-screens').append(element);
 
-    const session:PaneSession = {...(ssh?{ssh}:{}),...(restored?{serverId:restored.ended?undefined:restored.sessionId,restorePending:restored.ended,customName:true}:{}),group:{root:null},lastUsed:0,id, project, name: restored?.name||ssh?.name||project.name, shell: 'Shell', state: 'connecting', ready: false, socket: null, terminal, fit, element, launch,paneHeader,paneTitle,paneMark,paneZoom,resume,cliTitle:restored?.name||ssh?.name||resume?.name,startedAt:restored?.openedAt??Date.now(),...(restored?.conversation?{savedConversation:restored.conversation}:{})};
+    const session:PaneSession = {...(ssh?{ssh}:{}),...(restored?{serverId:restored.ended?undefined:restored.sessionId,restorePending:restored.ended,...(!restored.conversation&&launch==='shell'&&!/^\d+$/.test(restored.name||'')?{customName:true}:{})}:{}),group:{root:null},lastUsed:0,number:nextTerminalNumber(project.id),id, project, name: restored?.name||ssh?.name||project.name, shell: 'Shell', state: 'connecting', ready: false, socket: null, terminal, fit, element, launch,paneHeader,paneTitle,paneMark,paneZoom,resume,cliTitle:restored?.name||ssh?.name||resume?.name,startedAt:restored?.openedAt??Date.now(),...(restored?.conversation?{savedConversation:restored.conversation}:{})};
     paneZoom.onclick=event=>{event.stopPropagation();toggleMaximize(session);};
     paneClose.onclick=event=>{event.stopPropagation();destroySession(session);};
     paneHeader.ondblclick=event=>{if(!(event.target as Element).closest<HTMLButtonElement>('button'))beginRename(session);};
@@ -423,8 +453,9 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
       if(session.agent || launch!=='shell'){
         if(/^(?:powershell|pwsh|cmd)(?:\.exe)?(?:\s|$)/i.test(title.trim()) || /^[A-Za-z]:[\\/]/.test(title.trim()))return;
         session.activityTitle=title;
+        const previous=session.cliTitle;
         if(name && !/action\s+required/i.test(name))session.cliTitle=name.replace(/^\s*\[?\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏◐◑◒◓✳]\s*\]?\s*/,'');
-        renderTabs();
+        renderTabs();if(session.cliTitle!==previous)publish();
         scheduleActivity(session);
       }
     });

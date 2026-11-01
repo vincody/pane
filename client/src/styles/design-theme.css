@@ -70,7 +70,7 @@ button:disabled{opacity:.55}
 .workspace-children .terminal-agent-card.selected,.workspace-children .terminal-agent-card.selected:hover{background:var(--workspace-selected);color:var(--ink);box-shadow:none}
 .workspace-children .terminal-agent-card .agent-meta,.workspace-children .terminal-agent-card.selected .agent-meta{color:var(--muted)}
 .terminal-agent-card .provider-mark img{filter:none}
-.terminal-agent-card[data-provider=codex] .provider-mark img{filter:brightness(.25)}
+.terminal-agent-card[data-provider=codex] .provider-mark img{filter:none}
 .terminal-agent-card .provider-mark>.agent-state{border-color:var(--surface-soft)}
 .workspace-attention{color:var(--warning);background:color-mix(in srgb,var(--warning) 9%,transparent)}
 .session-unread{background:var(--warning)}
@@ -141,19 +141,19 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 .usage-card{background:var(--canvas);border-color:var(--hairline)}
 .usage-card-unavailable{background:var(--surface-soft)}
 .usage-provider-icon{background:var(--surface-soft);border-color:var(--hairline)}
-.usage-icon-codex img{filter:brightness(.2)}
+.usage-icon-codex img{filter:none}
 .usage-provider-total strong,.usage-provider-name{color:var(--ink)}
 .usage-quota-val.quota-healthy{background:color-mix(in srgb,var(--success) 7%,var(--canvas));border-color:color-mix(in srgb,var(--success) 25%,var(--canvas))}
 .usage-quota-val.near-limit{background:color-mix(in srgb,var(--warning) 7%,var(--canvas));border-color:color-mix(in srgb,var(--warning) 30%,var(--canvas))}
 .usage-quota-val.exhausted{background:color-mix(in srgb,var(--error) 7%,var(--canvas));border-color:color-mix(in srgb,var(--error) 30%,var(--canvas))}
 .history-filters input,#history-dialog .history-filters input{background:var(--surface-soft);color:var(--body);border-color:var(--hairline)}
 .history-session:hover{background:var(--surface-soft)}
-.history-session img[src*="codex"]{filter:brightness(.2)}
+.history-session img[src*="codex"]{filter:none}
 .context-menu,#terminal-menu,#terminal-launcher{background:var(--canvas);color:var(--body);border-color:var(--hairline);box-shadow:0 8px 24px #14141312}
 .context-menu button:hover,.terminal-launch-choices button:hover{background:var(--surface-card);color:var(--ink)}
-.terminal-launch-choices img[src*="codex"]{filter:brightness(.2)}
+.terminal-launch-choices img[src*="codex"]{filter:none}
 .agent-notification{background:var(--canvas);border-color:var(--hairline);color:var(--body);box-shadow:0 8px 24px #14141312}
-.notification-mark img[src*="codex"]{filter:brightness(.2)}
+.notification-mark img[src*="codex"]{filter:none}
 .agent-notification[data-kind=blocked]{border-color:var(--warning)}
 .agent-notification[data-kind=error]{border-color:var(--error)}
 #toast{background:var(--body-strong);color:var(--canvas)}
@@ -257,7 +257,7 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 .sidebar #projects .workspace-context .agent-meta{font-size:11px;line-height:1.4;margin:0}
 .sidebar #projects .workspace-context .provider-mark{color:var(--muted);width:22px;height:24px}
 .sidebar #projects .workspace-context .terminal-agent-card.selected .provider-mark{color:var(--workspace-selected-ink)}
-.sidebar #projects .workspace-context .terminal-agent-card.selected[data-provider=codex] .provider-mark img{filter:brightness(.2)}
+.sidebar #projects .workspace-context .terminal-agent-card.selected[data-provider=codex] .provider-mark img{filter:none}
 .sidebar #projects .workspace-context .provider-mark>.agent-state{left:-2px;top:17px;box-shadow:0 0 0 2px var(--surface-soft)}
 .sidebar #projects .workspace-context .terminal-agent-card.selected .provider-mark>.agent-state{box-shadow:0 0 0 2px var(--workspace-selected);border-color:var(--workspace-selected)}
 .sidebar #projects .workspace-context .terminal-agent-card:is([data-status=blocked],[data-status=error],[data-status=failed]){background:color-mix(in srgb,var(--warning) 8%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warning) 60%,transparent)}
@@ -399,6 +399,6 @@ dialog::backdrop{background:rgba(20,30,60,.28)}
 :root{--glass-strong:rgba(255,255,255,.94)}
 :root[data-theme=dark]{--glass-strong:rgba(26,28,32,.94)}
 .workspace{padding:0;gap:0}
-#terminal-screens{padding:0;gap:1px;background:var(--code-border)}
-#terminal-screens .terminal-screen,#terminal-screens .terminal-screen.pane-focused,#app[data-file-focused=true] #terminal-screens .terminal-screen.pane-focused{border:0;border-radius:0}
-#terminal-screens .terminal-screen.pane-focused>.terminal-pane-header{box-shadow:inset 0 2px 0 var(--primary)}
+#terminal-screens{padding:6px;gap:6px;background:var(--code-bg)}
+#terminal-screens .terminal-screen,#app[data-file-focused=true] #terminal-screens .terminal-screen.pane-focused{border:1px solid var(--code-border);border-radius:var(--radius-md)}
+#terminal-screens .terminal-screen.pane-focused{border:1px solid color-mix(in srgb,var(--code-muted) 70%,var(--code-border))}

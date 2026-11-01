@@ -546,3 +546,43 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .notification-open>span>.notification-head{display:flex;align-items:baseline;gap:8px;min-width:0;white-space:nowrap}
 .notification-head small{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
 .notification-open>span>.notification-detail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.dev-server-alerts{position:fixed;left:16px;bottom:56px;z-index:130;display:flex;flex-direction:column;gap:8px;max-width:calc(100vw - 32px)}
+.dev-server-alert{display:flex;align-items:center;gap:10px;width:340px;max-width:100%;padding:9px 10px 9px 12px;background:color-mix(in srgb,var(--sidebar) 90%,var(--surface));border:1px solid var(--border);border-radius:9px;box-shadow:0 14px 40px #0006;color:var(--text);font-size:12px}
+.dev-server-alert-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.dev-server-alert-text strong,.dev-server-alert-text span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dev-server-alert-text span{color:var(--muted,inherit);opacity:.75}
+.dev-server-alert-open{flex:none;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:inherit;font:inherit;cursor:pointer}
+.dev-server-alert-open:hover{background:color-mix(in srgb,var(--text) 10%,transparent)}
+
+.file-row .file-git-ignored{color:var(--ui-muted,var(--muted,inherit))}
+.file-row .file-git-ignored svg{width:12px;height:12px;display:block;margin:auto}
+/* New-session launcher: grouped, two-line choices. */
+#terminal-launcher{padding:14px}
+#terminal-launcher>p{margin:4px 0 12px}
+.terminal-launch-choices{gap:6px}
+.terminal-launch-group{grid-column:1/-1;margin:6px 2px 0;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.terminal-launch-group:first-child{margin-top:0}
+.terminal-launch-choices button{gap:10px;min-height:48px;padding:8px 10px;border-radius:8px;transition:background .12s,border-color .12s}
+.terminal-launch-choices button:last-child{grid-column:auto}
+.terminal-launch-choices img,.terminal-launch-choices svg{width:20px;height:20px}
+.terminal-launch-text{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.terminal-launch-name{font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.terminal-launch-hint{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.terminal-launch-choices button:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}
+.terminal-launch-choices button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.terminal-launch-hint.terminal-launch-note{flex-basis:auto;margin:0;color:var(--warning,var(--muted))}
+.terminal-launch-choices button:has(.terminal-launch-note){flex-wrap:nowrap}
+/* Terminal tabs size to their label (a bare number stays compact) and grow with longer names. */
+#app main>.topbar>#unified-tabs .terminal-tab,.topbar .terminal-tab,#unified-tabs .terminal-tab{min-width:0;width:auto;flex:none;gap:7px;padding:0 8px}
+.terminal-tab-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Working directory shown after the pane title. */
+.terminal-pane-cwd{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left;font-size:11px;color:var(--code-muted,var(--muted))}
+.terminal-pane-cwd[hidden]{display:none}
+.terminal-pane-title:has(+ .terminal-pane-cwd:not([hidden])){flex:0 1 auto;max-width:60%;margin-right:8px}
+/* Tab status: same states as the pane header (spinner while working, ! when blocked), sitting just before the close button. */
+.terminal-tab-state{flex:none;display:grid;place-items:center;width:14px;height:16px;margin-left:auto;color:var(--accent);font-size:14px;line-height:16px}
+.terminal-tab-state+.terminal-tab-close{margin-left:0}
+.terminal-tab:not([data-status=working]) .terminal-tab-state{font-size:0}
+.terminal-tab:not([data-status=working]):not([data-status=blocked]) .terminal-tab-state{display:none}
+.terminal-tab[data-status=blocked] .terminal-tab-state:after{content:'!';font-size:12px;font-weight:600;color:var(--warning)}

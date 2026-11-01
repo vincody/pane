@@ -38,8 +38,9 @@ export function setupBrowserPane({host,icon,initialUrl,loadServers,onState,onFoc
  const back=button('Back','arrow-left',icon,'back'),forward=button('Forward','arrow-right',icon,'forward'),reload=button('Reload','refresh',icon,'reload');
  const form=document.createElement('form');form.className='browser-address';
  const address=document.createElement('input');address.type='text';address.spellcheck=false;address.autocomplete='off';address.setAttribute('aria-label','Address');address.placeholder='Search or enter address';form.append(address);
+ const servers=button('Local servers','monitor',icon,'servers');servers.setAttribute('aria-haspopup','true');servers.setAttribute('aria-expanded','false');
  const devtools=button('Open DevTools','code',icon,'devtools'),external=button('Open in system browser','arrow',icon,'external');
- toolbar.append(back,forward,reload,form,devtools,external);
+ toolbar.append(back,forward,reload,form,servers,devtools,external);
  const progress=document.createElement('div');progress.className='browser-progress';progress.hidden=true;
  const viewport=document.createElement('div');viewport.className='browser-viewport';
  const start=document.createElement('div');start.className='browser-start';
@@ -50,6 +51,21 @@ export function setupBrowserPane({host,icon,initialUrl,loadServers,onState,onFoc
  viewport.append(start,failure);host.replaceChildren(toolbar,progress,viewport);
  let view:WebviewElement|undefined,ready=false,destroyed=false,frame=0,placed='',state:BrowserState={url:initialUrl,title:'',favicon:''};
  const publish=(patch:Partial<BrowserState>)=>{state={...state,...patch};onState(state);};
+ // The menu lives on <body> above the webview layer, which would otherwise cover it.
+ const menu=document.createElement('div');menu.className='browser-server-menu';menu.setAttribute('role','menu');menu.hidden=true;document.body.append(menu);
+ function closeMenu(){menu.hidden=true;servers.setAttribute('aria-expanded','false');}
+ async function openMenu(){
+  servers.setAttribute('aria-expanded','true');menu.hidden=false;menu.replaceChildren(Object.assign(document.createElement('p'),{textContent:'Looking for servers…'}));
+  const rect=servers.getBoundingClientRect();menu.style.top=`${rect.bottom+4}px`;menu.style.right=`${Math.max(8,window.innerWidth-rect.right)}px`;
+  let found:BrowserServer[]=[];try{found=await loadServers();}catch{}
+  if(destroyed||menu.hidden)return;
+  if(!found.length){menu.replaceChildren(Object.assign(document.createElement('p'),{textContent:'No local servers are running.'}));return;}
+  menu.replaceChildren(...found.map(server=>{const item=document.createElement('button');item.type='button';item.setAttribute('role','menuitem');item.textContent=server.label;item.title=server.url;item.onclick=()=>{closeMenu();navigate(server.url);};return item;}));
+ }
+ const outside=(event:PointerEvent)=>{if(!menu.hidden&&event.target instanceof Node&&!menu.contains(event.target)&&!servers.contains(event.target))closeMenu();};
+ const escape=(event:KeyboardEvent)=>{if(!menu.hidden&&event.key==='Escape')closeMenu();};
+ document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);
+ servers.onclick=()=>{if(menu.hidden)void openMenu();else closeMenu();};
  function syncControls(){
   let canBack=false,canForward=false;
   if(view&&ready){try{canBack=view.canGoBack();canForward=view.canGoForward();}catch{}}
@@ -119,5 +135,5 @@ export function setupBrowserPane({host,icon,initialUrl,loadServers,onState,onFoc
  });
  setLoading(false);syncControls();
  if(initialUrl)navigate(initialUrl);else void showServers();
- return {navigate,focusAddress(){address.focus();},destroy(){destroyed=true;cancelAnimationFrame(frame);view?.remove();view=undefined;}};
+ return {navigate,focusAddress(){address.focus();},destroy(){destroyed=true;document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);menu.remove();cancelAnimationFrame(frame);view?.remove();view=undefined;}};
 }

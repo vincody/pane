@@ -33,3 +33,7 @@ html[data-desktop=true] #app main>.topbar #toggle-files:focus-visible{outline:2p
 html[data-desktop=true] .desktop-update-button{flex:none;white-space:nowrap;padding:5px 9px;margin:0 8px;border-radius:5px;background:var(--surface-card);color:var(--primary);font-size:11px}
 html[data-desktop=true] .desktop-update-button:hover{background:var(--surface-cream-strong)}
 html[data-desktop=true] .desktop-update-button[hidden]{display:none}
+/* Window controls: larger, thin, muted glyphs with even spacing. */
+html[data-desktop=true] .desktop-window-controls button{width:44px;color:var(--ui-muted,var(--body))}
+.desktop-window-controls svg{width:17px;height:17px;stroke-width:.9}
+html[data-desktop=true] .desktop-window-controls button:hover{color:var(--ink)}

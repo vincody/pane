@@ -770,7 +770,7 @@ function browserTabIcon(favicon?:string){
  const wrapper=document.createElement('span'),image=new Image();wrapper.className='shared-file-icon';image.alt='';image.referrerPolicy='no-referrer';image.src=favicon;image.onerror=()=>wrapper.replaceChildren(icon('globe'));wrapper.append(image);return wrapper;
 }
 async function loadBrowserServers():Promise<BrowserServer[]>{
- const results=await Promise.allSettled(projects.map(project=>api<DevServerSnapshot>(`/api/dev-servers?${new URLSearchParams({project:project.id})}`).then(snapshot=>snapshot.rows.filter(row=>row.projectId===project.id&&row.status==='running'&&row.url).map(row=>({url:row.url!,label:`${row.url} · ${project.name}${project.branch?` · ${project.branch}`:''}`})))));
+ const results=await Promise.allSettled(projects.map(project=>api<DevServerSnapshot>(`/api/dev-servers?${new URLSearchParams({project:project.id})}`).then(snapshot=>snapshot.rows.filter(row=>row.projectId===project.id&&row.status==='running').map(row=>{const url=row.url||`http://localhost:${row.port}/`;return {url,label:`${url} · ${row.name} · ${project.name}${project.branch?` · ${project.branch}`:''}`};}))));
  return results.flatMap(result=>result.status==='fulfilled'?result.value:[]);
 }
 function openBrowser(project:Workspace,url=''){

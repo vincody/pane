@@ -1,6 +1,6 @@
 import {agentLabel} from '../../../../shared/agent-label.ts';
 import type {Workspace} from '../../../../shared/contracts.ts';
-export interface TerminalNaming {customName?:boolean;name:string;agent?:string|null;launch?:string;state:string;shell:string;cliTitle?:string;agentEnded?:boolean}
+export interface TerminalNaming {customName?:boolean;name:string;agent?:string|null;launch?:string;state:string;shell:string;cliTitle?:string;agentEnded?:boolean;number?:number}
 // A session opened as an agent is a plain shell again once that agent has exited.
 export function terminalProvider(session:Pick<TerminalNaming,'agent'|'launch'|'state'|'agentEnded'>) {
   return session.agent || (session.launch!=='shell' && session.state!=='closed' && !session.agentEnded ? session.launch : null);
@@ -11,7 +11,7 @@ export function terminalName(session:TerminalNaming) {
   if (session.launch==='ssh')return session.name;
   const provider=terminalProvider(session);
   if (provider && session.cliTitle) return session.cliTitle;
-  return provider ? agentLabel(provider) : session.shell==='Shell'?'Terminal':session.shell;
+  return provider ? agentLabel(provider) : session.number?String(session.number):session.shell==='Shell'?'Terminal':session.shell;
 }
 export function threadTitle(title:string, project:Pick<Workspace,'name'|'root'>) {
   const name=title.trim().replace(/\s*\|\s*[^|]*$/, '').trim();

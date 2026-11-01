@@ -14,8 +14,30 @@ export function setupDevServers({api,getProjects,onError,onOpenUrl}:Options){
  const root=createRoot(panel);let disposed=false,opened=false,generation=0,controller:AbortController|undefined,loading=false,snapshot:DevServerSnapshot={available:false,scannedAt:null,rows:[]},copied:string|null=null;
  let timer:ReturnType<typeof setTimeout>|undefined,confirmTimer:ReturnType<typeof setTimeout>|undefined,confirming:string|null=null;
  const stopping=new Set<string>();
+ // New-server popups: the first scan of a workspace set only seeds `known`, so servers that were already running are not announced.
+ const known=new Set<string>();let primed=false;
+ const alerts=document.createElement('div');alerts.id='dev-server-alerts';alerts.className='dev-server-alerts';alerts.setAttribute('role','status');alerts.setAttribute('aria-live','polite');document.body.append(alerts);
+ function announce(row:DevServerSnapshot['rows'][number]){
+  const project=getProjects().find(item=>item.id===row.projectId),address=new URL(row.url!).host;
+  while(alerts.children.length>=3)alerts.firstElementChild!.remove();
+  const card=document.createElement('div');card.className='dev-server-alert';
+  const text=document.createElement('div');text.className='dev-server-alert-text';
+  const title=document.createElement('strong');title.textContent=`Server running on ${address}`;
+  const detail=document.createElement('span');detail.textContent=[project?.name,project?.branch].filter(Boolean).join(' · ');text.append(title,detail);
+  const dismiss=()=>{clearTimeout(timeout);card.remove();};
+  const open=document.createElement('button');open.type='button';open.className='dev-server-alert-open';open.textContent=onOpenUrl?'Open in Pane':'Open';
+  open.onclick=()=>{dismiss();if(onOpenUrl)onOpenUrl(row.projectId,row.url!);else window.open(row.url!,'_blank','noopener');};
+  const close=document.createElement('button');close.type='button';close.className='icon-button';close.setAttribute('aria-label','Dismiss');close.textContent='×';close.onclick=dismiss;
+  card.append(text,open,close);alerts.append(card);const timeout=setTimeout(dismiss,12000);
+ }
+ function detectNew(){
+  if(!snapshot.available)return;
+  const fresh=snapshot.rows.filter(row=>row.status==='running'&&row.url&&!known.has(row.id));
+  for(const row of fresh){known.add(row.id);if(primed)announce(row);}
+  primed=true;
+ }
  let expiryTimer:ReturnType<typeof setTimeout>|undefined;
- function schedule(){clearTimeout(timer);if(disposed||document.hidden||!document.hasFocus()||!getProjects().length)return;timer=setTimeout(()=>void refresh(),opened?3000:15000);}
+ function schedule(){clearTimeout(timer);if(disposed||document.hidden||!document.hasFocus()||!getProjects().length)return;timer=setTimeout(()=>void refresh(),opened?3000:5000);}
  function position(){if(!opened)return;const anchor=trigger.getBoundingClientRect(),rect=panel.getBoundingClientRect();panel.style.left=`${Math.max(8,Math.min(anchor.left,window.innerWidth-rect.width-8))}px`;panel.style.top=`${Math.max(8,Math.min(anchor.top-rect.height-8,window.innerHeight-rect.height-8))}px`;}
  function close(restore=true){opened=false;panel.hidden=true;trigger.setAttribute('aria-expanded','false');schedule();if(restore)trigger.focus();}
  async function copy(id:string,url:string){try{await navigator.clipboard.writeText(url);if(disposed)return;copied=id;render();}catch{onError('Could not copy the server URL.');}}
@@ -67,11 +89,11 @@ export function setupDevServers({api,getProjects,onError,onOpenUrl}:Options){
   const snapshots=results.map((result,index)=>result.status==='fulfilled'?{...result.value,rows:result.value.rows.filter(row=>row.projectId===projects[index].id)}:{available:false,scannedAt:null,rows:snapshot.rows.filter(row=>row.projectId===projects[index].id).map(row=>row.status==='stopped'?row:{...row,status:'unknown' as const}),error:'Scan unavailable'});
   const failed=snapshots.map((result,index)=>result.error||!result.available?projects[index].name:null).filter(Boolean);
   snapshot={available:snapshots.some(result=>result.available),scannedAt:snapshots.map(result=>result.scannedAt).filter((value):value is string=>Boolean(value)).sort().at(0)||snapshot.scannedAt,rows:snapshots.flatMap(result=>result.rows),...(failed.length?{error:`Scan unavailable: ${failed.join(', ')}`}:{})};
-  loading=false;render();schedule();
+  loading=false;detectNew();render();schedule();
  }
  function projectChanged(){
   const next=projectKey();if(next===scopeKey){render();return;}scopeKey=next;
-  generation++;controller?.abort();const ids=new Set(getProjects().map(project=>project.id));snapshot={...snapshot,rows:snapshot.rows.filter(row=>ids.has(row.projectId))};loading=false;copied=null;render();void refresh();
+  generation++;controller?.abort();const ids=new Set(getProjects().map(project=>project.id));snapshot={...snapshot,rows:snapshot.rows.filter(row=>ids.has(row.projectId))};primed=false;loading=false;copied=null;render();void refresh();
  }
  trigger.onclick=()=>{if(opened){close();return;}opened=true;panel.hidden=false;trigger.setAttribute('aria-expanded','true');render();void refresh(true);};
  const outside=(event:PointerEvent)=>{if(opened&&event.target instanceof Node&&!panel.contains(event.target)&&!trigger.contains(event.target))close();};
@@ -79,5 +101,5 @@ export function setupDevServers({api,getProjects,onError,onOpenUrl}:Options){
  const visible=()=>{if(document.hidden){clearTimeout(timer);generation++;controller?.abort();loading=false;}else void refresh(true);};
  const focus=()=>void refresh(true);document.addEventListener('pointerdown',outside);document.addEventListener('keydown',keydown);document.addEventListener('visibilitychange',visible);window.addEventListener('focus',focus);window.addEventListener('resize',position);
  render();void refresh();
- return {projectChanged,dispose(){disposed=true;generation++;controller?.abort();clearTimeout(timer);clearTimeout(confirmTimer);clearTimeout(expiryTimer);document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',keydown);document.removeEventListener('visibilitychange',visible);window.removeEventListener('focus',focus);window.removeEventListener('resize',position);root.unmount();panel.remove();trigger.remove();}};
+ return {projectChanged,dispose(){disposed=true;generation++;controller?.abort();clearTimeout(timer);clearTimeout(confirmTimer);clearTimeout(expiryTimer);document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',keydown);document.removeEventListener('visibilitychange',visible);window.removeEventListener('focus',focus);window.removeEventListener('resize',position);root.unmount();panel.remove();alerts.remove();trigger.remove();}};
 }

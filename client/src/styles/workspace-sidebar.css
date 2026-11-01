@@ -57,3 +57,12 @@
 .dev-server-actions .dev-server-stop:hover:not(:disabled){background:color-mix(in srgb,var(--error) 12%,transparent);color:var(--error)}
 .dev-server-actions .dev-server-stop[data-confirming]{width:auto;padding:3px 8px;border-color:var(--error);background:color-mix(in srgb,var(--error) 12%,transparent);color:var(--error);font-weight:600}
 .dev-server-actions .dev-server-stop:disabled{opacity:.5;cursor:default}
+/* Session status sits at the right edge of the row instead of badging the agent icon. */
+.sidebar #projects .workspace-context .terminal-agent-card{position:relative;padding-right:30px}
+.sidebar #projects .workspace-context .terminal-agent-card .provider-mark{position:static}
+.sidebar #projects .workspace-context .terminal-agent-card .provider-mark>.agent-state{left:auto;right:12px;top:0;bottom:0;margin-block:auto}
+/* Selected session row: status colors come from the theme tokens, not the old brown palette. */
+.sidebar #projects .workspace-context .terminal-agent-card.selected .agent-meta{color:var(--muted)}
+.sidebar #projects .workspace-context .terminal-agent-card.selected[data-status=working] .provider-mark>.agent-state{background:var(--primary);color:var(--on-primary);border-color:transparent}
+.sidebar #projects .workspace-context .terminal-agent-card.selected[data-status=idle] .provider-mark>.agent-state{background:var(--muted)}
+.sidebar #projects .workspace-context .terminal-agent-card.selected[data-status=blocked] .provider-mark>.agent-state{background:var(--warning);color:var(--on-primary)}
