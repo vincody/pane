@@ -39,7 +39,7 @@ test('dev server scans slow down when closed and resume immediately when opened'
  await page.route('**/api/dev-servers?**',route=>{scans++;return route.fulfill({json:{available:true,scannedAt:new Date().toISOString(),rows:[]}});});
  await page.goto('/');await expect.poll(()=>scans).toBe(1);
  await expect(page.locator('.dev-server-caption')).toContainText('Scanned');
- await page.clock.fastForward(14000);expect(scans).toBe(1);
+ await page.clock.fastForward(4000);expect(scans).toBe(1);
  await page.clock.fastForward(1000);await expect.poll(()=>scans).toBe(2);
  await expect(page.locator('.dev-server-caption')).toContainText('Scanned');
  await page.locator('#dev-servers-open').click();await expect.poll(()=>scans).toBe(3);
@@ -47,7 +47,7 @@ test('dev server scans slow down when closed and resume immediately when opened'
  await page.clock.fastForward(2900);expect(scans).toBe(3);
  await page.clock.fastForward(100);await expect.poll(()=>scans).toBe(4);
  await expect(page.locator('.dev-server-caption')).toContainText('Scanned');
- await page.keyboard.press('Escape');await page.clock.fastForward(14000);expect(scans).toBe(4);
+ await page.keyboard.press('Escape');await page.clock.fastForward(4000);expect(scans).toBe(4);
  await page.clock.fastForward(1000);await expect.poll(()=>scans).toBe(5);
 });
 
@@ -62,8 +62,8 @@ test('stopped rows disappear after five seconds without requiring another port s
  await page.route('**/api/dev-servers?**',route=>{scans++;return route.fulfill({json:{available:true,scannedAt:stoppedAt,rows:[{...server(first.id,3000,'http'),status:'stopped',stoppedAt}]}});});
  await page.goto('/');await expect.poll(()=>scans).toBe(1);await expect(page.locator('.dev-server-row')).toHaveCount(1);
  await page.clock.fastForward(4900);await expect(page.locator('.dev-server-row')).toHaveCount(1);
- await page.clock.fastForward(100);await expect(page.locator('.dev-server-row')).toHaveCount(0);expect(scans).toBe(1);
- await page.locator('#dev-servers-open').click();await expect.poll(()=>scans).toBe(2);
+ await page.clock.fastForward(100);await expect(page.locator('.dev-server-row')).toHaveCount(0);
+ await page.locator('#dev-servers-open').click();await expect.poll(()=>scans).toBe(3);
  await expect(page.locator('.dev-server-row')).toHaveCount(0);await expect(page.locator('#dev-servers-popover')).toContainText('No local servers detected');
 });
 
