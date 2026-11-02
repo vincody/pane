@@ -42,6 +42,9 @@ html[data-desktop=true] .desktop-palette-hint{display:flex;align-items:center;ga
 html[data-desktop=true] .desktop-palette-hint svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.3}
 html[data-desktop=true] .desktop-palette-hint:hover{background:color-mix(in srgb,var(--ink) 10%,transparent);color:var(--ink)}
 html[data-desktop=true] #app.sidebar-hidden .desktop-palette-hint{display:none}
+/* The menu, hint and sidebar toggle need ~260px. A narrower sidebar drops the hint so the toggle never spills over the tabs; Ctrl+Shift+P still opens the palette. */
+html[data-desktop=true] .desktop-titlebar-left{container-type:inline-size}
+@container (max-width:259px){html[data-desktop=true] .desktop-palette-hint{display:none}}
 html[data-desktop=true] .desktop-palette-hint kbd{padding:0 5px;border:1px solid color-mix(in srgb,var(--ink) 14%,transparent);border-radius:4px;background:color-mix(in srgb,var(--ink) 6%,transparent);color:inherit;font:11px/16px var(--font-ui)}
 html[data-desktop=true] .desktop-palette-hint{gap:4px;padding:0 7px}
 html[data-desktop=true] .desktop-palette-hint svg{margin-right:2px}
