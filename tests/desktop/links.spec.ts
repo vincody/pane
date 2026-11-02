@@ -65,7 +65,7 @@ test('web links ask where to open, remember the choice, and local servers in ter
   await link.click({modifiers:['Control']});await expect(dialog).toBeHidden();await expect.poll(()=>webviews(app)).toBe(before+2);
   // Choosing the system browser in Settings opens links outside without asking.
   await setLinks(page,'system');
-  await page.locator('#tabs .file-tab').filter({hasText:'README.md'}).click();await link.click({modifiers:['Control']});
+  await page.locator('#tabs .file-tab').filter({hasText:'README.md'}).click();await expect(link).toBeVisible();await link.click({modifiers:['Control']});
   await expect(dialog).toBeHidden();await expect.poll(async()=>(await opened(app)).at(-1)).toBe(`http://localhost:${port}/docs`);expect(await webviews(app)).toBe(before+2);
   // Ctrl+click on the URL in the source editor follows the same preference.
   const countBefore=(await opened(app)).length;
