@@ -6,6 +6,10 @@ export function setupDesktopTitlebar(bar:HTMLElement){
  const left=document.createElement('div');left.className='desktop-titlebar-left';
  const toggle=bar.querySelector<HTMLElement>('#show-sidebar')!;const hint=document.createElement('button');hint.type='button';hint.className='desktop-palette-hint';hint.title='Command palette (Ctrl+Shift+P)';hint.setAttribute('aria-label','Open command palette');hint.innerHTML='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3A2.5 2.5 0 1 0 5.5 8H10.5A2.5 2.5 0 1 0 8 5.5V10.5A2.5 2.5 0 1 0 10.5 8H5.5A2.5 2.5 0 1 0 8 10.5V5.5A2.5 2.5 0 1 0 5.5 3Z"/></svg>';const mac=navigator.platform.includes('Mac');for(const key of mac?['⌘','⇧','P']:['Ctrl','Shift','P']){const kbd=document.createElement('kbd');kbd.textContent=key;hint.append(kbd);}hint.onclick=()=>document.dispatchEvent(new CustomEvent('pane:open-palette'));
  left.append(menu,hint,toggle);bar.prepend(left);
+ // Show the richest hint that fits: full keys, then icon only, then nothing. Measured, so no breakpoint to guess.
+ const fitHint=()=>{const cs=getComputedStyle(left),room=left.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),gap=parseFloat(cs.columnGap)||0;
+  for(const mode of ['full','icon','none']){left.dataset.hint=mode;if(mode==='none')return;const kids=[menu,hint,toggle].filter(el=>el.offsetWidth>0);if(kids.reduce((n,el)=>n+el.offsetWidth,0)+gap*(kids.length-1)<=room)return;}};
+ const fitObserver=new ResizeObserver(fitHint);fitObserver.observe(left);fitHint();
  const controls=document.createElement('div');controls.className='desktop-window-controls';controls.setAttribute('role','group');controls.setAttribute('aria-label','Window controls');
  function control(label:string,path:string,action:'minimize'|'maximize'|'close'){
   const button=document.createElement('button');button.type='button';button.className=`desktop-window-${action}`;button.setAttribute('aria-label',label);button.title=label;button.innerHTML=`<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${path}"/></svg>`;button.onclick=()=>{void window.paneDesktop?.windowControl(action);};controls.append(button);return button;
@@ -41,5 +45,5 @@ export function setupDesktopTitlebar(bar:HTMLElement){
   maximize.setAttribute('aria-label',restore?'Restore window':'Maximize window');maximize.title=restore?'Restore window':'Maximize window';maximize.querySelector('path')!.setAttribute('d',restore?'M5.5 5.5h7v7h-7zM3.5 10.5v-7h7':'M3.5 3.5h9v9h-9z');
   document.documentElement.dataset.windowFocused=String(state.focused);document.documentElement.dataset.windowMaximized=String(restore);
  });
- return ()=>{geometry.disconnect();unsubscribe();unsubscribeUpdates();prompt?.remove();updateButton.remove();bar.prepend(toggle);if(status)rightActions.prepend(status);bar.append(rightActions);left.remove();right.remove();delete document.documentElement.dataset.desktop;};
+ return ()=>{fitObserver.disconnect();geometry.disconnect();unsubscribe();unsubscribeUpdates();prompt?.remove();updateButton.remove();bar.prepend(toggle);if(status)rightActions.prepend(status);bar.append(rightActions);left.remove();right.remove();delete document.documentElement.dataset.desktop;};
 }
