@@ -3,6 +3,7 @@ import type {OpenDocument} from './documents.ts';
 import type {createApi} from '../../lib/api.ts';
 import {fileIcon,folderIcon,setFolderIconOpen} from './file-icons.ts';
 import {errorMessage} from '../../components/contracts.ts';
+import './file-search.css';
 interface FileTreeOptions {
  api:ReturnType<typeof createApi>;
  tree:HTMLElement;
@@ -13,8 +14,44 @@ interface FileTreeOptions {
  decorate:(button:HTMLButtonElement)=>void;
  openFile:(project:string,path:string)=>Promise<unknown>;
  toast:(message:string)=>void;
+ getProject:()=>Workspace|null;
 }
-export function createFileTree({api,tree,filter,expanded,getDocument,icon,decorate,openFile,toast}:FileTreeOptions){
+export function createFileTree({api,tree,filter,expanded,getDocument,icon,decorate,openFile,toast,getProject}:FileTreeOptions){
+// Name search covers the whole workspace, not only the folders opened so far: results replace the tree while a query is typed.
+const results=document.createElement('div');results.id='file-search-results';results.className='file-search-results';results.setAttribute('role','listbox');results.setAttribute('aria-label','Matching files');results.hidden=true;tree.after(results);
+let searchTimer=0,searchStamp=0;
+function closeSearch(){clearTimeout(searchTimer);searchStamp++;results.hidden=true;results.replaceChildren();tree.hidden=false;}
+function showResults(project:Workspace,files:{name:string;path:string}[],truncated:boolean){
+  results.replaceChildren();
+  if(!files.length){const empty=document.createElement('p');empty.className='file-search-empty';empty.textContent='No matching files';results.append(empty);return;}
+  for(const file of files){
+    const button=document.createElement('button');button.type='button';button.className='file-row file-search-row';button.setAttribute('role','option');button.title=file.path;button.dataset.path=file.path;button.dataset.project=project.id;
+    button.append(fileIcon(file.name));
+    const name=document.createElement('span');name.className='file-row-name';name.textContent=file.name;button.append(name);
+    const folder=file.path.includes('/')?file.path.slice(0,file.path.lastIndexOf('/')):'';if(folder){const where=document.createElement('span');where.className='file-search-folder';where.textContent=folder;button.append(where);}
+    button.onclick=()=>openFile(project.id,file.path).catch(error=>toast(errorMessage(error,'Operation failed.')));
+    results.append(button);
+  }
+  if(truncated){const more=document.createElement('p');more.className='file-search-empty';more.textContent='Showing the first matches. Type more to narrow.';results.append(more);}
+}
+async function search(project:Workspace,query:string){
+  const stamp=++searchStamp;
+  try{
+    const found=await api<{files:{name:string;path:string}[];truncated:boolean}>(`/api/file-search?${new URLSearchParams({project:project.id,q:query})}`);
+    if(stamp!==searchStamp||filter.value.trim()!==query)return;
+    tree.hidden=true;results.hidden=false;showResults(project,found.files,found.truncated);
+  }catch(error){if(stamp===searchStamp){closeSearch();toast(errorMessage(error,'Could not search files.'));}}
+}
+filter.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&filter.value){event.preventDefault();filter.value='';filterTree();}
+  else if(event.key==='Enter'){const first=results.querySelector<HTMLButtonElement>('.file-search-row');if(first){event.preventDefault();first.click();}}
+  else if(event.key==='ArrowDown'){const first=results.querySelector<HTMLButtonElement>('.file-search-row');if(first){event.preventDefault();first.focus();}}
+});
+results.addEventListener('keydown',event=>{
+  const rows=[...results.querySelectorAll<HTMLButtonElement>('.file-search-row')],index=rows.indexOf(document.activeElement as HTMLButtonElement);
+  if(event.key==='ArrowDown'&&index>=0){event.preventDefault();rows[Math.min(rows.length-1,index+1)].focus();}
+  else if(event.key==='ArrowUp'&&index>=0){event.preventDefault();if(index===0)filter.focus();else rows[index-1].focus();}
+});
 async function treeDirectory(project:Workspace,path:string,depth:number) {
   const { entries } = await api<{entries:TreeEntry[]}>(`/api/tree?${new URLSearchParams({ project: project.id, path })}`);
   const list = document.createElement('ul'); list.className = 'tree-list'; list.setAttribute('role', 'group');
@@ -48,11 +85,14 @@ async function treeDirectory(project:Workspace,path:string,depth:number) {
   return list;
 }
 function filterTree() {
+  const typed = filter.value.trim(), project = getProject();
+  if (typed.length >= 2 && project) { clearTimeout(searchTimer); searchTimer = window.setTimeout(() => { void search(project, typed); }, 120); }
+  else closeSearch();
   const query = filter.value.toLowerCase();
   for (const item of [...tree.querySelectorAll<HTMLElement>('li[data-name]')].reverse()) {
     item.hidden = Boolean(query) && !(item.dataset.name||'').includes(query) && ![...item.querySelectorAll<HTMLElement>('li[data-name]')].some(child => !child.hidden);
   }
 }
 
-return {treeDirectory,filterTree};
+return {treeDirectory,filterTree,resetSearch:closeSearch};
 }

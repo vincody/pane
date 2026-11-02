@@ -5,6 +5,8 @@ import {worktreeSlug} from '../../../shared/worktree-composer.ts';
 import {startWorkingAnimation} from '../features/notifications/working-animation.ts';
 import {setupTitlebar} from '../features/layout/Titlebar.tsx';
 import {setupHistory} from '../features/history/History.tsx';
+import {createCommandPalette,type PaletteCommand} from '../features/palette/command-palette.ts';
+import {commandFor,shortcutFor} from '../features/palette/keymap.ts';
 import {setupChanges} from '../features/files/changes.ts';
 import {createGitPanel} from '../features/git/GitPanel.tsx';
 import {setupDevServers} from '../features/dev-servers/DevServers.tsx';
@@ -186,8 +188,15 @@ function setupProjectDrag(project:Workspace,button:HTMLButtonElement,group:HTMLE
  group.ondragleave=event=>{if(!group.contains(event.relatedTarget instanceof Node?event.relatedTarget:null))group.classList.remove('drop-before','drop-after');};
  group.ondrop=event=>{if(!draggedProject)return;event.preventDefault();const id=draggedProject,after=group.classList.contains('drop-after');draggedProject=null;lastProjectDrag=Date.now();clearProjectDrop();void reorderProjects(id,project.id,after);};
 }
+function visibleProjects() {
+  const query = ($('#workspace-search') as HTMLInputElement | null)?.value.trim().toLowerCase();
+  if (!query) return [...projects];
+  const matches = (project: Workspace) => [project.name, project.branch].some(text => text?.toLowerCase().includes(query)) || terminalAgents.some(agent => agent.project === project.id && agent.name.toLowerCase().includes(query));
+  const keep = new Set(projects.filter(project => !project.parentId && (matches(project) || projects.some(child => child.parentId === project.id && matches(child)))).map(project => project.id));
+  return projects.filter(project => keep.has(project.parentId || project.id));
+}
 function renderProjects() {
-  workspaceSidebar?.render({projects:[...projects],currentProjectId:currentProject?.id||null,agents:[...terminalAgents],diffs:workspaceDiffs.stats()});
+  workspaceSidebar?.render({projects:visibleProjects(),currentProjectId:currentProject?.id||null,agents:[...terminalAgents],diffs:workspaceDiffs.stats()});
   agentLounge?.update(terminalAgents,currentProject?.id||null);
   workspaceDiffs.refresh(projects.map(project=>project.id));
   titlebar?.refresh();
@@ -214,7 +223,7 @@ async function selectProject(project:Workspace|null,initial=false) {
   const remembered=project?workspaceTabStates.get(project.id):undefined;tabOrder=remembered?.order||[];
   if (!project) {currentDocument=null;activeFileKey=null;editor.setModel(null);$('#preview-content').replaceChildren();$('#image-editor').hidden=true;terminalView?.setProject(null);try{localStorage.removeItem('ai-web.selected-workspace');}catch{}changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged();$('#empty').hidden=false;renderTabs();renderProjects();$('#tree').replaceChildren();return;}
   try{localStorage.setItem('ai-web.selected-workspace',project.id);}catch{}
-  changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged();titlebar?.refresh();$('#empty').hidden=true;expanded.clear();$('#filter').value='';
+  changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged();titlebar?.refresh();$('#empty').hidden=true;expanded.clear();$('#filter').value='';resetSearch();
   if(currentDocument?.project!==project.id){currentDocument=null;activeFileKey=null;editor.setModel(null);$('#preview-content').replaceChildren();$('#image-editor').hidden=true;$('#empty').hidden=false;}
   terminalView?.setProject(project);
   const rememberedFile=remembered?.file?documents.get(remembered.file):undefined;
@@ -235,26 +244,22 @@ function closeWorkspaceMenu(restoreFocus = true) {
   menu.hidden = true;
   if (restoreFocus && menuOrigin?.isConnected) menuOrigin.focus();
 }
+function beginWorkspaceRename(project:Workspace) { renameProject = project; $('#workspace-name').value = project.name; $('#rename-error').textContent = ''; $('#rename-dialog').showModal(); $('#workspace-name').select(); }
 function showWorkspaceMenu(project:Workspace,x:number,y:number,origin:HTMLElement) {
   const menu = $('#workspace-menu'); menuOrigin = origin; menu.replaceChildren();
-  const title = document.createElement('div'); title.className = 'context-title'; title.textContent = project.name; menu.append(title);
   const actions: [string,()=>void|Promise<void>][] = [
     ...(!project.parentId?[["New worktree",()=>{void subWorkspaceDialog.open(project);}]] as [string,()=>void][]:[]),
-    ['Open workspace', async () => { await selectProject(project); setFilesOpen(true); }],
-    ['Rename in web', () => { renameProject = project; $('#workspace-name').value = project.name; $('#rename-error').textContent = ''; $('#rename-dialog').showModal(); $('#workspace-name').select(); }],
-    ['Copy folder path', async () => { await navigator.clipboard.writeText(project.root); toast('Folder path copied'); }],
-    ['Refresh files', async () => { await selectProject(project); setFilesOpen(true); }],
-    ['Move up',()=>{const roots=projects.filter(item=>!item.parentId),index=roots.findIndex(item=>item.id===project.id);if(index>0)return reorderProjects(project.id,roots[index-1].id);}],
-    ['Move down',()=>{const roots=projects.filter(item=>!item.parentId),index=roots.findIndex(item=>item.id===project.id);if(index>=0&&index<roots.length-1)return reorderProjects(project.id,roots[index+1].id,true);}],
-    ['Remove from web', () => removeProject(project)],
+    ['Rename', () => beginWorkspaceRename(project)],
+    ['History', async () => { await selectProject(project); historyView.open(); }],
+    ['Open in file explorer', async () => { await api(`/api/file-actions?${new URLSearchParams({project:project.id})}`,{method:'POST',body:JSON.stringify({action:'reveal',path:''})}); }],
+    ['Remove', () => removeProject(project)],
   ];
-  for (const [label, action] of actions.filter(([label])=>!project.parentId||!['Move up','Move down'].includes(label))) {
+  for (const [label, action] of actions) {
     const item = document.createElement('button'); item.type = 'button'; item.setAttribute('role', 'menuitem'); item.textContent = label;
-    if (label === 'Remove from web') item.className = 'danger-action';
+    if (label === 'Remove') item.className = 'danger-action';
     item.onclick = async () => { closeWorkspaceMenu(false); try { await action(); } catch (error) { toast(errorMessage(error,'Operation failed.')); } };
     menu.append(item);
   }
-  const note = document.createElement('div'); note.className = 'context-note'; note.textContent = 'Files on disk are never deleted.'; menu.append(note);
   menu.hidden = false;
   const bounds = menu.getBoundingClientRect();
   menu.style.left = `${Math.max(8, Math.min(x, innerWidth - bounds.width - 8))}px`;
@@ -271,7 +276,7 @@ async function removeProject(project:Workspace) {
   projects = projects.filter(item => !removedIds.has(item.id));
   if (currentProject&&removedIds.has(currentProject.id)) await selectProject(projects.find(item => item.id === currentDocument?.project) || projects[0] || null); else renderProjects();
   await refreshSessions();
-  status('Workspace removed from web'); toast('Removed from Pane. Your folder and sessions remain on disk. Use Open folder to add it again.');
+  status('Workspace removed from Pane'); toast('Removed from Pane. Your folder and sessions remain on disk. Use Open folder to add it again.');
 }
 $('#workspace-menu').onkeydown = event => {
   const items = [...$('#workspace-menu').querySelectorAll<HTMLButtonElement>('button')];
@@ -296,7 +301,7 @@ $('#rename-form').onsubmit = async event => {
   finally { button.disabled = false; }
 };
 
-const {treeDirectory,filterTree}=createFileTree({api,tree:$('#tree'),filter:$('#filter'),expanded,getDocument:()=>currentDocument,icon,decorate:button=>fileGit.decorate(button),openFile,toast});
+const {treeDirectory,filterTree,resetSearch}=createFileTree({api,tree:$('#tree'),filter:$('#filter'),expanded,getDocument:()=>currentDocument,icon,decorate:button=>fileGit.decorate(button),openFile,toast,getProject:()=>currentProject});
 
 async function refreshTree() {
   if (!currentProject) return;
@@ -633,22 +638,18 @@ $('#toggle-files').onclick = toggleFiles;
 $('#close-files').onclick = () => setFilesOpen(false);
 $('#files-toggle-icon').append(icon('panel-right'));
 $('#toggle-files').querySelector<HTMLElement>('.files-toggle-label')!?.remove();
-$('#toggle-files').title='Files (Ctrl+Shift+E)';
+$('#toggle-files').title='Files (Ctrl+Shift+F)';
 $('#show-sidebar').title='Workspaces (Ctrl+B)';
 const narrowLayout = matchMedia('(max-width: 900px)');
 narrowLayout.addEventListener('change', event => { if (event.matches) setFilesOpen(false, false); });
 $('#collapse').append(icon('panel')); $('#show-sidebar').append(icon('panel')); $('#search-icon').append(icon('search'));
 $('#collapse').onclick = toggleSidebar; $('#show-sidebar').onclick = toggleSidebar;
-document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.shiftKey&&!event.altKey&&event.key.toLowerCase()==='j'&&!event.isComposing&&!document.querySelector('dialog[open]')){event.preventDefault();event.stopPropagation();jumpToAttention();}},true);
 document.addEventListener('keydown', event => {
   if (eventElement(event)?.closest<HTMLElement>('#agent-panel')) return;
   if(eventElement(event)?.closest<HTMLElement>('#secondary-file')&&(event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveFile(secondaryDocument);return;}
   const control = event.ctrlKey || event.metaKey;
   if (control && event.key.toLowerCase() === 's') { event.preventDefault(); if(!gitView?.activeProject)saveFile(); }
-  if (control && event.key.toLowerCase() === 'o') { event.preventDefault(); if (!document.querySelector<HTMLElement>('dialog[open]')!) openFolderDialog(); }
   if (control && event.shiftKey && event.key.toLowerCase() === 'v'&&!gitView?.activeProject) { event.preventDefault(); setView(mode === 'editor' ? 'preview' : 'editor'); }
-  if (control && event.key.toLowerCase() === 'b') { event.preventDefault(); toggleSidebar(); }
-  if (control && event.shiftKey && event.key.toLowerCase() === 'e') { event.preventDefault(); toggleFiles(); }
   if (!gitView?.activeProject && event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing && !eventElement(event)?.closest<HTMLElement>('input,textarea,[contenteditable=true],.monaco-editor,dialog')) {
     if(terminalView.inputMostRecent('/')) event.preventDefault();
   }
@@ -826,6 +827,9 @@ tabDrag=setupTabDrag({tabs:$('#tabs'),content:contentViews,onReorder:()=>{},canD
 
 notifications=createNotifications({icon,isViewing:agent=>!document.hidden&&document.hasFocus()&&(agent.terminalSession?Boolean(terminalAgents.find(item=>item.id===agent.id)?.selected):agentView.visible&&Boolean(agent.agent_session?.value?agentView.selected?.agent_session?.value===agent.agent_session.value:agent.pane_id&&agentView.selected?.pane_id===agent.pane_id)),onOpen:agent=>{if(agent.terminalSession){agentView.close();if(agent.id)openTerminalAgent(agent.id);}else{agentView.open(agent);agentView.focusLatest();}}});
 if(window.paneDesktop?.browserVersion===1)setupLinkSettings(linkPreferences);
+{const list=document.querySelector('#help-dialog .shortcut-list');
+  if(list){const rows:[string,string[]|undefined][]=[['Save current file',['Ctrl','S']],['Toggle preview',['Ctrl','Shift','V']],['Find in editor',['Ctrl','F']],['Command palette',shortcutFor('app.palette')],['New session',shortcutFor('tab.new')],['Close tab',shortcutFor('tab.close')],['Rename tab',shortcutFor('tab.rename')],['Next tab',shortcutFor('tab.next')],['Previous tab',shortcutFor('tab.prev')],['Go to tab 1–9',['Ctrl','1–9']],['Split right',shortcutFor('pane.split:right')],['Split down',shortcutFor('pane.split:down')],['Focus pane',['Alt','←↑↓→']],['Toggle workspace sidebar',shortcutFor('view.sidebar')],['Toggle file explorer',shortcutFor('view.files')],['Open folder',shortcutFor('space.new')],['Next session needing attention',shortcutFor('session.attention')],['Settings',shortcutFor('app.settings')]];
+    list.replaceChildren(...rows.flatMap(([label,keys])=>{const span=document.createElement('span');span.textContent=label;const kbd=document.createElement('kbd');kbd.textContent=(keys||[]).join(' ');return [span,kbd];}));}}
 setupColorTheme();setupOfficeSetting();setupSettings({icon,api});
 setupFileActions({tree:$('#tree'),api,icon,getProject:()=>currentProject,guard:guardFileAction,changed:fileActionChanged,toast});
 const subWorkspaceDialog=createWorktreeDialog({api,getProjects:()=>projects,onCreated:async (project,launch)=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);if(launch)terminalView.startSession(existing||project,launch);toast(`Opened ${project.branch||project.name}`);}});
@@ -833,7 +837,54 @@ workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{voi
 changesView=setupChanges({api,icon,getProject:()=>currentProject,onOpenDiff:openDiff,onError:message=>toast(message),onStatuses:(id,data)=>fileGit.update(id,data)});
 setupResources({api,getProjects:()=>projects,getTerminals:()=>terminalAgents,onError:message=>toast(message)});
 devServers=setupDevServers({api,getProjects:()=>projects,onError:message=>toast(message),...(window.paneDesktop?.browserVersion===1?{onOpenUrl:(projectId:string,url:string)=>{const target=projects.find(project=>project.id===projectId);if(!target)return;void (currentProject?.id===target.id?Promise.resolve():selectProject(target)).then(()=>openBrowser(target,url));}}:{})});
-setupHistory({api,getProjects:()=>projects,getCurrentProject:()=>currentProject,onResume:(record,project)=>{agentView.close();terminalView.resumeSession(record,project);}});
+// Every command by id; keys (keymap.ts) and the palette both run these.
+const tabElements=()=>[...document.querySelectorAll<HTMLElement>('#unified-tabs [role=tab]')];
+const selectedTab=()=>tabElements().find(tab=>tab.getAttribute('aria-selected')==='true');
+function stepTab(delta:number){const tabs=tabElements();if(!tabs.length)return;const index=tabs.findIndex(tab=>tab===selectedTab());tabs[index<0?0:(index+delta+tabs.length)%tabs.length].click();}
+const actions:Record<string,()=>unknown>={
+  'tab.new':()=>$('#terminal-new').click(),
+  'tab.rename':()=>terminalView.runActive('rename'),
+  'tab.close':()=>{const close=selectedTab()?.querySelector<HTMLElement>('.tab-close,.terminal-tab-close');if(close)close.click();else terminalView.runActive('close');},
+  'tab.next':()=>stepTab(1),'tab.prev':()=>stepTab(-1),
+  'pane.split:right':()=>terminalView.runActive('split-right'),'pane.split:down':()=>terminalView.runActive('split-down'),
+  'pane.close':()=>terminalView.runActive('close'),'pane.zoom':()=>terminalView.runActive('zoom'),
+  'session.clear':()=>terminalView.runActive('clear'),'session.restart':()=>terminalView.runActive('restart'),
+  'space.new':()=>openFolderDialog(),
+  'space.rename':()=>{if(currentProject)beginWorkspaceRename(projects.find(project=>project.id===currentProject!.parentId)||currentProject);},
+  'app.palette':()=>commandPalette.toggle(),
+  'app.settings':()=>$('#settings').click(),'app.help':()=>{$('#settings').click();document.querySelector<HTMLElement>('[data-settings-page="keybinds"]')?.click();},
+  'view.sidebar':()=>toggleSidebar(),'view.files':()=>toggleFiles(),'session.attention':()=>jumpToAttention(),'workspace.history':()=>historyView.open(),
+};
+for(const direction of ['left','right','up','down'] as const){actions[`pane.go:${direction}`]=()=>terminalView.focusPane(direction);}
+for(let number=1;number<=9;number++){actions[`tab.select:${number}`]=()=>tabElements()[number-1]?.click();}
+const commandPalette=createCommandPalette({getCommands:()=>{
+  const active=()=>terminalView.hasActive;
+  const entry=(id:string,group:string,title:string,keywords='',enabled?:()=>boolean):PaletteCommand=>({id,group,title,keywords,shortcut:shortcutFor(id),enabled,run:()=>{actions[id]?.();}});
+  return [
+    entry('tab.new','Session','New session','agent terminal launch claude codex shell'),
+    entry('tab.rename','Session','Rename tab','name',active),entry('tab.close','Session','Close tab','kill end'),
+    entry('tab.next','Session','Next tab'),entry('tab.prev','Session','Previous tab'),
+    entry('session.clear','Session','Clear terminal','reset screen',active),entry('session.restart','Session','Restart terminal','reopen',active),
+    entry('session.attention','Session','Next session needing attention','input blocked review'),
+    entry('pane.split:right','Pane','Split right','vertical',active),entry('pane.split:down','Pane','Split down','horizontal',active),
+    entry('pane.close','Pane','Close pane','kill',active),entry('pane.zoom','Pane','Zoom pane','maximize fullscreen',active),
+    ...(['left','right','up','down'] as const).map(direction=>entry(`pane.go:${direction}`,'Pane',`Focus pane ${direction}`,'move go',active)),
+    entry('view.sidebar','View','Toggle sidebar','workspaces'),entry('view.files','View','Toggle files','explorer'),
+    entry('space.new','Workspace','Open folder','add workspace project'),entry('space.rename','Workspace','Rename workspace','name'),
+    entry('workspace.history','Workspace','History','conversations resume chat'),
+    ...projects.filter(project=>!project.parentId).map<PaletteCommand>(project=>({id:`go.workspace:${project.id}`,group:'Workspace',title:`Go to workspace: ${project.name}`,keywords:project.branch||'',run:()=>selectProject(project)})),
+    ...terminalAgents.map<PaletteCommand>(agent=>({id:`go.session:${agent.id}`,group:'Workspace',title:`Go to session: ${agent.name} · ${projects.find(project=>project.id===agent.project)?.name||''}`,keywords:agent.agent,run:()=>openTerminalAgent(agent.id)})),
+    entry('app.settings','App','Settings','preferences options theme'),entry('app.help','App','Keys','keybindings shortcuts help'),
+  ];
+}});
+document.addEventListener('keydown',event=>{
+  const id=commandFor(event),run=id&&actions[id];if(!run)return;
+  if(id==='tab.rename'&&eventElement(event)?.closest('.monaco-editor'))return;
+  if(id!=='app.palette'&&(commandPalette.isOpen||document.querySelector('dialog[open]')))return;
+  event.preventDefault();event.stopPropagation();run();
+},true);
+document.addEventListener('pane:open-palette',()=>commandPalette.open());
+const historyView=setupHistory({api,getProjects:()=>projects,getCurrentProject:()=>currentProject,onResume:(record,project)=>{agentView.close();terminalView.resumeSession(record,project);}});
 gitView=createGitPanel({api,icon,getProject:()=>currentProject,onTabsChanged:renderTabs,onActivate:project=>{if(currentProject?.id!==project.id)void selectProject(project);agentView.suspend();(document.activeElement as HTMLElement|null)?.blur();terminalView.setFocused(false);},onDeactivate:()=>{if(terminalView.visible)terminalView.setFocused(true);},onStartIssue:(project,issue)=>{const parent=project.parentId?projects.find(item=>item.id===project.parentId):project;if(parent)void subWorkspaceDialog.open(parent,{name:`issue-${issue.number}-${worktreeSlug(issue.title)}`.replace(/-$/,'').slice(0,80),note:`Issue #${issue.number}: ${issue.title}\n${issue.url}\n\n${issue.body}`});},onChanged:()=>{void changesView?.refresh();void refreshTree();void refreshSessions();},onOpenDiff:async(project,hash,file)=>{await openDiff(project,{path:file.path,added:null,removed:null,binary:false},hash);}});
 titlebar=setupTitlebar({getProject:()=>projects.find(project=>project.id===(activeFileKey?documents.get(activeFileKey)?.project:terminalView.visible?terminalView.focusedProjectId:null))||currentProject,getAttention:()=>terminalAgents.map(agent=>({...agent,open:()=>openTerminalAgent(agent.id)}))});
 startWorkingAnimation();
@@ -845,7 +896,7 @@ document.fonts.ready.then(() => { monaco.editor.remeasureFonts(); editor.layout(
 
 for (const [selector, name] of [['#refresh-files','refresh'], ['#refresh-file','refresh'], ['#close-files','close'], ['.empty-symbol','folder'], ['#empty-open span','arrow']]) $(selector).replaceChildren(icon(name));
 for (const button of document.querySelectorAll<HTMLButtonElement>('.dialog-heading .icon-button')) button.replaceChildren(icon('close'));
-const refreshGit = document.createElement('button'); refreshGit.className = 'icon-button refresh-git'; refreshGit.setAttribute('aria-label', 'Refresh Git branches'); refreshGit.title = 'Refresh Git branches'; refreshGit.append(icon('refresh')); refreshGit.onclick = () => refreshSessions(); $('.section-head').append(refreshGit);
+$('#workspace-search-icon').append(icon('search')); $('#workspace-search').addEventListener('input',()=>renderProjects());
 window.addEventListener('focus', () => { void refreshSessions(); });
 
 setupPanelResize();

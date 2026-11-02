@@ -1,6 +1,7 @@
 //! Process and listening-port discovery for Pane's backend. On Windows both used to cost a PowerShell or `netstat` process per
 //! call; here they are direct system calls. Results are returned as JSON text in the shape the TypeScript callers already read.
 
+mod file_index;
 mod token_usage;
 
 use napi_derive::napi;

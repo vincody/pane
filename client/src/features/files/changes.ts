@@ -54,11 +54,15 @@ export function setupChanges({api,icon,getProject,onOpenDiff,onError,onStatuses}
   }
   if(data.truncated){const note=document.createElement('p');note.className='changes-message';note.textContent='Showing the first 200 changed files.';list.append(note);}
  }
- async function refresh(){
+ let stampValue:number|null=null;
+ // `quiet` is the timer's refresh: it hands back the version it holds, and the server answers "unchanged" while nothing has happened.
+ async function refresh(quiet=false){
   const project=getProject();if(!project){sequence++;projectId=null;data=null;onStatuses?.(null,null);draw();return;}
   if(pendingProject===project.id)return;
-  const stamp=++sequence;pendingProject=project.id;if(projectId!==project.id){data=null;projectId=project.id;tabs.querySelector<HTMLElement>('.changes-count')!.hidden=true;message('Loading changes…');}
-  try{const result=await api<GitChanges>(`/api/changes?${new URLSearchParams({project:project.id})}`);if(stamp===sequence&&getProject()?.id===project.id){data=result;onStatuses?.(project.id,result);draw();}}
+  const stamp=++sequence;pendingProject=project.id;if(projectId!==project.id){data=null;stampValue=null;projectId=project.id;tabs.querySelector<HTMLElement>('.changes-count')!.hidden=true;message('Loading changes…');}
+  try{const query=new URLSearchParams({project:project.id});if(quiet&&stampValue!==null&&data)query.set('since',String(stampValue));
+   const result=await api<GitChanges&{unchanged?:boolean;stamp?:number}>(`/api/changes?${query}`);
+   if(stamp===sequence&&getProject()?.id===project.id&&!result.unchanged){stampValue=result.stamp??null;data=result;onStatuses?.(project.id,result);draw();}}
   catch(error){if(stamp===sequence){onStatuses?.(project.id,null);message(errorMessage(error,'Could not load changes. Use Refresh to retry.'));tabs.querySelector<HTMLElement>('.changes-count')!.hidden=true;}}
   finally{if(pendingProject===project.id)pendingProject=null;}
  }
@@ -68,8 +72,8 @@ export function setupChanges({api,icon,getProject,onOpenDiff,onError,onStatuses}
  const refreshButton=sidebar.querySelector<HTMLButtonElement>('#refresh-files')!,refreshFiles=refreshButton.onclick;refreshButton.onclick=event=>{if(mode==='files')refreshFiles?.call(refreshButton,event);void refresh();};
  // Each refresh runs several git processes, so it waits while the window is hidden or another app has focus, and catches up when focus returns.
  const filesShown=()=>!document.querySelector<HTMLElement>('#app')!.classList.contains('files-hidden');
- setInterval(()=>{if(!document.hidden&&document.hasFocus()&&filesShown())void refresh();},5000);
+ setInterval(()=>{if(!document.hidden&&document.hasFocus()&&filesShown())void refresh(true);},5000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)void refresh();});
  window.addEventListener('focus',()=>{if(filesShown())void refresh();});
- return {refresh,projectChanged(){pendingProject=null;projectId=null;data=null;collapsed.clear();sequence++;onStatuses?.(getProject()?.id||null,null);void refresh();}};
+ return {refresh,projectChanged(){pendingProject=null;projectId=null;data=null;stampValue=null;collapsed.clear();sequence++;onStatuses?.(getProject()?.id||null,null);void refresh();}};
 }

@@ -9,6 +9,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
+ignore = "0.4.34"
 memchr = "2"
 napi = { version = "3", default-features = false, features = ["napi4"] }
 napi-derive = "3"

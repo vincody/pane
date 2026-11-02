@@ -10,7 +10,7 @@
   --bg:var(--canvas);--sidebar:var(--glass);--surface:var(--surface-card);--border:var(--hairline);
   --text:var(--body);--strong:var(--ink);--ui-muted:#636872;--muted:var(--ui-muted);--accent:var(--primary);--hover:var(--surface-cream-strong);
   --green:var(--success);--yellow:var(--warning);--red:var(--error);
-  --glass:rgba(255,255,255,.62);--glass-strong:rgba(255,255,255,.82);--glass-line:rgba(255,255,255,.7);--glass-edge:rgba(20,30,60,.08);
+  --glass:rgba(255,255,255,.62);--glass-strong:color-mix(in srgb,var(--primary) 7%,var(--surface-card));--glass-line:rgba(255,255,255,.7);--glass-edge:rgba(20,30,60,.08);
   --glass-blur:blur(22px) saturate(160%);--glass-shadow:0 8px 28px rgba(20,30,60,.08),0 1px 2px rgba(20,30,60,.05);
   --backdrop:radial-gradient(60% 50% at 8% 0%,rgba(10,92,255,.16),transparent 70%),radial-gradient(45% 40% at 100% 100%,rgba(246,130,31,.12),transparent 70%),#f4f6fa;
   --font-display:"Inter","Segoe UI",Arial,sans-serif;
@@ -51,7 +51,7 @@ button:disabled{opacity:.55}
 .brand small,.section-head,.files-footer,.sidebar-footer,.workspace-branch,.agent-meta{color:var(--muted)}
 .section-head{font-size:11px;letter-spacing:.6px;font-weight:500}
 .sidebar-footer{border-top:0}
-#app .sidebar-footer{grid-template-columns:repeat(6,minmax(0,1fr))}
+#app .sidebar-footer{grid-template-columns:repeat(4,minmax(0,1fr))}
 .workspace-heading{gap:4px}
 .workspace-heading>span{flex:1}
 .workspace-heading #open-folder{flex:none;width:28px;height:28px;margin:0;padding:0;background:transparent;color:var(--muted);border:0;border-radius:var(--radius-sm)}
@@ -100,8 +100,8 @@ button:disabled{opacity:.55}
 .titlebar-attention{color:var(--warning)}
 .primary-button{background:var(--primary-active);color:var(--on-primary);border-color:var(--primary-active);border-radius:var(--radius-md);font-weight:500}
 .primary-button:hover{background:var(--primary-hover);color:var(--on-primary-hover);border-color:var(--primary-hover)}
-.secondary-button{background:var(--canvas);border:1px solid var(--hairline);color:var(--ink);border-radius:var(--radius-md)}
-.secondary-button:hover{background:var(--surface-card)}
+.secondary-button{background:color-mix(in srgb,var(--ink) 5%,transparent);border:1px solid color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink);border-radius:var(--radius-md)}
+.secondary-button:hover{background:color-mix(in srgb,var(--ink) 10%,transparent)}
 .file-filter{background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--radius-md)}
 .file-filter input,.project-search input{color:var(--body);background:transparent}
 .file-filter input::placeholder,.project-search input::placeholder{color:var(--muted)}
@@ -121,7 +121,7 @@ dialog,#settings-dialog,#usage-dialog,#history-dialog,.project-sessions-dialog{b
 dialog::backdrop{background:#14141355;backdrop-filter:blur(3px)}
 .dialog-heading{color:var(--ink)}
 .dialog-heading>span,.settings-header h2,.settings-navigation h2,#usage-title,#history-title{font-family:var(--font-display);font-weight:400;letter-spacing:-.5px}
-dialog input:not([type=checkbox]),dialog textarea,dialog select{background:var(--canvas);color:var(--body);border-color:var(--hairline);border-radius:var(--radius-md)}
+dialog input:not([type=checkbox]),dialog textarea,dialog select{background:color-mix(in srgb,var(--ink) 5%,transparent);color:var(--body);border-color:var(--hairline);border-radius:var(--radius-md)}
 dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 .form-error{color:var(--error)}
 .settings-navigation{background:var(--surface-soft);border-color:var(--hairline)}
@@ -149,8 +149,13 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 .history-filters input,#history-dialog .history-filters input{background:var(--surface-soft);color:var(--body);border-color:var(--hairline)}
 .history-session:hover{background:var(--surface-soft)}
 .history-session img[src*="codex"]{filter:none}
-.context-menu,#terminal-menu,#terminal-launcher{background:var(--canvas);color:var(--body);border-color:var(--hairline);box-shadow:0 8px 24px #14141312}
+.context-menu,#terminal-menu{background:var(--canvas);color:var(--body);border-color:var(--hairline);box-shadow:0 8px 24px #14141312}
 .context-menu button:hover,.terminal-launch-choices button:hover{background:var(--surface-card);color:var(--ink)}
+#terminal-launcher{background:color-mix(in srgb,var(--primary) 7%,var(--surface-card));color:var(--body);border-color:color-mix(in srgb,var(--ink) 12%,transparent)}
+#terminal-launcher .terminal-launch-key{margin-left:auto;align-self:center;min-width:18px;padding:0 5px;border:1px solid color-mix(in srgb,var(--ink) 14%,transparent);border-radius:4px;background:color-mix(in srgb,var(--ink) 5%,transparent);color:var(--muted);font:11px/16px var(--font-ui);text-align:center}
+#terminal-launcher .terminal-launch-choices button:disabled .terminal-launch-key{opacity:.5}
+#terminal-launcher .terminal-launch-choices button{background:color-mix(in srgb,var(--ink) 5%,transparent);border-color:color-mix(in srgb,var(--ink) 10%,transparent)}
+#terminal-launcher .terminal-launch-choices button:hover:not(:disabled){background:color-mix(in srgb,var(--ink) 10%,transparent)}
 .terminal-launch-choices img[src*="codex"]{filter:none}
 .agent-notification{background:var(--canvas);border-color:var(--hairline);color:var(--body);box-shadow:0 8px 24px #14141312}
 .notification-mark img[src*="codex"]{filter:none}
@@ -185,7 +190,7 @@ dialog input::placeholder,dialog textarea::placeholder{color:var(--muted)}
 .terminal-pane-header{background:var(--code-soft);border-color:var(--code-border)}
 .terminal-screen.pane-focused>.terminal-pane-header{background:var(--code-bg);border-bottom-color:transparent}
 .terminal-pane-title{color:var(--code-text);font-size:12px}
-.terminal-pane-mark,.terminal-pane-zoom,.terminal-pane-close{color:var(--code-muted)}
+.terminal-pane-mark,.terminal-pane-split,.terminal-pane-zoom,.terminal-pane-close{color:var(--code-muted)}
 #terminal-panel #terminal-menu{background:var(--code-surface);color:var(--code-text);border-color:var(--code-border)}
 #terminal-screens .file-layout-pane{--text:var(--body);--strong:var(--ink);--muted:var(--ui-muted);--bg:var(--canvas);--surface:var(--surface-card);--border:var(--hairline)}
 #terminal-screens .file-layout-pane .pane-file-view button{color:var(--code-muted)}
@@ -401,8 +406,17 @@ dialog::backdrop{background:rgba(20,30,60,.28)}
 #workspace>#editor-pane,#workspace>#preview-pane{border:0;border-radius:0}
 #editor{border-radius:0}
 :root{--glass-strong:rgba(255,255,255,.94)}
-:root[data-theme=dark]{--glass-strong:rgba(26,28,32,.94)}
+:root[data-theme=dark]{--glass-strong:color-mix(in srgb,var(--primary) 7%,var(--surface-card))}
 .workspace{padding:0;gap:0}
 #terminal-screens{padding:6px;gap:6px;background:var(--code-bg)}
-#terminal-screens .terminal-screen,#app[data-file-focused=true] #terminal-screens .terminal-screen.pane-focused{border:1px solid var(--code-border);border-radius:var(--radius-md)}
-#terminal-screens .terminal-screen.pane-focused{border:1px solid color-mix(in srgb,var(--code-muted) 70%,var(--code-border))}
+#terminal-screens .terminal-screen,#app[data-file-focused=true] #terminal-screens .terminal-screen.pane-focused{border:1px solid var(--code-border);border-radius:var(--radius-lg)}
+#terminal-screens .terminal-screen.pane-focused{border:1px solid color-mix(in srgb,var(--primary) 75%,var(--code-border));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--primary) 75%,var(--code-border))}
+/* History and usage share the tinted popup surface used by the New session panel. */
+/* Popups and dialogs take their fill from --glass-strong, tinted with the accent in both themes. */
+html #history-dialog,html #usage-dialog{border-color:color-mix(in srgb,var(--ink) 12%,transparent)}
+html #history-dialog .history-filters :is(input,select){background:color-mix(in srgb,var(--ink) 5%,transparent);border-color:color-mix(in srgb,var(--ink) 10%,transparent)}
+html #history-dialog .history-session:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+/* Controls on popups and panels sit on a soft tint of the text colour, never on solid black. */
+html body #sub-workspace-dialog :is(select,input:not([type=checkbox]),textarea),html body #sub-workspace-dialog .worktree-agent-trigger,html body #add-workspace-dialog .workspace-add-card:not(.workspace-add-alternatives .workspace-add-card),html body .resources-close,html body .git-workspace .git-view-tabs button:not([aria-selected=true]),html body .git-workspace.git-workspace :is(input:not([type=checkbox]),textarea,select):not([multiple]):not([size]),html body .git-workspace.git-workspace :is(.git-graph-filters,.git-sync-actions,.github-toolbar) :is(input,select,button){background:color-mix(in srgb,var(--ink) 5%,transparent);border-color:color-mix(in srgb,var(--ink) 12%,transparent)}
+html body .workspace-add-card:hover,html body .resources-close:hover,html body .git-workspace.git-workspace :is(.git-graph-filters,.git-sync-actions,.github-toolbar) :is(button):hover{background:color-mix(in srgb,var(--ink) 10%,transparent)}
+html body .git-workspace :is(.git-view-tabs,.github-detail-tabs) button[aria-selected=true]{background:color-mix(in srgb,var(--ink) 8%,transparent)}

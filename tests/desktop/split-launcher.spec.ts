@@ -15,10 +15,9 @@ test('contextual split launcher stays near the clicked terminal and inside the v
  const target=panes.nth(1),box=await target.boundingBox();expect(box).not.toBeNull();
  await target.locator('.terminal-pane-body').click({button:'right'});await expect(page.locator('#terminal-menu')).toBeHidden();
  const header=await target.locator('.terminal-pane-header').boundingBox();expect(header).not.toBeNull();const point={clientX:header!.x+header!.width/2,clientY:header!.y+header!.height/2};
- await page.mouse.click(point.clientX,point.clientY,{button:'right'});
- const menu=page.locator('#terminal-menu');await expect(menu).toBeVisible();
- const menuBox=await menu.boundingBox();expect(menuBox).not.toBeNull();
- await menu.getByRole('menuitem',{name:'Split right',exact:true}).click();
+ await page.mouse.click(point.clientX,point.clientY,{button:'right'});await expect(page.locator('#terminal-menu')).toBeHidden();
+ const splitRight=target.getByRole('button',{name:'Split right',exact:true}),menuBox=await splitRight.boundingBox();expect(menuBox).not.toBeNull();
+ await splitRight.click();
  const launcher=page.getByRole('dialog',{name:'Split right',exact:true});await expect(launcher).toBeVisible();
  const bounds=await launcher.boundingBox();expect(bounds).not.toBeNull();
  expect(bounds!.x).toBeGreaterThanOrEqual(box!.x);
@@ -27,8 +26,7 @@ test('contextual split launcher stays near the clicked terminal and inside the v
  expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(1080-8);
  await page.keyboard.press('Escape');await expect(launcher).not.toBeVisible();
  await expect(target.locator('.xterm-helper-textarea')).toBeFocused();
- await page.mouse.click(point.clientX,point.clientY,{button:'right'});
- await menu.getByRole('menuitem',{name:'Split down',exact:true}).click();
+ await target.getByRole('button',{name:'Split down',exact:true}).click();
  await expect(page.getByRole('dialog',{name:'Split down',exact:true})).toBeVisible();
  await page.locator('#terminal-launcher [data-launch=shell]').click();
  await expect(panes).toHaveCount(3);

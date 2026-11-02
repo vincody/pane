@@ -173,7 +173,6 @@ async function boot(){
   if(action==='minimize')window.minimize();
   else if(action==='maximize'){if(window.isFullScreen())window.setFullScreen(false);else if(window.isMaximized())window.unmaximize();else window.maximize();}
   else if(action==='close')window.close();
-  else if(action==='menu')applicationMenu.popup({window});
   else if(action!=='state')return;
   return windowState();
  });

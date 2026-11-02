@@ -7,10 +7,14 @@ export const sumChanges=(changes:GitChanges):DiffStat=>changes.available?changes
 /** Whether anyone can see the totals: the window is shown and has focus. */
 const visible=()=>typeof document==='undefined'||!document.hidden&&document.hasFocus();
 export function createWorkspaceDiffs(api:Api,onChange:()=>void,canRun:()=>boolean=visible){
- const stats=new Map<string,DiffStat>(),fetched=new Map<string,number>(),queue:string[]=[];let running=0,lastIds:readonly string[]=[];
+ const stats=new Map<string,DiffStat>(),stamps=new Map<string,number>(),fetched=new Map<string,number>(),queue:string[]=[];let running=0,lastIds:readonly string[]=[];
  async function load(id:string){
   try{
-   const next=sumChanges(await api<GitChanges>(`/api/changes?${new URLSearchParams({project:id})}`)),old=stats.get(id);
+   const query=new URLSearchParams({project:id}),held=stamps.get(id);if(held!==undefined&&stats.has(id))query.set('since',String(held));
+   const result=await api<GitChanges&{unchanged?:boolean;stamp?:number}>(`/api/changes?${query}`);
+   if(result.unchanged)return;
+   if(result.stamp!==undefined)stamps.set(id,result.stamp);
+   const next=sumChanges(result),old=stats.get(id);
    stats.set(id,next);if((old?.added||0)!==next.added||(old?.removed||0)!==next.removed)onChange();
   }catch{}
  }
@@ -19,7 +23,7 @@ export function createWorkspaceDiffs(api:Api,onChange:()=>void,canRun:()=>boolea
   stats:():ReadonlyMap<string,DiffStat>=>stats,
   refresh(ids:readonly string[]){
    lastIds=ids;
-   const known=new Set(ids);for(const id of [...stats.keys()])if(!known.has(id)){stats.delete(id);fetched.delete(id);}
+   const known=new Set(ids);for(const id of [...stats.keys()])if(!known.has(id)){stats.delete(id);stamps.delete(id);fetched.delete(id);}
    // One git run per workspace is real work: do it only while someone can see the totals, and catch up on focus.
    if(!canRun())return;
    const now=Date.now();for(const id of ids)if(!queue.includes(id)&&now-(fetched.get(id)||0)>=STALE_MS){fetched.set(id,now);queue.push(id);}

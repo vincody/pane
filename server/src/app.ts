@@ -20,6 +20,7 @@ import {createFileActions,type NativeFileActions} from './features/files/file-ac
 import { gitBranch } from './features/git/git.ts';
 import {worktreeBranches,createWorktree,unregisterNewWorktree,existingWorktree,createComposerWorktree} from './features/git/worktrees.ts';
 import {changes,fileDiff} from './features/git/git-changes.ts';
+import {createChangeWatch} from './features/git/change-watch.ts';
 import {gitSnapshot,gitHistory,gitCommitDetails,gitCommitDiff} from './features/git/git-history.ts';
 import {gitSync} from './features/git/git-sync.ts';
 import {createGitHub} from './features/git/github.ts';
@@ -56,6 +57,7 @@ async function body(req: http.IncomingMessage, limit = 3 * 1024 * 1024): Promise
 
 export async function createApp({ initialRoot = appRoot, stateDir = path.join(appRoot, '.ai-web'), assetsDir=path.join(appRoot,'dist'),nativePickers,nativeFileActions,agentHome, localLaunch, accountUsage, codexEngineFactory,devServerOptions,github=createGitHub() } : AppOptions = {}) {
   const files = new Files();
+  const changeWatch = createChangeWatch();
   const fileActions=createFileActions(files,nativeFileActions);
   const devServers=createDevServers({...devServerOptions,getProjects:()=>[...files.projects.values()]});
   const local=await createLocalSessions({home:agentHome,stateDir});
@@ -208,7 +210,12 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
         }
         if(req.method==='GET'&&['/api/changes','/api/diff'].includes(url.pathname)){
           const project=files.projects.get(id);if(!project)throw new FileError(404,'Workspace not found.');
-          return json(200,url.pathname==='/api/diff'?await fileDiff(project.root,relative):await changes(project.root));
+          if(url.pathname==='/api/diff')return json(200,await fileDiff(project.root,relative));
+          // A client that already holds the current version is told nothing happened, instead of running git again.
+          const since=url.searchParams.get('since');
+          if(since!==null&&changeWatch.unchanged(id,project.root,Number(since)))return json(200,{unchanged:true,stamp:Number(since)});
+          const stamp=changeWatch.track(id,project.root).version,result=await changes(project.root);changeWatch.ran(id);
+          return json(200,{...result,stamp});
         }
         if (req.method === 'PATCH' && url.pathname === '/api/projects') {
           const data = await body(req);
@@ -225,12 +232,13 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
           const removed=await changeProjects(() => {
             if (!files.projects.has(id)) throw new FileError(404, 'Workspace not found.');
             const removed=[id,...[...files.projects.values()].filter(project=>project.parentId===id).map(project=>project.id)];
-            for(const key of removed)files.projects.delete(key);return removed;
+            for(const key of removed){files.projects.delete(key);changeWatch.forget(key);}return removed;
           });
           // Only the web registry changes. No filesystem deletion or agent process control.
           return json(200, { removed: id,removedIds:removed });
         }
         if (req.method === 'GET' && url.pathname === '/api/tree') return json(200, { entries: await files.tree(id, relative) });
+        if (req.method === 'GET' && url.pathname === '/api/file-search') return json(200, await files.searchReferences(id, url.searchParams.get('q') || ''));
         if(url.pathname==='/api/file-actions'){
           if(req.method==='GET')return json(200,fileActions.capabilities());
           if(req.method==='POST')return json(200,await fileActions.perform(id,await body(req)));
@@ -266,6 +274,6 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
   });
   const closeTerminalPty=attachTerminalPty(server,{token,getProject:id=>files.projects.get(id),onStart:devServers.register,onStop:devServers.unregister,onOutput:devServers.output});
   const resources=createResourceMonitor({listTerminals:closeTerminalPty.list});
-  let closing: Promise<unknown> | undefined;const closeSessions=()=>{devServers.dispose();return closing ||= Promise.all([localRunner.close(),closeTerminalPty()]);};server.on('close',()=>{void closeSessions().catch(()=>{});});
+  let closing: Promise<unknown> | undefined;const closeSessions=()=>{devServers.dispose();changeWatch.dispose();return closing ||= Promise.all([localRunner.close(),closeTerminalPty()]);};server.on('close',()=>{void closeSessions().catch(()=>{});});
   return { server, files, token, closeSessions };
 }

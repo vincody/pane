@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 
 /** The Rust addon in native/pane-native. Both calls return JSON text and throw if the system call fails. */
-export interface PaneNative { listProcesses(): string; listTcpListeners(): string; parseTokenLog?(path: string, provider: 'codex' | 'claude'): Promise<string>; trimWorkingSets?(pids: number[]): number }
+export interface PaneNative { listProcesses(): string; listTcpListeners(): string; parseTokenLog?(path: string, provider: 'codex' | 'claude'): Promise<string>; trimWorkingSets?(pids: number[]): number; listWorkspaceFiles?(root: string, limit: number): Promise<string> }
 
 let loaded: PaneNative | null | undefined;
 /**

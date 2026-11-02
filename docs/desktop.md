@@ -17,7 +17,7 @@ The desktop backend listens only on `127.0.0.1:17317` in the installed app. An u
 
 ## Window controls
 
-The desktop window uses a single in-app title/tab row, with a Pane menu and minimize, maximize/restore and close buttons. Its left and right sections follow the sidebar edges, keeping tabs aligned with the working area during sidebar resizing and collapse. Empty title/tab areas drag the window; interactive controls and tabs remain clickable/draggable independently. The native Windows caption and menu bar are removed. Closing uses the same tray/quit safeguards. Ctrl+Q quits, F11 toggles fullscreen, and Ctrl+R reloads.
+The desktop window uses a single in-app title/tab row, with the Pane name and minimize, maximize/restore and close buttons. Its left and right sections follow the sidebar edges, keeping tabs aligned with the working area during sidebar resizing and collapse. Empty title/tab areas drag the window; interactive controls and tabs remain clickable/draggable independently. The native Windows caption and menu bar are removed. Closing uses the same tray/quit safeguards. Ctrl+Q quits, F11 toggles fullscreen, and Ctrl+R reloads.
 
 ## Closing and recovery
 
@@ -28,7 +28,7 @@ The desktop window uses a single in-app title/tab row, with a Pane menu and mini
 - Newer files on disk are not overwritten by recovered drafts: the original version remains the save precondition. Copy the recovered text before closing the tab if you need to reconcile it with the new file. A missing file with a draft is opened as an unsaved recovery buffer; saving cannot recreate it automatically.
 - Recovery is bounded to 64 file tabs, 2 MiB per draft and 3 MiB per workbench snapshot. Failed persistence is reported and quitting warns if recovery could not be confirmed. It is not a replacement for saving files. Historical diff tabs, GitHub form inputs, exact editor cursor/scroll state, and full terminal scrollback are not persisted across a full restart.
 
-Normally `%APPDATA%/Pane` contains workspace registration, the Chromium profile, window geometry and `desktop.log`. Pane → Open diagnostics folder opens it. The development app adopts `.ai-web/projects.json` on first use without modifying the browser state. Packaged first use starts without registered workspaces. Browser preferences are not imported. The installer preserves user data during upgrades and uninstall.
+Normally `%APPDATA%/Pane` contains workspace registration, the Chromium profile, window geometry and `desktop.log`. The development app adopts `.ai-web/projects.json` on first use without modifying the browser state. Packaged first use starts without registered workspaces. Browser preferences are not imported. The installer preserves user data during upgrades and uninstall.
 
 ## Verification
 

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {repositoryName} from '../git/repository-name.ts';
+import {native} from '../../lib/native.ts';
 
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 // Editing limit, matching VS Code's 50 MB point where Monaco stops syncing models to its workers.
@@ -14,7 +15,9 @@ export interface FileReferenceResult { files: FileReference[]; truncated: boolea
 export interface SavedFile { version: string; size: number }
 const MAX_PDF_BYTES = 100 * 1024 * 1024;
 export type ReadFile = { kind: 'image'; media?: 'pdf'; size: number; path: string } | { kind: 'text'; content: string; version: string; bom: boolean; size: number };
-interface ReferenceIndex { expires: number; pending?: Promise<void> | null; files?: FileReference[]; truncated?: boolean }
+interface ReferenceIndex { expires: number; pending?: Promise<void> | null; files?: FileReference[]; lower?: string[]; truncated?: boolean }
+// A workspace's file list for name search: the most files kept (a larger tree reports `truncated`).
+const INDEX_LIMIT = 100_000;
 const excluded = new Set(['node_modules', '.git', '.ai-web']);
 const hash = (buffer: Buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
 
@@ -74,14 +77,28 @@ export class Files {
     let index=this.referenceIndexes.get(id);
     if(!index||!index.pending&&index.expires<Date.now()){
       const newIndex: ReferenceIndex={expires:0};index=newIndex;this.referenceIndexes.set(id,index);
-      index.pending=(async()=>{const files: FileReference[]=[],queue=[{relative:'',depth:0}];let visited=0,truncated=false;
+      index.pending=(async()=>{
+        const addon=native();
+        if(addon?.listWorkspaceFiles){
+          // The Rust walk honours .gitignore, so build output cannot crowd real files out of the list.
+          try{const listed=JSON.parse(await addon.listWorkspaceFiles(await this.resolve(id,''),INDEX_LIMIT)) as {files:string[];truncated:boolean};
+            newIndex.files=listed.files.map(file=>({name:file.slice(file.lastIndexOf('/')+1),path:file}));newIndex.lower=listed.files.map(file=>file.toLowerCase());newIndex.truncated=listed.truncated;newIndex.expires=Date.now()+15000;return;}catch{}
+        }
+        const files: FileReference[]=[],queue=[{relative:'',depth:0}];let visited=0,truncated=false;
         while(queue.length){if(visited++>=500||files.length>=5000){truncated=true;break;}const item=queue.shift();if(!item)break;const {relative,depth}=item;let entries;try{entries=await fs.readdir(await this.resolve(id,relative),{withFileTypes:true});}catch{continue;}
           entries.sort((a,b)=>a.name.localeCompare(b.name));for(const entry of entries){if(excluded.has(entry.name)||entry.isSymbolicLink())continue;const file=path.posix.join(relative,entry.name);if(entry.isDirectory()){if(depth<15)queue.push({relative:file,depth:depth+1});else truncated=true;}else if(entry.isFile()){if(files.length>=5000){truncated=true;break;}files.push({name:entry.name,path:file});}}
         }
-        newIndex.files=files;newIndex.truncated=truncated;newIndex.expires=Date.now()+15000;
+        newIndex.files=files;newIndex.lower=files.map(file=>file.path.toLowerCase());newIndex.truncated=truncated;newIndex.expires=Date.now()+15000;
       })().finally(()=>newIndex.pending=null);
     }
-    if(index.pending)await index.pending;const needle=query.toLowerCase().replaceAll('\\','/');const matches=(index.files || []).filter(file=>file.path.toLowerCase().includes(needle)).sort((a,b)=>Number(b.name.toLowerCase().startsWith(needle))-Number(a.name.toLowerCase().startsWith(needle))||a.path.localeCompare(b.path));return {files:matches.slice(0,40),truncated:index.truncated||matches.length>40};
+    if(index.pending)await index.pending;const needle=query.toLowerCase().replaceAll('\\','/');
+    const all=index.files||[],lower=index.lower||[],matches: FileReference[]=[];
+    for(let position=0;position<all.length;position++)if(lower[position].includes(needle))matches.push(all[position]);
+    // Names that start with the query come first, then by path; a short query can match most of a large tree, so only the first 40 are ordered.
+    const starts=(file: FileReference)=>file.name.toLowerCase().startsWith(needle)?0:1,order=(a: FileReference,b: FileReference)=>starts(a)-starts(b)||a.path.localeCompare(b.path);
+    const best: FileReference[]=[];
+    for(const file of matches){let at=best.length;while(at>0&&order(file,best[at-1])<0)at--;if(at<40){best.splice(at,0,file);if(best.length>40)best.pop();}}
+    return {files:best,truncated:index.truncated||matches.length>40};
   }
 
   async read(id: string, relative: string): Promise<ReadFile> {

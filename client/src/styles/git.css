@@ -9,7 +9,7 @@
 .branch-combobox-control button svg{width:18px;height:18px}
 .branch-combobox-control button:hover{background:var(--surface-card)}
 .branch-combobox-control button:focus-visible{outline:2px solid var(--git-blue);outline-offset:-3px}
-.branch-combobox-popup{position:absolute;z-index:30;top:calc(100% + 6px);left:0;right:0;padding:5px;background:var(--canvas);border:1px solid var(--hairline);border-radius:9px;box-shadow:0 8px 24px #0002}
+.branch-combobox-popup{position:absolute;z-index:30;top:calc(100% + 6px);left:0;right:0;padding:5px;background:var(--glass-strong);border:1px solid var(--hairline);border-radius:9px;box-shadow:0 8px 24px #0002}
 .branch-combobox-heading{display:flex;justify-content:space-between;gap:12px;padding:8px;font-size:11px;color:var(--ink);border-bottom:1px solid var(--hairline);margin-bottom:4px}
 .branch-combobox-heading span{color:var(--muted)}
 .branch-combobox [role=listbox]{max-height:220px;overflow:auto;overscroll-behavior:contain}

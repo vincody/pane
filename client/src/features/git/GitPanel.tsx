@@ -100,7 +100,7 @@ function createGitWorkspace({api,project,onChanged,onOpenDiff,onStartIssue,onBus
 interface GitPanelOptions extends Omit<GitWorkspaceOptions,'project'|'onBusyChanged'> {getProject:()=>Workspace|null;onActivate:(project:Workspace)=>void;onDeactivate:()=>void;onTabsChanged:()=>void}
 export function createGitPanel(options:GitPanelOptions){
  const {getProject,icon,onTabsChanged}=options;
- const trigger=document.createElement('button');trigger.id='git-open';trigger.type='button';trigger.className='sidebar-tool';trigger.title='Git';trigger.setAttribute('aria-label','Git');trigger.append(icon('branch'));document.querySelector('#usage-open')!.before(trigger);
+ const trigger=document.createElement('button');trigger.id='git-open';trigger.type='button';trigger.className='sidebar-tool';trigger.title='Git';trigger.setAttribute('aria-label','Git');trigger.append(icon('branch'));document.querySelector('.sidebar-footer')!.prepend(trigger);
  const host=document.createElement('div');host.className='git-workspace-host';host.hidden=true;document.querySelector('#content-views')!.append(host);
  const entries=new Map<string,{project:Workspace;workspace:ReturnType<typeof createGitWorkspace>}>();
  let active:string|null=null;

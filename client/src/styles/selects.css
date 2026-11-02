@@ -61,7 +61,7 @@
 .worktree-agent-trigger>img,.worktree-agent-trigger>svg,.worktree-agent-menu button>img,.worktree-agent-menu button>svg{width:19px;height:19px;flex:none;object-fit:contain;color:var(--muted)}
 .worktree-agent-trigger>.agent-chevron{margin-left:auto;width:14px;height:14px;transition:transform 120ms}
 .worktree-agent-trigger[aria-expanded=true]>.agent-chevron{transform:rotate(180deg)}
-.worktree-agent-menu{position:fixed;inset:auto;margin:0;padding:5px;max-width:calc(100vw - 24px);max-height:240px;overflow:auto;overscroll-behavior:contain;border:1px solid var(--hairline);border-radius:9px;background:var(--canvas);color:var(--ink);box-shadow:0 8px 24px #0002}
+.worktree-agent-menu{position:fixed;inset:auto;margin:0;padding:5px;max-width:calc(100vw - 24px);max-height:240px;overflow:auto;overscroll-behavior:contain;border:1px solid var(--hairline);border-radius:9px;background:var(--glass-strong);color:var(--ink);box-shadow:0 8px 24px #0002}
 #sub-workspace-dialog .worktree-agent-menu button{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:9px 10px;border:0;border-radius:5px;background:transparent;color:var(--ink);font:12px/1.5 var(--font-ui);text-align:left;cursor:pointer}
 #sub-workspace-dialog .worktree-agent-menu button[data-active=true]{background:var(--surface-card)}
 #sub-workspace-dialog .worktree-agent-menu button[aria-selected=true]{color:var(--git-blue)}

@@ -1,6 +1,6 @@
 /* Settings: flat, quiet layout. Rows sit on hairlines instead of inside cards. */
 #settings-dialog{width:min(880px,calc(100vw - 40px));height:min(640px,calc(100dvh - 48px));border-radius:12px;box-shadow:0 12px 40px #14141322}
-#settings-dialog .settings-navigation{width:208px;padding:18px 10px;background:var(--sidebar);border-right:1px solid var(--hairline)}
+#settings-dialog .settings-navigation{width:208px;padding:18px 10px;background:color-mix(in srgb,var(--ink) 4%,transparent);border-right:1px solid var(--hairline)}
 #settings-dialog .settings-navigation h2{margin:0 10px 14px;font-family:var(--font-ui);font-size:15px;font-weight:600;letter-spacing:0;color:var(--ink)}
 #settings-dialog .settings-navigation nav{gap:1px}
 #settings-dialog .settings-navigation button{min-height:30px;padding:6px 10px;gap:9px;border-radius:6px;font-size:13px;color:var(--muted)}
@@ -18,7 +18,7 @@
 #settings-dialog .setting-row{min-height:0;padding:14px 0;gap:32px;border-bottom:1px solid var(--hairline)}
 #settings-dialog .setting-row strong,#settings-dialog .setting-row>label{font-size:13px;font-weight:500;color:var(--ink)}
 #settings-dialog .setting-row small{margin-top:2px;max-width:420px;font-size:12px;line-height:1.5;color:var(--muted)}
-#settings-dialog select,#settings-dialog .setting-row input[type=number]{min-height:30px;padding:5px 10px;font-size:12.5px;border-radius:6px;background:var(--canvas);border:1px solid var(--hairline)}
+#settings-dialog select,#settings-dialog .setting-row input[type=number]{min-height:30px;padding:5px 10px;font-size:12.5px;border-radius:6px;background:color-mix(in srgb,var(--ink) 5%,transparent);border:1px solid color-mix(in srgb,var(--ink) 10%,transparent)}
 #settings-dialog .setting-row input[type=number]{width:72px}
 #settings-dialog input[type=checkbox]{width:30px;height:18px;border-color:var(--hairline);background:color-mix(in srgb,var(--ink) 10%,transparent)}
 #settings-dialog input[type=checkbox]::after{top:2px;left:2px;width:12px;height:12px;background:#fff;box-shadow:0 1px 2px #0003}

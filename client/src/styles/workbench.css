@@ -170,11 +170,14 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 #unified-tabs #terminal-new:hover:not(:disabled),#unified-tabs #terminal-new[aria-expanded=true]{background:var(--workspace-hover);color:var(--ink)}
 #unified-tabs #terminal-new:disabled{opacity:.4;cursor:default}
 #unified-tabs .file-tab,#unified-tabs .terminal-tab{flex:none;max-width:220px;height:32px}
-#terminal-launcher{position:fixed;z-index:110;width:310px;max-width:calc(100vw - 16px);padding:16px;background:var(--sidebar);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px #0005;color:var(--text)}
+#terminal-launcher{position:fixed;z-index:110;width:364px;max-width:calc(100vw - 16px);padding:16px;background:var(--sidebar);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px #0005;color:var(--text)}
 #terminal-launcher[hidden]{display:none}
 #terminal-launcher>strong{font-size:13px;font-weight:600}
 #terminal-launcher>p{margin:7px 0 14px;color:var(--muted);font-size:11px;line-height:1.5}
-.terminal-launch-choices{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.terminal-launch-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.terminal-launch-choices button{min-width:0}
+.terminal-launch-text{min-width:0}
+.terminal-launch-name,.terminal-launch-hint{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .terminal-launch-choices button{display:flex;align-items:center;gap:8px;min-height:40px;padding:9px 10px;background:var(--surface);border:1px solid var(--border);border-radius:7px;text-align:left;font-size:12px;color:var(--text)}
 .terminal-launch-choices button:last-child{grid-column:1/-1}
 .terminal-launch-choices button:hover{background:var(--hover);border-color:var(--muted)}
@@ -213,6 +216,10 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .terminal-pane-body{flex:1;min-height:0;min-width:0;padding:0;overflow:hidden}
 .terminal-pane-body>.xterm{padding:10px 12px}
 @media(hover:none){.terminal-pane-close{opacity:1}}
+.terminal-pane-split{display:grid;place-items:center;width:22px;height:22px;border-radius:4px;color:var(--muted);flex:none}
+.terminal-pane-split svg{width:13px;height:13px}
+.terminal-pane-split:hover{background:var(--hover);color:var(--text)}
+.terminal-pane-split:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .terminal-pane-zoom{display:grid;place-items:center;width:22px;height:22px;border-radius:4px;color:var(--muted);flex:none}
 .terminal-pane-zoom svg{width:13px;height:13px}
 .terminal-pane-zoom:hover{background:var(--hover);color:var(--text)}
@@ -322,7 +329,7 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .sidebar-footer .sidebar-tool:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .sidebar-footer .dev-server-trigger{display:flex;align-items:center;justify-content:center;gap:4px;width:auto;min-width:34px;padding:0 6px}
 .dev-server-count{font-size:10px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--muted)}
-.dev-server-popover{position:fixed;z-index:120;width:380px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;padding:10px 12px;background:color-mix(in srgb,var(--sidebar) 90%,var(--surface));border:1px solid var(--border);border-radius:9px;box-shadow:0 14px 40px #0006;color:var(--text);font-size:12px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.dev-server-popover{position:fixed;z-index:120;width:380px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;padding:10px 12px;background:var(--glass-strong);border:1px solid var(--border);border-radius:9px;box-shadow:0 14px 40px #0006;color:var(--text);font-size:12px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .dev-server-heading{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .dev-server-heading>svg{width:13px;height:13px;color:var(--muted)}
 .dev-server-heading strong{flex:1;font-size:12px;font-weight:600}
@@ -503,7 +510,7 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .dev-server-description{margin:6px 0 12px;font-size:12px;line-height:1.5;color:var(--muted)}
 #settings-dialog .sound-picker{display:flex;align-items:center;gap:8px;flex:none}.sound-picker input[type=range]{width:120px;accent-color:var(--accent);padding:0}.sound-picker output{min-width:36px;text-align:right;font-size:12px;color:var(--muted)}.sound-picker select{max-width:150px}
 #settings-dialog .setting-row input[type=number]{flex:none;width:88px;text-align:right}
-.resources-popover{position:fixed;z-index:120;width:400px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;padding:10px 12px;background:color-mix(in srgb,var(--sidebar) 90%,var(--surface));border:1px solid var(--border);border-radius:9px;box-shadow:0 14px 40px #0006;color:var(--text);font-size:12px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.resources-popover{position:fixed;z-index:120;width:400px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;padding:10px 12px;background:var(--glass-strong);border:1px solid var(--border);border-radius:9px;box-shadow:0 14px 40px #0006;color:var(--text);font-size:12px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .resources-heading{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .resources-heading strong{flex:1;font-size:12px;font-weight:600}
 .resources-heading button{width:22px;height:22px}
@@ -548,7 +555,7 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 .notification-open>span>.notification-detail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .dev-server-alerts{position:fixed;left:16px;bottom:56px;z-index:130;display:flex;flex-direction:column;gap:8px;max-width:calc(100vw - 32px)}
-.dev-server-alert{display:flex;align-items:center;gap:10px;width:340px;max-width:100%;padding:9px 10px 9px 12px;background:color-mix(in srgb,var(--sidebar) 90%,var(--surface));border:1px solid var(--border);border-radius:9px;box-shadow:0 14px 40px #0006;color:var(--text);font-size:12px}
+.dev-server-alert{display:flex;align-items:center;gap:10px;width:340px;max-width:100%;padding:9px 10px 9px 12px;background:var(--glass-strong);border:1px solid var(--border);border-radius:9px;box-shadow:0 14px 40px #0006;color:var(--text);font-size:12px}
 .dev-server-alert-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .dev-server-alert-text strong,.dev-server-alert-text span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dev-server-alert-text span{color:var(--muted,inherit);opacity:.75}
@@ -594,3 +601,8 @@ select,textarea,.model-dialog select,.project-search input{font-family:var(--fon
 /* Working: a round spinner ring (accent arc, no fill) in place of the braille frames, whose text is hidden. */
 .sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=working] .provider-mark>.agent-state,.ai-session-tab.ai-session-tab[data-status=working] .ai-tab-indicator,.terminal-pane-header[data-status=working] .terminal-pane-state,.terminal-tab[data-status=working] .terminal-tab-state,.agent-card.agent-card[data-status=working] .provider-mark>.agent-state{display:block;width:12px;height:12px;box-sizing:border-box;border:2px solid color-mix(in srgb,var(--accent) 25%,transparent);border-top-color:var(--accent);border-radius:50%;background:none;box-shadow:none;font-size:0;line-height:0;color:transparent}
 @media(prefers-reduced-motion:no-preference){.sidebar #projects .workspace-context .terminal-agent-card.terminal-agent-card.terminal-agent-card[data-status=working] .provider-mark>.agent-state,.ai-session-tab.ai-session-tab[data-status=working] .ai-tab-indicator,.terminal-pane-header[data-status=working] .terminal-pane-state,.terminal-tab[data-status=working] .terminal-tab-state,.agent-card.agent-card[data-status=working] .provider-mark>.agent-state{animation:agent-spin 1s linear infinite}}
+/* Pane actions stay out of the way until the header is hovered or focused. */
+.terminal-pane-header :is(.terminal-pane-split,.terminal-pane-zoom,.terminal-pane-close){opacity:0}
+.terminal-pane-header:is(:hover,:focus-within) :is(.terminal-pane-split,.terminal-pane-zoom,.terminal-pane-close),.terminal-pane-header .terminal-pane-zoom[aria-pressed=true]{opacity:1}
+@media(prefers-reduced-motion:no-preference){.terminal-pane-header :is(.terminal-pane-split,.terminal-pane-zoom,.terminal-pane-close){transition:opacity .14s ease}}
+@media(hover:none){.terminal-pane-header :is(.terminal-pane-split,.terminal-pane-zoom,.terminal-pane-close){opacity:1}}

@@ -2,9 +2,10 @@ import '../../styles/desktop.css';
 export function setupDesktopTitlebar(bar:HTMLElement){
  const desktop=window.paneDesktop;if(!desktop)return ()=>{};
  document.documentElement.dataset.desktop='true';
- const menu=document.createElement('button');menu.type='button';menu.className='desktop-app-menu';menu.setAttribute('aria-label','Pane menu');menu.title='Pane menu';menu.setAttribute('aria-haspopup','menu');menu.innerHTML='<img src="/pane.svg" alt=""><span>Pane</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m5 6 3 3 3-3"/></svg>';menu.onclick=()=>{void desktop.windowControl('menu');};
+ const menu=document.createElement('div');menu.className='desktop-app-menu';menu.innerHTML='<img src="/pane.svg" alt=""><span>Pane</span>';
  const left=document.createElement('div');left.className='desktop-titlebar-left';
- const toggle=bar.querySelector<HTMLElement>('#show-sidebar')!;left.append(menu,toggle);bar.prepend(left);
+ const toggle=bar.querySelector<HTMLElement>('#show-sidebar')!;const hint=document.createElement('button');hint.type='button';hint.className='desktop-palette-hint';hint.title='Command palette (Ctrl+Shift+P)';hint.setAttribute('aria-label','Open command palette');hint.innerHTML='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3A2.5 2.5 0 1 0 5.5 8H10.5A2.5 2.5 0 1 0 8 5.5V10.5A2.5 2.5 0 1 0 10.5 8H5.5A2.5 2.5 0 1 0 8 10.5V5.5A2.5 2.5 0 1 0 5.5 3Z"/></svg>';const mac=navigator.platform.includes('Mac');for(const key of mac?['⌘','⇧','P']:['Ctrl','Shift','P']){const kbd=document.createElement('kbd');kbd.textContent=key;hint.append(kbd);}hint.onclick=()=>document.dispatchEvent(new CustomEvent('pane:open-palette'));
+ left.append(menu,hint,toggle);bar.prepend(left);
  const controls=document.createElement('div');controls.className='desktop-window-controls';controls.setAttribute('role','group');controls.setAttribute('aria-label','Window controls');
  function control(label:string,path:string,action:'minimize'|'maximize'|'close'){
   const button=document.createElement('button');button.type='button';button.className=`desktop-window-${action}`;button.setAttribute('aria-label',label);button.title=label;button.innerHTML=`<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${path}"/></svg>`;button.onclick=()=>{void window.paneDesktop?.windowControl(action);};controls.append(button);return button;

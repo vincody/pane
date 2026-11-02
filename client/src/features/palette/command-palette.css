@@ -1,0 +1,16 @@
+#command-palette{position:fixed;inset:0;z-index:300;display:flex;justify-content:center;align-items:flex-start;padding-top:12vh;background:rgba(8,10,16,.34)}
+#command-palette[hidden]{display:none}
+#command-palette .palette-panel{width:min(560px,calc(100vw - 32px));display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid color-mix(in srgb,var(--ink) 12%,transparent);border-radius:12px;background:var(--glass-strong);color:var(--body);box-shadow:0 18px 56px rgba(0,0,0,.4)}
+#command-palette .palette-input{width:100%;box-sizing:border-box;height:38px;padding:0 12px;border:1px solid color-mix(in srgb,var(--ink) 12%,transparent);border-radius:8px;background:color-mix(in srgb,var(--ink) 5%,transparent);color:var(--ink);font:14px var(--font-ui);outline:0}
+#command-palette .palette-input:focus-visible{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 18%,transparent)}
+#command-palette .palette-list{max-height:calc(32px*10 + 26px*3);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+#command-palette .palette-group{height:26px;display:flex;align-items:flex-end;padding:0 10px 4px;font-size:11px;color:var(--muted)}
+#command-palette .palette-row{height:32px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 10px;border-radius:7px;font-size:13px;color:var(--body);cursor:default}
+#command-palette .palette-row[aria-selected=true]{background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink)}
+#command-palette .palette-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#command-palette .palette-title b{font-weight:600;color:var(--primary)}
+/* Three fixed slots, right-aligned: Ctrl/Alt, Shift, then the key, so every row lines up. */
+#command-palette .palette-keys{display:grid;grid-template-columns:40px 46px minmax(24px,auto);gap:4px;justify-content:end;flex:none}
+#command-palette kbd{box-sizing:border-box;min-width:24px;text-align:center;padding:1px 6px;border:1px solid color-mix(in srgb,var(--ink) 14%,transparent);border-radius:5px;background:color-mix(in srgb,var(--ink) 5%,transparent);color:var(--muted);font:11px var(--font-ui)}
+#command-palette .palette-empty{margin:0;padding:14px 10px;font-size:13px;color:var(--muted)}
+@media(prefers-reduced-motion:no-preference){#command-palette:not([hidden]) .palette-panel{animation:menu-enter .14s ease-out}}

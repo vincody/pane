@@ -40,7 +40,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   panel.id = 'terminal-panel';
   panel.hidden = true;
   panel.setAttribute('aria-label', 'Interactive terminal');
-  panel.innerHTML = '<header class="terminal-titlebar"><div id="terminal-tabs" role="group" aria-label="Terminal sessions"></div><div class="terminal-title-actions"><button id="terminal-new" class="terminal-title-button" aria-label="New terminal" title="New terminal"></button><button id="terminal-close" class="terminal-title-button" aria-label="Close terminal session" title="Close terminal session"></button><span id="terminal-state" class="sr-only" role="status">Closed</span></div></header><div id="terminal-screens"></div><div id="terminal-error" role="alert" hidden></div><div id="terminal-menu" role="menu" aria-label="Terminal tab options" hidden><button type="button" role="menuitem" data-terminal-action="rename">Rename tab</button><button type="button" role="menuitem" data-terminal-action="clear">Clear terminal</button><button type="button" role="menuitem" data-terminal-action="restart">Restart terminal</button><button type="button" role="menuitem" data-terminal-action="close">Close terminal</button></div>';
+  panel.innerHTML = '<header class="terminal-titlebar"><div id="terminal-tabs" role="group" aria-label="Terminal sessions"></div><div class="terminal-title-actions"><button id="terminal-new" class="terminal-title-button" aria-label="New terminal" title="New terminal"></button><button id="terminal-close" class="terminal-title-button" aria-label="Close terminal session" title="Close terminal session"></button><span id="terminal-state" class="sr-only" role="status">Closed</span></div></header><div id="terminal-screens"></div><div id="terminal-error" role="alert" hidden></div><div id="terminal-menu" role="menu" aria-label="Terminal tab options" hidden><button type="button" role="menuitem" data-terminal-action="rename">Rename</button><button type="button" role="menuitem" data-terminal-action="close">Close</button></div>';
 
   const header = panel.querySelector<HTMLElement>('.terminal-titlebar')!;
   document.querySelector<HTMLElement>('.topbar')!.insertBefore(header, document.querySelector<HTMLElement>('.topbar .toolbar-actions')!);
@@ -51,9 +51,6 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   $('#terminal-new').append(icon('plus'));$('#terminal-new').toggleAttribute('disabled',true);
   $('#terminal-close').append(icon('close'));
   $('#terminal-close').remove();
-  for(const [action,label] of [['split-right','Split right'],['split-down','Split down']]){
-    const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.dataset.terminalAction=action;button.textContent=label;$('#terminal-menu').prepend(button);
-  }
   const launcher = document.createElement('div'); launcher.id='terminal-launcher'; launcher.hidden=true; launcher.setAttribute('role','dialog'); launcher.setAttribute('aria-label','New session');
   const heading=document.createElement('strong');heading.textContent='New session';
   const description=document.createElement('p');description.textContent='Choose an agent, local shell or SSH connection.';
@@ -67,7 +64,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     const text=document.createElement('span');text.className='terminal-launch-text';
     const name=document.createElement('span');name.className='terminal-launch-name';name.textContent=label;
     const sub=document.createElement('span');sub.className='terminal-launch-hint';sub.textContent=hint;
-    text.append(name,sub);button.append(text);choices.append(button);
+    text.append(name,sub);button.append(text);
+    const number=document.createElement('kbd');number.className='terminal-launch-key';number.textContent=String(choices.querySelectorAll('button[data-launch]').length+1);number.setAttribute('aria-hidden','true');button.append(number);button.setAttribute('aria-keyshortcuts',number.textContent);choices.append(button);
   }
   launcher.append(heading,description,choices);document.body.append(launcher);
   // An agent whose CLI is missing (as Settings -> Integrations reports) cannot start a session, so its choice is locked.
@@ -398,8 +396,10 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     const paneClose=document.createElement('button');paneClose.type='button';paneClose.className='terminal-pane-close';paneClose.setAttribute('aria-label','Close terminal pane');paneClose.append(icon('close'));
     const paneZoom=document.createElement('button');paneZoom.type='button';paneZoom.className='terminal-pane-zoom';paneZoom.setAttribute('aria-label','Maximize terminal pane');
     paneZoom.innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 2H2v4M10 2h4v4M2 10v4h4M14 10v4h-4"/></svg>';
+    const splitButton=(label:string,path:string)=>{const button=document.createElement('button');button.type='button';button.className='terminal-pane-split';button.setAttribute('aria-label',label);button.title=label;button.innerHTML=`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="${path}"/></svg>`;return button;};
+    const paneSplitRight=splitButton('Split right','M8 2.5v11'),paneSplitDown=splitButton('Split down','M2.5 8h11');
     const paneCwd=document.createElement('span');paneCwd.className='terminal-pane-cwd';
-    paneHeader.append(paneMark,paneTitle,paneCwd,paneState,paneZoom,paneClose);
+    paneHeader.append(paneMark,paneTitle,paneCwd,paneState,paneSplitRight,paneSplitDown,paneZoom,paneClose);
     const body=document.createElement('div');body.className='terminal-pane-body';element.append(paneHeader,body);
     const terminal = new Terminal({
       cursorBlink: true,
@@ -438,6 +438,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
 
     const session:PaneSession = {...(ssh?{ssh}:{}),...(restored?{serverId:restored.ended?undefined:restored.sessionId,restorePending:restored.ended,...(!restored.conversation&&launch==='shell'&&!/^\d+$/.test(restored.name||'')?{customName:true}:{})}:{}),group:{root:null},lastUsed:0,number:nextTerminalNumber(project.id),id, project, name: restored?.name||ssh?.name||project.name, shell: 'Shell', state: 'connecting', ready: false, socket: null, terminal, fit, element, launch,paneHeader,paneTitle,paneMark,paneZoom,resume,cliTitle:restored?.name||ssh?.name||resume?.name,startedAt:restored?.openedAt??Date.now(),...(restored?.conversation?{savedConversation:restored.conversation}:{})};
     paneZoom.onclick=event=>{event.stopPropagation();toggleMaximize(session);};
+    for(const [button,direction] of [[paneSplitRight,'right'],[paneSplitDown,'down']] as const)button.onclick=event=>{event.stopPropagation();const rect=button.getBoundingClientRect();splitSession(session,direction,{x:rect.left,y:rect.bottom+6});};
     paneClose.onclick=event=>{event.stopPropagation();destroySession(session);};
     paneHeader.ondblclick=event=>{if(!(event.target as Element).closest<HTMLButtonElement>('button'))beginRename(session);};
     paneHeader.draggable=true;
@@ -461,7 +462,6 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     });
     session.group={root:{session}};
     element.onpointerdown=()=>{if(activeSession!==session||!hasFocus){hasFocus=true;activeSession=session;onSelect?.();session.lastUsed=++useOrder;for(const item of sessions)item.element.classList.toggle('pane-focused',item===session);renderTabs();publish();}};
-    paneHeader.oncontextmenu=event=>{if(event.shiftKey)return;event.preventDefault();event.stopPropagation();showMenu(session,event.clientX,event.clientY);};
     bindPaneDrop(session);
     session.observer = new ResizeObserver(() => fitSession(session));
     session.observer.observe(element);
@@ -539,14 +539,6 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     recent.terminal!.focus();recent.inputDraft=(recent.inputDraft || '')+data;recent.socket!.send(JSON.stringify({type:'input',data}));return true;
   }
 
-  function restartSession(session = activeSession) {
-    if (!session) return;
-    const project = session.project;
-    destroySession(session);
-    lastProject = project;
-    createSession(project, session.launch, false,session.resume,session.ssh||null);
-    setVisible(true);
-  }
 
   function closeMenu() {
     $('#terminal-menu').hidden = true;
@@ -584,7 +576,7 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     label.replaceWith(input);
     session.renameInput = input;
     let finished = false;
-    const finish = (save:boolean) => {
+    const finish = (save:boolean,refocus=true) => {
       if (finished) return;
       finished = true;
       if (save && input.value.trim()) { session.name = input.value.trim(); session.customName = true; }
@@ -597,21 +589,33 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
         if(inPane)session.paneTitle=restoredLabel;
         renderTabs();
         journal();
-        if(inPane)session.terminal?.focus();else session.tab!.focus();
+        // Back to typing: focusing the tab itself would leave a keyboard focus ring on it.
+        if(refocus)session.terminal?.focus();
       }
     };
     input.addEventListener('keydown', event => {
       if (event.key === 'Enter') { event.preventDefault(); finish(true); }
       if (event.key === 'Escape') { event.preventDefault(); finish(false); }
     });
-    input.addEventListener('blur', () => finish(true));
+    input.addEventListener('blur', () => finish(true,false));
     input.focus();
     input.select();
   }
 
+  const readDefaultLaunch=()=>{try{return localStorage.getItem('ai-web.default-launch')||'ask';}catch{return 'ask';}};
+  const launchSetting=document.createElement('div');launchSetting.className='setting-row';
+  launchSetting.innerHTML=`<div><strong>New session button</strong><small>What the + button starts. Choose Ask every time to pick from the list.</small></div><select aria-label="New session button"><option value="ask">Ask every time</option>${entries.map(([kind,label])=>`<option value="${kind}">${label}</option>`).join('')}</select>`;
+  document.querySelector<HTMLElement>('.settings-footnote')!.before(launchSetting);
+  const launchSelect=launchSetting.querySelector<HTMLSelectElement>('select')!;
+  launchSelect.value=entries.some(([kind])=>kind===readDefaultLaunch())?readDefaultLaunch():'ask';
+  launchSelect.onchange=()=>{try{localStorage.setItem('ai-web.default-launch',launchSelect.value);}catch{}};
   $('#terminal-new').onclick = () => {
     if(!launcher.hidden){closeLauncher();return;}
-    closeMenu();showLauncher();
+    closeMenu();
+    const preferred=readDefaultLaunch();
+    if(preferred==='ask'||!choices.querySelector(`[data-launch="${preferred}"]`)){showLauncher();return;}
+    // A missing CLI can't start, so fall back to the list rather than failing silently.
+    void refreshAgentAvailability().then(()=>{const button=choices.querySelector<HTMLButtonElement>(`[data-launch="${preferred}"]`);if(button&&!button.disabled)button.click();else showLauncher();});
   };
   launcher.onclick = event => {
     const launch=(event.target as Element).closest<HTMLElement>('[data-launch]')?.dataset.launch;if(!launch)return;
@@ -630,20 +634,54 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     const open=(connection:SshConnection|null=null)=>{const existing=connection?sessions.find(session=>session.project.id===project.id&&session.ssh?.host===connection.host&&session.ssh?.username===connection.username&&session.ssh?.port===connection.port&&session.ssh?.identityFile===connection.identityFile&&session.state!=='closed'&&!session.disposed):undefined;if(existing){if(existing.state==='disconnected')existing.reconnect?.();activate(existing);setVisible(true);return;}const created=createSession(project,launch,!split,null,connection);if(split&&sessions.includes(split.target))attachPane(split.target,created,split.direction);setVisible(true);};
     if(launch==='ssh')sshConnections.open(connection=>open(connection));else open();
   };
+  function restartSession(session = activeSession) {
+    if (!session) return;
+    const project = session.project;
+    destroySession(session);
+    lastProject = project;
+    createSession(project, session.launch, false,session.resume,session.ssh||null);
+    setVisible(true);
+  }
+  // Runs a session command on the focused terminal; false when none is focused.
+  type Direction='left'|'right'|'up'|'down';
+  // The visible pane next to this one in a direction: it must touch the same edge band, and the nearest wins.
+  function paneNeighbor(from:PaneSession,direction:Direction){
+    const here=from.element.getBoundingClientRect(),horizontal=direction==='left'||direction==='right';
+    let best:PaneSession|null=null,bestScore=Infinity;
+    for(const other of leaves(from.group.root)){
+      if(other===from||!other.element.offsetParent)continue;
+      const box=other.element.getBoundingClientRect();
+      const gap=direction==='left'?here.left-box.right:direction==='right'?box.left-here.right:direction==='up'?here.top-box.bottom:box.top-here.bottom;
+      const overlap=horizontal?Math.min(here.bottom,box.bottom)-Math.max(here.top,box.top):Math.min(here.right,box.right)-Math.max(here.left,box.left);
+      if(gap<-2||overlap<=0)continue;
+      const score=gap-overlap*.001;if(score<bestScore){best=other;bestScore=score;}
+    }
+    return best;
+  }
+  function focusPane(direction:Direction){
+    const session=activeSession;if(!session)return false;const next=paneNeighbor(session,direction);if(!next)return false;
+    activate(next);if(!next.external)next.terminal?.focus();return true;
+  }
+  function runActive(action:'split-right'|'split-down'|'rename'|'close'|'clear'|'restart'|'zoom'){
+    const session=activeSession;if(!session||session.external)return false;
+    if(action==='split-right'||action==='split-down')splitSession(session,action==='split-right'?'right':'down',{x:Math.max(8,innerWidth/2-155),y:96});
+    else if(action==='rename')beginRename(session);
+    else if(action==='close')destroySession(session);
+    else if(action==='clear')session.terminal?.clear();
+    else if(action==='zoom'){if(maximizedSession===session||leaves(session.group.root).length>1)toggleMaximize(session);}
+    else restartSession(session);
+    return true;
+  }
+  function splitSession(session:PaneSession,direction:SplitDirection,anchor?:{x:number;y:number}){
+    const previous=sessions.filter(item=>item!==session && item.project.id===session.project.id && item.group!==session.group).reduce<PaneSession|null>((latest,item)=>!latest||item.lastUsed>latest.lastUsed?item:latest,null);
+    if(previous && leaves(session.group.root).length===1) attachPane(previous,session,direction);
+    else showLauncher(session,direction,anchor);
+  }
   $('#terminal-menu').onclick = event => {
     const action = (event.target as Element).closest<HTMLElement>('[data-terminal-action]')?.dataset.terminalAction;
     const session = menuSession;
-    const anchor=menuAnchor;
     closeMenu();
-    if(session&&(action==='split-right'||action==='split-down')) {
-      const direction=action==='split-right'?'right':'down';
-      const previous=sessions.filter(item=>item!==session && item.project.id===session.project.id && item.group!==session.group).reduce<PaneSession|null>((latest,item)=>!latest||item.lastUsed>latest.lastUsed?item:latest,null);
-      if(previous && leaves(session.group.root).length===1) attachPane(previous,session,direction);
-      else showLauncher(session,direction,anchor);
-    }
     if (action === 'rename') beginRename(session);
-    if (action === 'clear') session?.terminal?.clear();
-    if (action === 'restart') restartSession(session);
     if (action === 'close' && session) destroySession(session);
   };
   document.addEventListener('pointerdown', event => {
@@ -652,8 +690,30 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   });
   document.addEventListener('keydown', event => {
     if(event.key==='Escape'&&!launcher.hidden){const target=pendingSplit?.target;pendingSplit=null;closeLauncher();if(target&&!target.external)target.terminal?.focus();else $('#terminal-new').focus();return;}
+    if(!launcher.hidden&&/^[1-9]$/.test(event.key)&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.shiftKey&&!event.isComposing){
+      // A number picks the matching choice, as shown on its button; a locked one does nothing.
+      const choice=choices.querySelectorAll<HTMLButtonElement>('button[data-launch]')[Number(event.key)-1];
+      if(choice){event.preventDefault();if(!choice.disabled)choice.click();}
+    }
     if(!launcher.hidden && ['ArrowDown','ArrowUp','ArrowLeft','ArrowRight'].includes(event.key)){
-      event.preventDefault();const buttons=[...choices.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];const direction=['ArrowUp','ArrowLeft'].includes(event.key)?-1:1;buttons[(buttons.indexOf(document.activeElement as HTMLButtonElement)+direction+buttons.length)%buttons.length].focus();
+      event.preventDefault();const buttons=[...choices.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];if(!buttons.length)return;
+      const current=buttons.indexOf(document.activeElement as HTMLButtonElement);
+      if(event.key==='ArrowLeft'||event.key==='ArrowRight')buttons[(current+(event.key==='ArrowLeft'?-1:1)+buttons.length)%buttons.length].focus();
+      else{
+        // Up and down follow the grid: the nearest button in that direction, same column first; wrapping to the other end.
+        const down=event.key==='ArrowDown',centre=(button:HTMLElement)=>{const box=button.getBoundingClientRect();return {x:box.left+box.width/2,y:box.top+box.height/2};};
+        const from=current<0?null:centre(buttons[current]);
+        if(!from){buttons[down?0:buttons.length-1].focus();}
+        else{
+          const others=buttons.filter((_,index)=>index!==current).map(button=>({button,...centre(button)}));
+          const ahead=others.filter(item=>down?item.y>from.y+4:item.y<from.y-4);
+          const pool=ahead.length?ahead:others.filter(item=>down?item.y<=from.y+4:item.y>=from.y-4);
+          const rowY=ahead.length?(down?Math.min:Math.max)(...ahead.map(item=>item.y)):(down?Math.min:Math.max)(...pool.map(item=>item.y));
+          const row=pool.filter(item=>Math.abs(item.y-rowY)<=4);
+          row.sort((first,second)=>Math.abs(first.x-from.x)-Math.abs(second.x-from.x));
+          (row[0]?.button||buttons[current]).focus();
+        }
+      }
     }
     if (event.key === 'Escape' && !$('#terminal-menu').hidden) {
       const session = menuSession;
@@ -699,5 +759,5 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     for(const id of Object.values(saved.selected)){const session=sessions.find(session=>session.id===id);if(session)session.lastUsed=++useOrder;}
     maximizedSession=sessions.find(session=>session.id===saved.maximized);renderLayout();renderTabs();
   }
-  return {element: panel,checkpoint:journal,captureLayout,restoreLayout,get runningCount(){return sessions.filter(session=>!session.external&&session.state!=='closed'&&!session.restorePending).length;},startSession(project:Workspace,launch:'shell'|'claude'|'codex'){lastProject=project;closeLauncher();closeMenu();createSession(project,launch,false);setVisible(true);},restore(projects:Workspace[]){for(const saved of savedTerminals){const project=projects.find(item=>item.id===saved.projectId);if(project)createSession(project,saved.launch,false,null,saved.ssh||null,saved);}for(const session of [activeSession,...sessions])session?.autoResume?.();if(savedTerminals.length&&sessions.length)setVisible(true);}, toggle, showMostRecent, inputMostRecent, resumeSession, placeFilePane, get focusedProjectId(){return activeSession?.project?.id;}, removeFilePane(id:string){const pane=sessions.find(item=>item.external&&item.id===id);if(pane)destroySession(pane);}, hasFilePane(id:string){return sessions.some(item=>item.external&&item.id===id);}, get activePaneId(){return activeSession?.id;}, refreshPaneControls:renderTabs, setFocused(next:boolean){hasFocus=next;renderTabs();publish();}, setProject(project:Workspace|null){lastProject=project;$('#terminal-new').toggleAttribute('disabled',!project);closeLauncher();closeMenu();const recent=sessions.filter(session=>session.project.id===project?.id).sort((a,b)=>b.lastUsed-a.lastUsed)[0];if(recent){activate(recent);setVisible(true);}else{activeSession=null;renderLayout();setVisible(false);}}, newSession(project:Workspace|null){if(project)lastProject=project;$('#terminal-new').click();}, select(id:string) { const session=sessions.find(item=>item.id===id); if(session){activate(session);setVisible(true);} }, close: () => { for (const session of [...sessions]) destroySession(session); setVisible(false); }, get visible() { return visible; }};
+  return {element: panel,checkpoint:journal,runActive,focusPane,get hasActive(){return Boolean(activeSession&&!activeSession.external&&activeSession.state!=='closed');},captureLayout,restoreLayout,get runningCount(){return sessions.filter(session=>!session.external&&session.state!=='closed'&&!session.restorePending).length;},startSession(project:Workspace,launch:'shell'|'claude'|'codex'){lastProject=project;closeLauncher();closeMenu();createSession(project,launch,false);setVisible(true);},restore(projects:Workspace[]){for(const saved of savedTerminals){const project=projects.find(item=>item.id===saved.projectId);if(project)createSession(project,saved.launch,false,null,saved.ssh||null,saved);}for(const session of [activeSession,...sessions])session?.autoResume?.();if(savedTerminals.length&&sessions.length)setVisible(true);}, toggle, showMostRecent, inputMostRecent, resumeSession, placeFilePane, get focusedProjectId(){return activeSession?.project?.id;}, removeFilePane(id:string){const pane=sessions.find(item=>item.external&&item.id===id);if(pane)destroySession(pane);}, hasFilePane(id:string){return sessions.some(item=>item.external&&item.id===id);}, get activePaneId(){return activeSession?.id;}, refreshPaneControls:renderTabs, setFocused(next:boolean){hasFocus=next;renderTabs();publish();}, setProject(project:Workspace|null){lastProject=project;$('#terminal-new').toggleAttribute('disabled',!project);closeLauncher();closeMenu();const recent=sessions.filter(session=>session.project.id===project?.id).sort((a,b)=>b.lastUsed-a.lastUsed)[0];if(recent){activate(recent);setVisible(true);}else{activeSession=null;renderLayout();setVisible(false);}}, newSession(project:Workspace|null){if(project)lastProject=project;$('#terminal-new').click();}, select(id:string) { const session=sessions.find(item=>item.id===id); if(session){activate(session);setVisible(true);} }, close: () => { for (const session of [...sessions]) destroySession(session); setVisible(false); }, get visible() { return visible; }};
 }

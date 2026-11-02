@@ -19,3 +19,11 @@ test('a session opened as an agent is named after the shell once the agent exits
   assert.equal(terminalName({...opened,agent:null,agentEnded:true,cliTitle:undefined}),'PowerShell');
   assert.equal(terminalName({...opened,agent:'claude',agentEnded:false}),'Claude Code');
 });
+
+test('thread titles drop control characters and are capped',()=>{
+  const project={name:'ai-web',root:'C:\UIT\ai-web'};
+  assert.equal(threadTitle('Fix\u0007 the\u200b   bug\n',project),'Fix the bug');
+  const long=threadTitle('x'.repeat(200),project);
+  assert.equal(long.length,60);
+  assert.ok(long.endsWith('\u2026'));
+});
