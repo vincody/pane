@@ -17,18 +17,18 @@ async function withApp(fakeAgents:boolean,run:(app:ElectronApplication,page:impo
  try{
   const executablePath=process.env.PANE_DESKTOP_EXECUTABLE;
   application=await electron.launch({args:executablePath?[]:[path.resolve('.')],...(executablePath?{executablePath}:{}),env});application.process().stderr?.on('data',()=>{});
-  const window=await application.firstWindow();await window.waitForLoadState('load');await window.evaluate(()=>localStorage.setItem('ai-web.terminal-renderer','dom'));await window.reload();await run(application,window,root);
+  const window=await application.firstWindow();await window.waitForLoadState('load');await window.evaluate(()=>{localStorage.setItem('ai-web.terminal-renderer','dom');localStorage.setItem('ai-web.shell-mode','main');});await window.reload();await run(application,window,root);
  }finally{if(application){const pid=application.process().pid;if(pid)try{execFileSync('taskkill.exe',['/PID',String(pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});}catch{}}await fs.rm(data,{recursive:true,force:true,maxRetries:5,retryDelay:200});}
 }
 
 test('an agent session starts without its command being typed into the terminal',async()=>{
  await withApp(true,async(_app,page,root)=>{
   await page.getByRole('button',{name:'New session',exact:true}).click();
-  const claude=page.locator('[data-launch=claude]');await expect(claude).toBeEnabled();await claude.click();
+  const codex=page.locator('[data-launch=codex]');await expect(codex).toBeEnabled();await codex.click();
   const rows=page.locator('.terminal-screen.pane-focused .xterm-rows');
-  await expect(rows).toContainText('FAKE_CLAUDE_RUNNING',{timeout:30000});
+  await expect(rows).toContainText('FAKE_CODEX_RUNNING',{timeout:30000});
   const text=await rows.innerText();
-  expect(text.replace(/\s+/g,'')).toContain(root.replace(/\s+/g,''));expect(text).not.toMatch(/PS [^\n]*> *claude/);expect(text).not.toMatch(/-EncodedCommand|Set-Location/);
+  expect(text.replace(/\s+/g,'')).toContain(root.replace(/\s+/g,''));expect(text).not.toMatch(/PS [^\n]*> *codex/);expect(text).not.toMatch(/-EncodedCommand|Set-Location/);
  });
 });
 

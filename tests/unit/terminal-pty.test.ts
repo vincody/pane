@@ -73,7 +73,9 @@ test('terminal websocket authenticates, streams IO, resizes and closes its PTY',
   await once(client, 'open');
   const readyMessage = nextMessage(client);
   client.send(JSON.stringify({type: 'start', project: project.id, cols: 90, rows: 30}));
-  assert.deepEqual(await readyMessage, {type: 'ready', shell: process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/bash', project: project.name});
+  const ready = await readyMessage as {shell?: string};
+  assert.ok(process.platform === 'win32' ? ['pwsh.exe', 'powershell.exe'].includes(ready.shell || '') : ready.shell === (process.env.SHELL || '/bin/bash'));
+  assert.deepEqual({...ready, shell: undefined}, {type: 'ready', shell: undefined, project: project.name});
   assert.ok(spawned);
   assert.ok(spawned.options.env);
   assert.equal(spawned.options.cwd, project.root);

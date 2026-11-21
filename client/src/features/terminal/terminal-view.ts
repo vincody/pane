@@ -1,3 +1,4 @@
+import {readClaudeMode,readShellMode,saveShellMode} from './terminal-mode.ts';
 import type {SavedLayout,SavedPaneTree} from '../layout/workbench-journal.ts';
 import {Terminal} from '@xterm/xterm';
 import {createSshConnections} from './ssh-connections.ts';
@@ -28,13 +29,13 @@ import {createTerminalConnection} from './terminal-connection.ts';
 
 // Light surfaces need a darker ANSI palette: xterm's default white and bright colours vanish on white.
 const ansiLight={black:'#202124',red:'#c9341e',green:'#0a7d33',yellow:'#946200',blue:'#0a5cff',magenta:'#8a3fc7',cyan:'#007a8a',white:'#5f6368',brightBlack:'#6b7078',brightRed:'#d94a35',brightGreen:'#1a9444',brightYellow:'#a87400',brightBlue:'#2f73ff',brightMagenta:'#a050e0',brightCyan:'#0c92a3',brightWhite:'#202124'};
-function terminalTheme(){
+export function terminalTheme(){
   const styles=getComputedStyle(document.documentElement);
   const color=(name:string,fallback:string)=>styles.getPropertyValue(name).trim()||fallback;
   const accent=color('--primary','#4d8dff'),light=document.documentElement.dataset.theme!=='dark';
   return {background:color('--code-bg','#181a1f'),foreground:color('--code-text','#f4f6fa'),cursor:accent,cursorAccent:color('--code-bg','#181a1f'),selectionBackground:/^#[\da-f]{6}$/i.test(accent)?`${accent}44`:accent,...(light?ansiLight:{})};
 }
-export function createTerminalView({token, icon, onClose, onSessionsChange, onSelect, onOpenBrowser, onOpenLink, onLocalAddress, onNotice}:TerminalViewOptions) {
+export function createTerminalView({token, icon, onClose, onSessionsChange, onSelect, onOpenBrowser, onOpenChat, onOpenDock, onOpenLink, onLocalAddress, onNotice}:TerminalViewOptions) {
   const workspace = document.querySelector<HTMLElement>('#workspace')!;
   const panel = document.createElement('section');
   panel.id = 'terminal-panel';
@@ -402,6 +403,8 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     paneHeader.append(paneMark,paneTitle,paneCwd,paneState,paneSplitRight,paneSplitDown,paneZoom,paneClose);
     const body=document.createElement('div');body.className='terminal-pane-body';element.append(paneHeader,body);
     const terminal = new Terminal({
+      // Prompts drawn for a dark terminal (white text) stay readable on the light theme.
+      minimumContrastRatio: 4.5,
       cursorBlink: true,
       cursorStyle: 'bar',
       fontFamily: '"JetBrains Mono", Consolas, monospace',
@@ -609,6 +612,13 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
   const launchSelect=launchSetting.querySelector<HTMLSelectElement>('select')!;
   launchSelect.value=entries.some(([kind])=>kind===readDefaultLaunch())?readDefaultLaunch():'ask';
   launchSelect.onchange=()=>{try{localStorage.setItem('ai-web.default-launch',launchSelect.value);}catch{}};
+  const modeRow=(title:string,hint:string,options:[string,string][],current:string,save:(value:string)=>void)=>{
+    const row=document.createElement('div');row.className='setting-row';
+    row.innerHTML=`<div><strong>${title}</strong><small>${hint}</small></div><select aria-label="${title}">${options.map(([value,label])=>`<option value="${value}">${label}</option>`).join('')}</select>`;
+    document.querySelector<HTMLElement>('.settings-footnote')!.before(row);
+    const select=row.querySelector<HTMLSelectElement>('select')!;select.value=current;select.onchange=()=>save(select.value);
+  };
+  modeRow('New terminal opens in','The side panel on the right, or the main area beside your files and chats.',[['dock','Side panel'],['main','Main area']],readShellMode(),value=>saveShellMode(value==='main'?'main':'dock'));
   $('#terminal-new').onclick = () => {
     if(!launcher.hidden){closeLauncher();return;}
     closeMenu();
@@ -631,6 +641,9 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     }
     lastProject = project;
     if(launch==='browser'){onOpenBrowser?.(project);return;}
+    if(launch==='claude'&&onOpenChat&&readClaudeMode()==='chat'){onOpenChat(project);return;}
+    // A plain shell lives in the terminal dock; splitting an existing pane still adds a shell next to it.
+    if(launch==='shell'&&onOpenDock&&!split&&readShellMode()==='dock'){onOpenDock(project);return;}
     const open=(connection:SshConnection|null=null)=>{const existing=connection?sessions.find(session=>session.project.id===project.id&&session.ssh?.host===connection.host&&session.ssh?.username===connection.username&&session.ssh?.port===connection.port&&session.ssh?.identityFile===connection.identityFile&&session.state!=='closed'&&!session.disposed):undefined;if(existing){if(existing.state==='disconnected')existing.reconnect?.();activate(existing);setVisible(true);return;}const created=createSession(project,launch,!split,null,connection);if(split&&sessions.includes(split.target))attachPane(split.target,created,split.direction);setVisible(true);};
     if(launch==='ssh')sshConnections.open(connection=>open(connection));else open();
   };
@@ -759,5 +772,5 @@ export function createTerminalView({token, icon, onClose, onSessionsChange, onSe
     for(const id of Object.values(saved.selected)){const session=sessions.find(session=>session.id===id);if(session)session.lastUsed=++useOrder;}
     maximizedSession=sessions.find(session=>session.id===saved.maximized);renderLayout();renderTabs();
   }
-  return {element: panel,checkpoint:journal,runActive,focusPane,get hasActive(){return Boolean(activeSession&&!activeSession.external&&activeSession.state!=='closed');},captureLayout,restoreLayout,get runningCount(){return sessions.filter(session=>!session.external&&session.state!=='closed'&&!session.restorePending).length;},startSession(project:Workspace,launch:'shell'|'claude'|'codex'){lastProject=project;closeLauncher();closeMenu();createSession(project,launch,false);setVisible(true);},restore(projects:Workspace[]){for(const saved of savedTerminals){const project=projects.find(item=>item.id===saved.projectId);if(project)createSession(project,saved.launch,false,null,saved.ssh||null,saved);}for(const session of [activeSession,...sessions])session?.autoResume?.();if(savedTerminals.length&&sessions.length)setVisible(true);}, toggle, showMostRecent, inputMostRecent, resumeSession, placeFilePane, get focusedProjectId(){return activeSession?.project?.id;}, removeFilePane(id:string){const pane=sessions.find(item=>item.external&&item.id===id);if(pane)destroySession(pane);}, hasFilePane(id:string){return sessions.some(item=>item.external&&item.id===id);}, get activePaneId(){return activeSession?.id;}, refreshPaneControls:renderTabs, setFocused(next:boolean){hasFocus=next;renderTabs();publish();}, setProject(project:Workspace|null){lastProject=project;$('#terminal-new').toggleAttribute('disabled',!project);closeLauncher();closeMenu();const recent=sessions.filter(session=>session.project.id===project?.id).sort((a,b)=>b.lastUsed-a.lastUsed)[0];if(recent){activate(recent);setVisible(true);}else{activeSession=null;renderLayout();setVisible(false);}}, newSession(project:Workspace|null){if(project)lastProject=project;$('#terminal-new').click();}, select(id:string) { const session=sessions.find(item=>item.id===id); if(session){activate(session);setVisible(true);} }, close: () => { for (const session of [...sessions]) destroySession(session); setVisible(false); }, get visible() { return visible; }};
+  return {element: panel,checkpoint:journal,runActive,focusPane,get activeFilePaneId(){return activeSession?.external&&hasFocus?activeSession.id:null;},get hasActive(){return Boolean(activeSession&&!activeSession.external&&activeSession.state!=='closed');},captureLayout,restoreLayout,get runningCount(){return sessions.filter(session=>!session.external&&session.state!=='closed'&&!session.restorePending).length;},startSession(project:Workspace,launch:'shell'|'claude'|'codex'){lastProject=project;closeLauncher();closeMenu();createSession(project,launch,false);setVisible(true);},restore(projects:Workspace[]){for(const saved of savedTerminals){const project=projects.find(item=>item.id===saved.projectId);if(project)createSession(project,saved.launch,false,null,saved.ssh||null,saved);}for(const session of [activeSession,...sessions])session?.autoResume?.();if(savedTerminals.length&&sessions.length)setVisible(true);}, toggle, showMostRecent, inputMostRecent, resumeSession, placeFilePane, get focusedProjectId(){return activeSession?.project?.id;}, removeFilePane(id:string){const pane=sessions.find(item=>item.external&&item.id===id);if(pane)destroySession(pane);}, hasFilePane(id:string){return sessions.some(item=>item.external&&item.id===id);}, get activePaneId(){return activeSession?.id;}, refreshPaneControls:renderTabs, setFocused(next:boolean){hasFocus=next;renderTabs();publish();}, setProject(project:Workspace|null){lastProject=project;$('#terminal-new').toggleAttribute('disabled',!project);closeLauncher();closeMenu();const recent=sessions.filter(session=>session.project.id===project?.id).sort((a,b)=>b.lastUsed-a.lastUsed)[0];if(recent){activate(recent);setVisible(true);}else{activeSession=null;renderLayout();setVisible(false);}}, newSession(project:Workspace|null){if(project)lastProject=project;$('#terminal-new').click();}, select(id:string) { const session=sessions.find(item=>item.id===id); if(session){activate(session);setVisible(true);} }, close: () => { for (const session of [...sessions]) destroySession(session); setVisible(false); }, get visible() { return visible; }};
 }

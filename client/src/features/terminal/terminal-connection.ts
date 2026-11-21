@@ -26,7 +26,7 @@ export function createTerminalConnection({session,token,project,id,terminal,laun
         session.ready = true;session.retries=0;session.serverId=message.sessionId;
         session.replaying=Boolean(message.attached);session.state=message.attached?'restoring':'running';session.element.dataset.connection=session.state;
         journal();if(session===getActive())$('#terminal-error').hidden=true;
-        session.shell = message.shell.includes('powershell') ? 'PowerShell' : message.shell;
+        session.shell = /powershell|pwsh/i.test(message.shell) ? 'PowerShell' : message.shell;
         if (session === getActive()) $('#terminal-state').textContent = 'Running';
         renderTabs();
         fitSession(session);

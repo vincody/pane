@@ -13,7 +13,6 @@ import {setupDevServers} from '../features/dev-servers/DevServers.tsx';
 import {setupResources} from '../features/resources/Resources.tsx';
 import {createFileGitDecorations} from '../features/files/file-git-status.ts';
 import {createWorkspaceSidebar} from '../features/workspaces/WorkspaceSidebar.tsx';
-import {createAgentLounge,setupOfficeSetting} from '../features/agents/agent-lounge.ts';
 import {createWorktreeDialog} from '../features/workspaces/worktree-dialog.ts';
 import {createWorkspaceDiffs} from '../features/workspaces/workspace-diff.ts';
 import {createAddWorkspaceDialog} from '../features/workspaces/add-workspace.ts';
@@ -30,6 +29,10 @@ import {icon} from '../lib/icons.ts';
 import {fileIcon} from '../features/files/file-icons.ts';
 import {diffEditorOptions,setupDiffHeader,updateDiffStat} from '../features/files/diff-view.ts';
 import {setupBrowserPane,type BrowserServer} from '../features/browser/browser-pane.ts';
+import {setupChatPane} from '../features/chat/chat-pane.ts';
+import {setupChatSettings} from '../features/chat/chat-settings.ts';
+import {readClaudeMode} from '../features/terminal/terminal-mode.ts';
+import {setupTerminalDock} from '../features/terminal/terminal-dock.ts';
 import {createLinkPreferences} from '../features/browser/link-preferences.ts';
 import {createLinkOpener} from '../features/browser/link-opener.ts';
 import {setupLinkSettings} from '../features/browser/link-settings.ts';
@@ -42,7 +45,6 @@ import {showAppDialog} from '../features/dialog/app-dialog.ts';
 import {createLiveMarkdownSurface} from '../features/files/live-markdown.ts';
 import {chooseFileView,syncFileModeButtons} from '../features/files/markdown-modes.ts';
 import type {FileAction} from '../../../shared/file-actions.ts';
-import {createUsagePanel} from '../features/usage/Usage.tsx';
 import { createAgentView } from '../features/agents/agent-view.ts';
 import { createTerminalView } from '../features/terminal/terminal-view.ts';
 import { setupPanelResize } from '../features/layout/panel-resize.ts';
@@ -54,7 +56,6 @@ import '../styles/design-theme.css';
 import '../styles/git.css';
 import '../styles/selects.css';
 import '../styles/workspace-sidebar.css';
-import '../styles/agent-lounge.css';
 import '../styles/dividers.css';
 import '../styles/browser.css';
 import '../styles/links.css';
@@ -77,7 +78,7 @@ import type {OpenDocument,FileView} from '../features/files/documents.ts';
 import type {Workspace,SessionSnapshot,AgentSnapshot,TextFile,ImageFile,FileDiff,GitFileChange,DevServerSnapshot} from '../../../shared/contracts.ts';
 import type {TerminalAgent} from '../components/contracts.ts';
 import type {DraggedFile,DropZone} from '../features/layout/tab-drag.ts';
-import type {ExternalFilePane} from '../features/terminal/terminal-view.ts';
+import type {ExternalFilePane,TerminalSnapshot} from '../features/terminal/terminal-view.ts';
 type FilePane=ExternalFilePane&{preview:HTMLElement;editor:monaco.editor.IStandaloneCodeEditor|monaco.editor.IStandaloneDiffEditor|null;live?:ReturnType<typeof createLiveMarkdownSurface>;dispose?:()=>void};
 const token = $('meta[name="ai-web-token"]').content;
 const api=createApi(token);
@@ -88,7 +89,6 @@ const documents = new Map<string,OpenDocument>();
 let notifications:ReturnType<typeof createNotifications>|undefined;
 let titlebar:ReturnType<typeof setupTitlebar>|undefined;
 let workspaceSidebar:ReturnType<typeof createWorkspaceSidebar>|undefined;
-let agentLounge:ReturnType<typeof createAgentLounge>|undefined;
 const workspaceDiffs=createWorkspaceDiffs(api,()=>renderProjects());
 let changesView:ReturnType<typeof setupChanges>|undefined;
 let gitView:ReturnType<typeof createGitPanel>|undefined;
@@ -197,7 +197,6 @@ function visibleProjects() {
 }
 function renderProjects() {
   workspaceSidebar?.render({projects:visibleProjects(),currentProjectId:currentProject?.id||null,agents:[...terminalAgents],diffs:workspaceDiffs.stats()});
-  agentLounge?.update(terminalAgents,currentProject?.id||null);
   workspaceDiffs.refresh(projects.map(project=>project.id));
   titlebar?.refresh();
 }
@@ -210,6 +209,7 @@ function checkpointWorkbench(){
  return {dirty,terminals,busy,saved:terminalView.checkpoint()&&writeWorkbenchJournal(value)};
 }
 async function selectProject(project:Workspace|null,initial=false) {
+  if(!terminalDockRestored){terminalDockRestored=true;terminalDock.restore(projects,project);}else terminalDock.setProject(project);
   if(!initial&&project&&project.id===currentProject?.id){currentProject=project;changesView?.projectChanged();gitView?.projectChanged();devServers?.projectChanged();renderTabs();renderProjects();await refreshTree();return;}
   if(currentProject){
     workspaceTabStates.set(currentProject.id,captureWorkspaceState());
@@ -383,14 +383,14 @@ function selectDocument(doc:OpenDocument,{keepChat=false}={}) {
   status(doc.dirty ? 'Unsaved changes' : 'Ready'); if (doc.model&&!keepChat) editor.focus();
 }
 function renderTabs() {
-  updateToolbar();
+  updateToolbar();persistChats();
   $('#tabs').replaceChildren();$('#tabs').setAttribute('role','tablist');$('#tabs').setAttribute('aria-label','Open tabs');
   const selectedAgent=agentView?.selected,split=$('#app').classList.contains('chat-file-split'),gitActive=Boolean(gitView?.activeProject),chatActive=agentView?.visible&&!split&&!gitActive;
   if(selectedAgent){const tab=document.createElement('div');tab.dataset.tabKey='ai';tab.className=`file-tab ai-session-tab${chatActive?' active':''}`;tab.tabIndex=0;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(chatActive));const title=selectedAgent.display_agent || selectedAgent.name || selectedAgent.terminal_title_stripped || 'AI';tab.setAttribute('aria-label',`AI · ${title}`);const mark=document.createElement('span');mark.className='ai-tab-mark';if(['codex','claude','opencode','agy'].includes(selectedAgent.agent)){const image=document.createElement('img');image.src=`/agents/${selectedAgent.agent}.svg`;image.alt='';mark.append(image);}else mark.append(icon('code'));const indicator=document.createElement('span');indicator.className='ai-tab-indicator';mark.append(indicator);tab.append(mark);const label=document.createElement('span');label.className='ai-tab-name';label.textContent=title;tab.append(label);const close=document.createElement('button');close.className='tab-close';close.setAttribute('aria-label','Close AI tab');close.append(icon('close'));close.onclick=event=>{event.stopPropagation();agentView.close();};tab.append(close);tab.onclick=()=>{gitView?.deactivate();endFileSplit();if(!agentView.visible||split){$('#app').classList.remove('chat-file-split');agentView.resume();}};tab.onkeydown=event=>{if(event.target===tab&&['Enter',' '].includes(event.key)){event.preventDefault();tab.click();}};$('#tabs').append(tab);}
   for (const doc of documents.values()) {
     if(doc.project!==currentProject?.id)continue;
-    const tab = document.createElement('div'); tab.dataset.tabKey=doc.key;tab.dataset.project=doc.project;tab.dataset.path=doc.path;tab.className = `file-tab${activeFileKey===doc.key&&!chatActive&&!gitActive ? ' active' : ''}`; tab.title = doc.kind==='browser'?(doc.url||'New tab'):`${projects.find(p => p.id === doc.project)?.name}/${doc.path}`; tab.tabIndex = 0; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(activeFileKey===doc.key&&!chatActive&&!gitActive));
-    tab.append(doc.kind==='browser'?browserTabIcon(doc.favicon):fileIcon(doc.path)); const name = document.createElement('span'); name.className = 'tab-name'; name.textContent = doc.name; tab.append(name);
+    const tab = document.createElement('div'); tab.dataset.tabKey=doc.key;tab.dataset.project=doc.project;tab.dataset.path=doc.path;const focusedPane=(doc.kind==='chat'||doc.kind==='browser')&&terminalView.activeFilePaneId===`file:${doc.key}`,isActive=(activeFileKey===doc.key||focusedPane)&&!chatActive&&!gitActive;tab.className = `file-tab${isActive ? ' active' : ''}`; tab.title = doc.kind==='browser'?(doc.url||'New tab'):doc.kind==='chat'?'Claude chat':`${projects.find(p => p.id === doc.project)?.name}/${doc.path}`; tab.tabIndex = 0; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(isActive));
+    tab.append(doc.kind==='browser'?browserTabIcon(doc.favicon):doc.kind==='chat'?chatTabIcon():fileIcon(doc.path)); const name = document.createElement('span'); name.className = 'tab-name'; name.textContent = doc.name; tab.append(name);
     if (doc.dirty) { const dot = document.createElement('span'); dot.className = 'tab-dirty'; dot.setAttribute('aria-label', 'Unsaved changes'); tab.append(dot); }
     const close = document.createElement('button'); close.className = 'tab-close'; close.append(icon('close')); close.setAttribute('aria-label', `Close ${doc.name}`); close.onclick = event => { event.stopPropagation(); closeDocument(doc); }; tab.append(close);
     tab.onclick = () => selectDocument(doc); tab.onkeydown = event => { if (event.target === tab && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); tab.click(); } }; $('#tabs').append(tab);
@@ -573,7 +573,7 @@ async function renderPreview({doc=currentDocument,target=$('#preview-content'),s
 async function refreshSessions() {
   try {
     const [data, metadata] = await Promise.all([api<SessionSnapshot>('/api/local-sessions'), api<{projects:Workspace[];defaultProject:string}>('/api/projects')]);
-    sessionData = { agents: data.agents || [], sessions: data.sessions || [] };usagePanel.setAgents([...sessionData.agents,...terminalAgents]);for(const agent of sessionData.agents)notifications?.observe(agent);
+    sessionData = { agents: data.agents || [], sessions: data.sessions || [] };for(const agent of sessionData.agents)notifications?.observe(agent);
     if(!draggedProject&&!reorderingProjects){const ranks=new Map(metadata.projects.map((project,index)=>[project.id,index]));projects.sort((a,b)=>(ranks.get(a.id)??Infinity)-(ranks.get(b.id)??Infinity));}
     for (const project of projects) { const latest = metadata.projects.find(item => item.id === project.id); if (latest) project.branch = latest.branch; }
     const selectedSession=agentView.selected;
@@ -664,7 +664,7 @@ async function start() {
   const requested = new URLSearchParams(location.search).get('project')||recovery?.selected||remembered;
   const selected=projects.find(p => p.id === requested) || projects.find(p => p.id === data.defaultProject) || projects[0];
   currentProject=selected||null;terminalView.setProject(currentProject);
-  terminalView.restore(projects);
+  terminalView.restore(projects);restoreChats();
   if(recovery){
     let conflicts=0,missing=0;
     for(const saved of recovery.files){
@@ -679,7 +679,6 @@ async function start() {
     for(const id of recovery.git){const project=projects.find(project=>project.id===id);if(project)gitView?.prepare(project);}
     workspaceTabStates.clear();for(const view of recovery.views)if(projects.some(project=>project.id===view.project))workspaceTabStates.set(view.project,{...view,pane:view.pane,agent:null,agentVisible:false});
     terminalView.restoreLayout(recovery.layout);restoreTabPositions(recovery.positions);currentProject=null;
-    if(conflicts||missing)toast(`${conflicts} recovered draft(s) have newer files on disk; saving is blocked to protect them. ${missing} file(s) could not be reopened.`);
   }
   restoringWorkbench=false;
   await selectProject(selected,true);workbenchReady=true;
@@ -694,7 +693,6 @@ async function start() {
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshSessions();});
   $('#show-sidebar').setAttribute('aria-expanded',String(!$('#app').classList.contains('sidebar-hidden')));
 }
-const usagePanel=createUsagePanel({api});
  const agentView = createAgentView({api,icon,onStatus:agent=>{updateAITabStatus(agent);notifications?.observe(agent);},onSessionClosed:refreshSessions,onChange:()=>{if(agentView.visible){gitView?.deactivate();endFileSplit();}$('#app').classList.remove('chat-file-split');renderProjects();renderTabs();editor.layout();}});
 $('.topbar').insertBefore($('#tabs'),$('.toolbar-actions'));
 $('.topbar .toolbar-actions').append($('.view-switch'), $('#refresh-file'), $('#save'), $('#terminal-toggle'));
@@ -709,7 +707,11 @@ document.addEventListener('click',event=>{
  const link=event.target.closest<HTMLAnchorElement>('.live-markdown-content a[href]'),written=link?.getAttribute('href')||'';
  if(link&&/^https?:\/\//i.test(written)){event.preventDefault();void linkOpener.open(written,currentProject||undefined);}
 },true);
-const terminalView=createTerminalView({token,icon,onOpenBrowser:project=>openBrowser(project),onNotice:(message,duration)=>toast(message,duration),onOpenLink:(url,project)=>void linkOpener.open(url,project),onLocalAddress:(url,project)=>{if(linkPreferences.get().detect)linkOpener.announce(url,project);},onSelect:()=>{if(restoringWorkbench)return;const context=projects.find(project=>project.id===terminalView.focusedProjectId);if(context&&context.id!==currentProject?.id)void selectProject(context);else gitView?.deactivate();activeFileKey=null;document.querySelector<HTMLElement>("#app")!.dataset.fileFocused="false";agentView.close();},onSessionsChange:agents=>{for(const old of terminalAgents)if(!agents.some(agent=>agent.id===old.id))notifications?.remove(old.id);terminalAgents=sessionAttention.update(agents,!document.hidden&&document.hasFocus());for(const agent of agents)notifications?.observe({...agent,terminalSession:true});usagePanel.setAgents([...sessionData.agents,...terminalAgents]);if(!draggedProject&&!reorderingProjects)renderProjects();},onClose:visible=>{ $('#terminal-toggle').setAttribute('aria-pressed',String(visible)); $('.topbar').classList.toggle('terminal-active',visible); }});editorStack.append(terminalView.element);$('#terminal-toggle').title='New terminal';$('#terminal-toggle').setAttribute('aria-label','New terminal');$('#terminal-toggle').onclick=()=>{agentView.close();endFileSplit();terminalView.newSession(currentProject);};
+const terminalDock=setupTerminalDock({token,icon,onChange:open=>{$('#dock-toggle').setAttribute('aria-pressed',String(open));requestAnimationFrame(()=>editor.layout());}});
+$('#dock-toggle').append(icon('terminal'));$('#dock-toggle').onclick=()=>terminalDock.toggle();
+document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&!event.shiftKey&&!event.altKey&&event.key==='`'){event.preventDefault();terminalDock.toggle();}});
+let terminalDockRestored=false;
+const terminalView=createTerminalView({token,icon,onOpenDock:project=>terminalDock.openNew(project),onOpenBrowser:project=>openBrowser(project),onOpenChat:project=>openChat(project),onNotice:(message,duration)=>toast(message,duration),onOpenLink:(url,project)=>void linkOpener.open(url,project),onLocalAddress:(url,project)=>{if(linkPreferences.get().detect)linkOpener.announce(url,project);},onSelect:()=>{if(restoringWorkbench)return;const context=projects.find(project=>project.id===terminalView.focusedProjectId);if(context&&context.id!==currentProject?.id)void selectProject(context);else gitView?.deactivate();activeFileKey=null;document.querySelector<HTMLElement>("#app")!.dataset.fileFocused="false";agentView.close();},onSessionsChange:agents=>{lastTerminalSnapshots=agents;publishAgents();renderTabs();},onClose:visible=>{ $('#terminal-toggle').setAttribute('aria-pressed',String(visible)); $('.topbar').classList.toggle('terminal-active',visible); }});editorStack.append(terminalView.element);$('#terminal-toggle').title='New terminal';$('#terminal-toggle').setAttribute('aria-label','New terminal');$('#terminal-toggle').onclick=()=>{agentView.close();endFileSplit();terminalView.newSession(currentProject);};
 new ResizeObserver(()=>editor.layout()).observe(editorStack);
 const secondaryPane=document.createElement('section');secondaryPane.id='secondary-file';secondaryPane.hidden=true;secondaryPane.setAttribute('aria-label','Second file editor');secondaryPane.innerHTML='<header><span class="secondary-file-title"></span><button type="button" class="icon-button" aria-label="Merge split panes" title="Merge split panes"></button></header><div class="secondary-code"></div><div class="secondary-image" hidden></div>';contentViews.append(secondaryPane);secondaryPane.querySelector<HTMLButtonElement>('button')!.append(icon('close'));secondaryPane.querySelector<HTMLButtonElement>('button')!.onclick=()=>{if(secondaryDocument)closeDocument(secondaryDocument);};
 const secondaryLiveElement=document.createElement('div');secondaryPane.append(secondaryLiveElement);
@@ -746,7 +748,7 @@ function endFileSplit(){secondaryLive.hide();fileZoomAnimation?.cancel();$('#app
 let secondaryTuned=false;
 function showSecondary(doc:OpenDocument){if(secondaryDocument&&secondaryEditor)secondaryDocument.secondaryViewState=secondaryEditor.saveViewState();secondaryDocument=doc;const handle=secondaryPane.querySelector<HTMLElement>("header")!;handle.dataset.project=doc.project;handle.dataset.path=doc.path;secondaryPane.hidden=false;secondaryPane.querySelector<HTMLElement>('.secondary-file-title')!.textContent=doc.name;const code=secondaryPane.querySelector<HTMLElement>('.secondary-code')!,image=secondaryPane.querySelector<HTMLElement>('.secondary-image')!;code.hidden=doc.kind==='image';image.hidden=doc.kind!=='image';if(!secondaryEditor)secondaryEditor=monaco.editor.create(code,{model:null,theme:'ai-web',fontFamily:'"JetBrains Mono", Consolas, monospace',fontSize:appearance.fontSize,wordWrap:appearance.wrap?'on':'off',minimap:{enabled:false},automaticLayout:true,scrollBeyondLastLine:false});if(!secondaryTuned){secondaryTuned=true;tuneEditorForSize(secondaryEditor);}secondaryEditor.setModel(doc.model || null);if(doc.secondaryViewState)secondaryEditor.restoreViewState(doc.secondaryViewState);image.replaceChildren();if(doc.kind==='image')showImage(image,doc);setSecondaryView(defaultFileView);requestAnimationFrame(()=>secondaryEditor?.layout());}
 function dropTab(key:string,zone:DropZone){
- const droppedKind=documents.get(key)?.kind;if(droppedKind==='diff'||droppedKind==='browser'){const doc=documents.get(key)!;mountFilePane(doc,typeof zone==='object'?zone.id:terminalView.activePaneId,typeof zone==='object'?zone.direction:zone==='bottom'?'down':'right');return;}
+ const droppedKind=documents.get(key)?.kind;if(droppedKind==='diff'||droppedKind==='browser'||droppedKind==='chat'){const doc=documents.get(key)!;mountFilePane(doc,typeof zone==='object'?zone.id:terminalView.activePaneId,typeof zone==='object'?zone.direction:zone==='bottom'?'down':'right');return;}
  if(key!=='ai'&&(typeof zone==='object'||zone==='right'||zone==='bottom')){const doc=documents.get(key);if(doc)void dropFile({project:doc.project,path:doc.path},zone);return;}
  const doc=documents.get(key),isAI=key==='ai',edge=zone==='right'||zone==='bottom',app=$('#app');
  if(isAI&&app.classList.contains('file-file-split'))endFileSplit();
@@ -783,6 +785,57 @@ function openBrowser(project:Workspace,url=''){
  const doc:OpenDocument={key:`browser:${project.id}:${Date.now().toString(36)}${++browserCounter}`,project:project.id,path:url,name:'New tab',kind:'browser',url,dirty:false};
  documents.set(doc.key,doc);gitView?.deactivate();mountBrowserPane(doc,null);renderTabs();
 }
+const CHATS_KEY='ai-web.chats';
+let lastChats='';
+/** Chat tabs that have a conversation are remembered so they reopen (resumed) after a restart. */
+function persistChats(){
+ const list=[...documents.values()].flatMap(doc=>doc.kind==='chat'&&doc.sessionId&&doc.name!=='New chat'?[{project:doc.project,id:doc.sessionId,name:doc.name}]:[]).slice(0,20),text=JSON.stringify(list);
+ if(text===lastChats)return;lastChats=text;try{localStorage.setItem(CHATS_KEY,text);}catch{}
+}
+function restoreChats(){
+ let list:{project:string;id:string;name:string}[]=[];
+ try{const value=JSON.parse(localStorage.getItem(CHATS_KEY)||'[]');if(Array.isArray(value))list=value.filter(item=>item&&typeof item.project==='string'&&typeof item.id==='string'&&typeof item.name==='string').slice(0,20);}catch{}
+ const wasVisible=terminalView.visible;
+ for(const item of list){const project=projects.find(entry=>entry.id===item.project);if(!project)continue;openChat(project,{id:item.id,name:item.name});}
+ // Mounting a tab shows the terminal area; keep whatever view was open.
+ if(!wasVisible&&terminalView.visible)terminalView.toggle();
+}
+let lastTerminalSnapshots:TerminalSnapshot[]=[];
+const chatSnapshots=new Map<string,TerminalSnapshot>();
+/** Terminals and native chats share one list, so the sidebar, notifications and "needs you" jumps treat them alike. */
+function publishAgents(){
+ const agents=[...lastTerminalSnapshots,...[...chatSnapshots.values()].map(item=>({...item,selected:terminalView.visible&&activeFileKey===item.id.slice(5)}))];
+ for(const old of terminalAgents)if(!agents.some(agent=>agent.id===old.id))notifications?.remove(old.id);
+ terminalAgents=sessionAttention.update(agents,!document.hidden&&document.hasFocus());
+ for(const agent of agents)notifications?.observe({...agent,terminalSession:true});
+ 
+ if(!draggedProject&&!reorderingProjects)renderProjects();
+}
+let chatCounter=0;
+function chatTabIcon(){const wrapper=document.createElement('span'),image=new Image();wrapper.className='shared-file-icon';image.alt='';image.src='/agents/claude.svg';wrapper.append(image);return wrapper;}
+/** Opens a native Claude chat as a tab beside terminals and files; `session` continues an earlier conversation. */
+function openChat(project:Workspace,session?:{id:string;name?:string}){
+ const existing=session&&[...documents.values()].find(doc=>doc.kind==='chat'&&doc.sessionId===session.id);
+ if(existing){if(!filePanes.has(existing.key))mountFilePane(existing,null);else terminalView.select(`file:${existing.key}`);return;}
+ const doc:OpenDocument={key:`chat:${project.id}:${Date.now().toString(36)}${++chatCounter}`,project:project.id,path:'',name:session?.name||'New chat',kind:'chat',sessionId:session?.id,resume:Boolean(session),dirty:false};
+ documents.set(doc.key,doc);gitView?.deactivate();mountChatPane(doc,null);renderTabs();
+}
+function mountChatPane(doc:OpenDocument&{kind:'chat'},target:string|null|undefined,direction:'right'|'down'|'swap'='right'){
+ const element=document.createElement('section');element.className='terminal-screen file-layout-pane chat-pane';
+ element.innerHTML='<header class="terminal-pane-header"><span class="terminal-pane-title"></span><button class="terminal-pane-zoom" aria-label="Maximize chat pane"></button><button class="terminal-pane-close" aria-label="Close chat"></button></header><div class="file-layout-code"></div>';
+ const header=element.querySelector<HTMLElement>('header')!,host=element.querySelector<HTMLElement>('.file-layout-code')!,zoom=element.querySelector<HTMLButtonElement>('.terminal-pane-zoom')!,title=header.querySelector<HTMLElement>('.terminal-pane-title')!;
+ title.textContent=doc.name;zoom.innerHTML=fileZoom.innerHTML;
+ header.querySelector<HTMLButtonElement>('.terminal-pane-close')!.append(icon('close'));header.querySelector<HTMLButtonElement>('.terminal-pane-close')!.onclick=()=>closeDocument(doc);
+ const project=projects.find(project=>project.id===doc.project)!;
+ const chat=setupChatPane({host,token,project,icon,sessionId:doc.sessionId,resume:doc.resume,onFocus:()=>element.dispatchEvent(new Event('pointerdown',{bubbles:true})),onNewChat:()=>openChat(project),onFork:forked=>openChat(project,{id:forked,name:`${doc.name} (fork)`}),onState:state=>{
+  if(state.sessionId)doc.sessionId=state.sessionId;
+  if(state.title){doc.name=state.title;title.textContent=state.title;renderTabs();}
+  chatSnapshots.set(`file:${doc.key}`,{id:`file:${doc.key}`,project:doc.project,agent:'claude',name:doc.name,status:state.blocked?'blocked':state.state==='working'?'working':state.state==='error'?'error':'idle',completed:Boolean(state.completed),selected:false});
+  publishAgents();
+ }});
+ const pane:FilePane={id:`file:${doc.key}`,project,element,paneHeader:header,paneZoom:zoom,preview:element,editor:null,layout:()=>{},dispose:()=>{chatSnapshots.delete(`file:${doc.key}`);chat.close();publishAgents();},onSelect:()=>{activeFileKey=doc.key;$('#app').dataset.fileFocused='true';agentView.close();renderTabs();publishAgents();requestAnimationFrame(()=>chat.focus());}};
+ filePanes.set(doc.key,pane);terminalView.placeFilePane(pane,target,direction);chat.focus();
+}
 function mountBrowserPane(doc:OpenDocument&{kind:'browser'},target:string|null|undefined,direction:'right'|'down'|'swap'='right'){
  const element=document.createElement('section');element.className='terminal-screen file-layout-pane browser-pane';
  element.innerHTML='<header class="terminal-pane-header"><span class="terminal-pane-title"></span><button class="terminal-pane-zoom" aria-label="Maximize browser pane"></button><button class="terminal-pane-close" aria-label="Close browser pane"></button></header><div class="file-layout-code"></div>';
@@ -798,6 +851,7 @@ function mountBrowserPane(doc:OpenDocument&{kind:'browser'},target:string|null|u
 }
 function mountFilePane(doc:OpenDocument,target:string|null|undefined,direction:'right'|'down'|'swap'='right'){
   if(doc.kind==='browser'){mountBrowserPane(doc,target,direction);return;}
+  if(doc.kind==='chat'){mountChatPane(doc,target,direction);return;}
   let pane=filePanes.get(doc.key);
   if(!pane){
     const element=document.createElement('section');element.className='terminal-screen file-layout-pane';
@@ -830,7 +884,7 @@ if(window.paneDesktop?.browserVersion===1)setupLinkSettings(linkPreferences);
 {const list=document.querySelector('#help-dialog .shortcut-list');
   if(list){const rows:[string,string[]|undefined][]=[['Save current file',['Ctrl','S']],['Toggle preview',['Ctrl','Shift','V']],['Find in editor',['Ctrl','F']],['Command palette',shortcutFor('app.palette')],['New session',shortcutFor('tab.new')],['Close tab',shortcutFor('tab.close')],['Rename tab',shortcutFor('tab.rename')],['Next tab',shortcutFor('tab.next')],['Previous tab',shortcutFor('tab.prev')],['Go to tab 1–9',['Ctrl','1–9']],['Split right',shortcutFor('pane.split:right')],['Split down',shortcutFor('pane.split:down')],['Focus pane',['Alt','←↑↓→']],['Toggle workspace sidebar',shortcutFor('view.sidebar')],['Toggle file explorer',shortcutFor('view.files')],['Open folder',shortcutFor('space.new')],['Next session needing attention',shortcutFor('session.attention')],['Settings',shortcutFor('app.settings')]];
     list.replaceChildren(...rows.flatMap(([label,keys])=>{const span=document.createElement('span');span.textContent=label;const kbd=document.createElement('kbd');kbd.textContent=(keys||[]).join(' ');return [span,kbd];}));}}
-setupColorTheme();setupOfficeSetting();setupSettings({icon,api});
+setupColorTheme();setupChatSettings();setupSettings({icon,api});
 setupFileActions({tree:$('#tree'),api,icon,getProject:()=>currentProject,guard:guardFileAction,changed:fileActionChanged,toast});
 const subWorkspaceDialog=createWorktreeDialog({api,getProjects:()=>projects,onCreated:async (project,launch)=>{const existing=projects.find(item=>item.id===project.id);if(existing)Object.assign(existing,project);else projects.push(project);await selectProject(existing||project);if(launch)terminalView.startSession(existing||project,launch);toast(`Opened ${project.branch||project.name}`);}});
 workspaceSidebar=createWorkspaceSidebar({icon,onCreateSubWorkspace:project=>{void subWorkspaceDialog.open(project);},onSelect:project=>{if(Date.now()-lastProjectDrag>300)void selectProject(project);},onAgentSelect:openTerminalAgent,onMenu:showWorkspaceMenu,setupDrag:setupProjectDrag});
@@ -884,11 +938,10 @@ document.addEventListener('keydown',event=>{
   event.preventDefault();event.stopPropagation();run();
 },true);
 document.addEventListener('pane:open-palette',()=>commandPalette.open());
-const historyView=setupHistory({api,getProjects:()=>projects,getCurrentProject:()=>currentProject,onResume:(record,project)=>{agentView.close();terminalView.resumeSession(record,project);}});
+const historyView=setupHistory({api,getProjects:()=>projects,getCurrentProject:()=>currentProject,onResume:(record,project)=>{agentView.close();if(record.agent==='claude'&&readClaudeMode()==='chat'&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(record.agent_session.value))openChat(project,{id:record.agent_session.value});else terminalView.resumeSession(record,project);}});
 gitView=createGitPanel({api,icon,getProject:()=>currentProject,onTabsChanged:renderTabs,onActivate:project=>{if(currentProject?.id!==project.id)void selectProject(project);agentView.suspend();(document.activeElement as HTMLElement|null)?.blur();terminalView.setFocused(false);},onDeactivate:()=>{if(terminalView.visible)terminalView.setFocused(true);},onStartIssue:(project,issue)=>{const parent=project.parentId?projects.find(item=>item.id===project.parentId):project;if(parent)void subWorkspaceDialog.open(parent,{name:`issue-${issue.number}-${worktreeSlug(issue.title)}`.replace(/-$/,'').slice(0,80),note:`Issue #${issue.number}: ${issue.title}\n${issue.url}\n\n${issue.body}`});},onChanged:()=>{void changesView?.refresh();void refreshTree();void refreshSessions();},onOpenDiff:async(project,hash,file)=>{await openDiff(project,{path:file.path,added:null,removed:null,binary:false},hash);}});
 titlebar=setupTitlebar({getProject:()=>projects.find(project=>project.id===(activeFileKey?documents.get(activeFileKey)?.project:terminalView.visible?terminalView.focusedProjectId:null))||currentProject,getAttention:()=>terminalAgents.map(agent=>({...agent,open:()=>openTerminalAgent(agent.id)}))});
 startWorkingAnimation();
-agentLounge=createAgentLounge({host:document.querySelector<HTMLElement>('#projects-sidebar')!});document.querySelector('#projects-sidebar')!.insertBefore(document.querySelector('#agent-lounge')!,document.querySelector('#projects-sidebar .sidebar-footer'));
 start().catch(error => { status(errorMessage(error,'Operation failed.'), true); toast(errorMessage(error,'Operation failed.')); });
 
 // Refresh Monaco metrics when the bundled font has finished loading.

@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import crypto from 'node:crypto';
 import path from 'node:path';
-import {existsSync,statSync,accessSync,constants} from 'node:fs';
+import {existsSync,lstatSync,statSync,accessSync,constants} from 'node:fs';
 import {sshArguments,validateSshConnection} from '../../../../shared/ssh-connection.ts';
 import * as pty from 'node-pty';
 import type { Server } from 'node:http';
@@ -15,6 +15,13 @@ const maxCols = 300;
 const maxRows = 150;
 const validSize = (cols: unknown, rows: unknown) => typeof cols === 'number' && typeof rows === 'number' && Number.isInteger(cols) && cols >= 2 && cols <= maxCols && Number.isInteger(rows) && rows >= 2 && rows <= maxRows;
 export interface TerminalPtyOptions { token: string; getProject: (id: string) => Workspace | undefined; ptyApi?: Pick<typeof pty, 'spawn'>;protectKey?:(key:string)=>void;onStart?:(pid:number,project:Workspace)=>void;onStop?:(pid:number)=>void;onOutput?:(pid:number,data:string)=>void }
+/** The PowerShell people already use in their own terminal: PowerShell 7 when it is installed, else the one Windows ships. */
+let windowsShells:string[]|undefined;
+// lstat, not exists: a Store install is only an app-execution alias, which existsSync reports as missing.
+const exists=(file:string)=>{try{lstatSync(file);return true;}catch{return false;}};
+function windowsShellCandidates(){
+ return windowsShells||=[...((process.env.PATH||process.env.Path||'').split(path.delimiter).some(dir=>dir&&exists(path.join(dir,'pwsh.exe')))?['pwsh.exe']:[]),'powershell.exe'];
+}
 interface TerminalSession {id:string;pty:pty.IPty;client:WebSocket|null;send:(message:TerminalServerMessage)=>void;agent:string|null;exited?:boolean;detachable:boolean;project:Workspace;shell:string;output:string[];outputSize:number;ssh:boolean}
 
 export function attachTerminalPty(server: Server, { token, getProject, ptyApi = pty,protectKey=protectSshKey,onStart,onStop,onOutput }: TerminalPtyOptions){
@@ -45,6 +52,8 @@ export function attachTerminalPty(server: Server, { token, getProject, ptyApi = 
     const host = request.headers.host || '';
     let url;
     try { url = new URL(request.url || '', `http://${host}`); } catch { socket.destroy(); return; }
+    // The chat socket has its own upgrade listener.
+    if (url.pathname === '/api/chat') return;
     const origin = request.headers.origin;
     const protocols = (request.headers['sec-websocket-protocol'] || '').split(',').map(value => value.trim());
     const deniedBy = url.pathname !== '/api/terminal' ? 'path'
@@ -98,7 +107,12 @@ export function attachTerminalPty(server: Server, { token, getProject, ptyApi = 
         const env:NodeJS.ProcessEnv=currentPath({...process.env,TERM:'xterm-256color',COLORTERM:'truecolor'});
         for(const key of Object.keys(env))if(['NO_COLOR','FORCE_COLOR','CLICOLOR','CLICOLOR_FORCE','TERM_PROGRAM','TERM_PROGRAM_VERSION'].includes(key.toUpperCase()))delete env[key];
         try{
-          const child=ptyApi.spawn(shell,args,{name:'xterm-256color',cols:message.cols as number,rows:message.rows as number,cwd:project.root,env,...(process.platform==='win32'?{useConptyDll:true}:{})});
+          const candidates=process.platform==='win32'&&shell==='powershell.exe'?windowsShellCandidates():[shell];
+          let child!:pty.IPty;
+          for(const [index,candidate] of candidates.entries()){
+            try{child=ptyApi.spawn(candidate,args,{name:'xterm-256color',cols:message.cols as number,rows:message.rows as number,cwd:project.root,env,...(process.platform==='win32'?{useConptyDll:true}:{})});shell=candidate;break;}
+            catch(error){if(index===candidates.length-1)throw error;}
+          }
           const owned:TerminalSession={id:typeof message.sessionId==='string'?message.sessionId:crypto.randomUUID(),pty:child,client,agent:null,detachable:message.detachable===true,project,shell,output:[],outputSize:0,ssh:message.ssh!==undefined,send:message=>sendTo(owned.client,message)};
           session=owned;sessions.set(owned.id,owned);onStart?.(child.pid,project);
           child.onData(data=>{onOutput?.(child.pid,data);if(owned.detachable){owned.output.push(data);owned.outputSize+=Buffer.byteLength(data);while(owned.outputSize>524288&&owned.output.length>1)owned.outputSize-=Buffer.byteLength(owned.output.shift()!);if(owned.outputSize>524288){const bytes=Buffer.from(owned.output[0]);let start=bytes.length-524288;while(start<bytes.length&&(bytes[start]&0xc0)===0x80)start++;owned.output=[bytes.subarray(start).toString('utf8')];owned.outputSize=bytes.length-start;}}owned.send({type:'data',data});});

@@ -12,6 +12,7 @@ client/
     features/
       agents/                Agent transcript controller
       browser/               Browser tab, link opening choice and local server detection
+      chat/                  Native Claude chat tab: transcript, composer, permission cards
       dev-servers/           Workspace server tracking UI
       files/                 Documents, previews, images and Git decorations
                              File tree, file languages and Monaco worker setup
@@ -25,7 +26,6 @@ client/
       settings/              Settings UI
       terminal/              PTY view, pane layout, input, activity and naming
                              Connection lifecycle and shared pane types
-      usage/                 Account quota UI
       workspaces/            Workspace sidebar and selection helpers
                              Worktree creation lives in worktree-dialog.ts;
                              row status and +/- totals in session-attention.ts and workspace-diff.ts
@@ -40,6 +40,7 @@ server/
     app.ts                   HTTP routes and service coordination
     features/
       agents/                Tool action parsing
+      claude-chat/           Claude Agent SDK sessions, event normalising and the /api/chat socket
       codex/                 Codex transport, control and live sessions
       dev-servers/           Port collection and workspace attribution
       files/                 Workspace registry and safe file access
@@ -51,6 +52,7 @@ server/
       usage/                 Provider account quotas
     lib/                     CLI binary discovery
 shared/                      Browser/server API and terminal contracts
+                             (chat-transcript.ts folds chat events for the server replay and the view)
                              (browser.ts holds the Browser tab's session partition name)
 desktop/                     Electron startup, preload bridge and native APIs
   icons/                     App icon master (pane.svg) and generated icon.png / icon.ico

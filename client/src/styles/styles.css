@@ -1,5 +1,6 @@
 /* Ordered imports preserve the existing cascade, including feature overrides. */
 @import "./foundation.css";
 @import "./workspace-chat.css";
+@import "./chat.css";
 @import "./navigation.css";
 @import "./workbench.css";

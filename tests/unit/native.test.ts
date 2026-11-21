@@ -48,31 +48,3 @@ test('the backend reads processes and listening ports through the same calls its
   assert.equal(found?.pid, process.pid);
   assert.match(String(found?.processName), /^node(\.exe)?$/i);
 });
-
-test('the addon reads token usage from a log exactly as the TypeScript reference does', {skip: addon?.parseTokenLog ? false : 'the native addon is not built (npm run native:build)'}, async t => {
-  const {parseTokenLogInJs} = await import('../../server/src/features/usage/token-usage.ts');
-  const fs = await import('node:fs/promises'), os = await import('node:os'), path = await import('node:path');
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'pane-token-'));
-  t.after(() => fs.rm(directory, {recursive: true, force: true}));
-  const codex = [
-    {type: 'session_meta', payload: {id: 'sess-1'}},
-    {timestamp: '2026-10-31T10:00:00.000Z', type: 'event_msg', payload: {type: 'token_count', info: {total_token_usage: {input_tokens: 10, output_tokens: 2, cached_input_tokens: 4, total_tokens: 12}}}},
-    {timestamp: '2026-10-31T10:05:00.500Z', type: 'event_msg', payload: {type: 'token_count', info: {total_token_usage: {input_tokens: 25, output_tokens: 5, cached_input_tokens: 4, total_tokens: 30}}}},
-    {timestamp: '2026-10-31T10:06:00.000Z', type: 'event_msg', payload: {type: 'token_count', info: {total_token_usage: {input_tokens: 25, output_tokens: 5, cached_input_tokens: 4, total_tokens: 30}}}},
-    {timestamp: 'garbage', type: 'event_msg', payload: {type: 'token_count', info: {total_token_usage: {input_tokens: 99, total_tokens: 99}}}},
-  ].map(row => JSON.stringify(row)).join('\n') + '\nthis token_count line is not json\n';
-  const claude = [
-    {type: 'assistant', sessionId: 's2', timestamp: '2026-10-31T11:00:00.000Z', message: {id: 'm1', usage: {input_tokens: 3, cache_read_input_tokens: 100, cache_creation_input_tokens: 7, output_tokens: 1}}},
-    {type: 'assistant', sessionId: 's2', timestamp: '2026-10-31T11:00:09.000Z', message: {id: 'm1', usage: {input_tokens: 3, cache_read_input_tokens: 100, cache_creation_input_tokens: 7, output_tokens: 9}}},
-    {type: 'assistant', sessionId: 's2', timestamp: '2026-10-31T11:01:00.000Z', message: {id: 'm2', usage: {input_tokens: 1, output_tokens: 4}}},
-    {type: 'user', message: {usage: {input_tokens: 5}}},
-  ].map(row => JSON.stringify(row)).join('\r\n') + '\r\n';
-  for (const [name, provider, body] of [['codex.jsonl', 'codex', codex], ['claude.jsonl', 'claude', claude]] as const) {
-    const file = path.join(directory, name);
-    await fs.writeFile(file, body);
-    const reference = await parseTokenLogInJs(file, provider);
-    const native = JSON.parse(await addon!.parseTokenLog!(file, provider));
-    assert.deepEqual(native, reference, `${provider} log`);
-    assert.ok(reference.entries.length > 0);
-  }
-});

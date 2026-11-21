@@ -11,7 +11,7 @@ test('the quit confirmation is drawn inside the app and its buttons keep, hide o
  try{
   const executablePath=process.env.PANE_DESKTOP_EXECUTABLE;application=await electron.launch({args:executablePath?[]:[path.resolve('.')],...(executablePath?{executablePath}:{}),env:{...process.env,PANE_DESKTOP_DATA_DIR:data,PANE_DESKTOP_PORT:'17401'}});
   application.process().stderr?.on('data',()=>{});const app=application;
-  const page=await app.firstWindow();await expect(page.locator('.project-button')).toBeVisible();
+  const page=await app.firstWindow();await page.evaluate(()=>localStorage.setItem('ai-web.shell-mode','main'));await expect(page.locator('.project-button')).toBeVisible();
   await page.locator('#terminal-new').click();await page.locator('[data-launch=shell]').click();await expect(page.locator('.terminal-tab').first()).toBeVisible();
   const dialog=page.locator('.app-dialog');
   // Closing the window asks what to do with the running terminal.

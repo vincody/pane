@@ -9,9 +9,6 @@ export interface AgentSnapshot {
 export interface SessionSnapshot {agents:AgentSnapshot[];sessions:SessionRecord[];connected?:boolean;source?:string;workspaces?:Workspace[]}
 export interface Limit {usedPercent:number;resetsAt?:string|null}
 export interface AccountQuota {provider:Provider;available:boolean;fiveHour?:Limit|null;weekly?:Limit|null;message?:string;stale?:boolean;updatedAt?:string|null}
-export interface TokenCounters {input:number;output:number;cacheRead:number;cacheWrite:number;total:number}
-export interface TokenUsage {provider:Provider;supported:boolean;available:boolean;counters:TokenCounters;sessions:number;message?:string}
-export interface TokenUsageSnapshot {providers:TokenUsage[];updatedAt:string;partial:boolean}
 export interface GitFileChange {path:string;added:number|null;removed:number|null;binary:boolean;untracked?:boolean}
 export interface GitChanges {available:boolean;files:GitFileChange[];baseline?:string|null;statuses?:Record<string,{code:string;originalPath?:string}>;truncated?:boolean}
 export interface FileDiff {path:string;original:string;modified:string;baseline:string|null}
@@ -43,3 +40,35 @@ export type TerminalServerMessage={type:'ready';shell:string;project:string;sess
 export interface GitHubIntegrationStatus {status:'connected'|'not-installed'|'not-authenticated'|'unavailable';version:string|null;account:string|null;message:string}
 export interface GitHubMessage {id:string;author:string;body:string;createdAt:string;url:string;kind:'comment'|'review'|'inline';state?:string;path?:string;line?:number}
 export interface GitHubConversation {messages:GitHubMessage[];hasMore:boolean;page:number}
+/** Native Claude chat: events the server sends and messages the client sends over /api/chat. */
+export type ChatPermissionMode='auto'|'default'|'acceptEdits'|'plan'|'bypassPermissions';
+export interface ChatPermissionOption {id:'allow'|'always'|'deny';label:string}
+export type ChatEvent=
+ |{type:'user';id:string;text:string;images?:number}
+ |{type:'text';id:string;text:string;final?:boolean}
+ |{type:'thinking';id:string;text:string}
+ |{type:'tool';id:string;name:string;input:unknown;status:'running'|'done'|'error';output?:string}
+ |{type:'permission';id:string;tool:string;input:unknown;blockedPath?:string}
+ |{type:'permission-done';id:string}
+ |{type:'title';text:string}
+ |{type:'turn';id:string;ms:number;at:number}
+ |{type:'limit';window:'five_hour'|'seven_day';usedPercent:number;resetsAt:number|null}
+ |{type:'resume-cost';tokens:number;percent:number;inactiveMs:number}
+ |{type:'status';state:'starting'|'idle'|'working'|'error';message?:string;model?:string;effort?:string|null;ultracode?:boolean;sessionId?:string;permissionMode?:ChatPermissionMode;costUsd?:number};
+export interface ChatContextUsage {total:number;max:number;categories:{name:string;tokens:number;kind:'used'|'free'|'buffer'|'deferred'}[]}
+export interface ChatCommand {name:string;description:string;argumentHint?:string}
+export interface ChatImage {mediaType:'image/png'|'image/jpeg'|'image/gif'|'image/webp';data:string}
+export type ChatServerMessage={type:'ready';sessionId:string;project:string;replay:ChatEvent[]}|{type:'event';event:ChatEvent}|{type:'models';models:{value:string;displayName:string;description?:string;efforts?:string[];resolved?:string}[]}|{type:'commands';commands:ChatCommand[]}|{type:'forked';sessionId:string}|{type:'context';usage:ChatContextUsage}|{type:'error';message:string;code?:string};
+export type ChatClientMessage=
+ |{type:'start';project:string;sessionId?:string;resume?:boolean;model?:string;permissionMode?:ChatPermissionMode}
+ |{type:'send';text:string;images?:ChatImage[]}
+ |{type:'interrupt'}
+ |{type:'set-model';model:string}
+ |{type:'set-permission-mode';mode:ChatPermissionMode}
+ |{type:'set-effort';effort?:string;ultracode?:boolean}
+ |{type:'answer-permission';id:string;decision:'allow'|'always'|'deny';answers?:Record<string,string>}
+ |{type:'list-models'}
+ |{type:'list-commands'}
+ |{type:'fork'}
+ |{type:'get-context'}
+ |{type:'close'};

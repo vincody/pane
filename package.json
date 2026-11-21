@@ -26,6 +26,7 @@
     "dompurify": "$dompurify"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.329",
     "@tiptap/core": "^3.32.0",
     "@tiptap/extension-code-block": "^3.32.0",
     "@tiptap/extension-image": "^3.32.0",

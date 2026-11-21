@@ -49,8 +49,8 @@ export const test=base.extend<{page:Page;desktop:ElectronApplication},{closeApp:
    const call=typeof script==='function'?`const __name=(target)=>target;(${script})(${JSON.stringify(arg)});`:String(script);
    return addInitScript({content:`try{if(${active}){${call}}}catch(error){if(${active})throw error;}`});
   }) as unknown as Page['addInitScript'];
-  // The first script of a test wipes the previous test's saved layout once, before the app boots; later reloads keep it.
-  await addInitScript({content:`try{if(sessionStorage.getItem('pane-test')!=='${token}'){localStorage.clear();sessionStorage.clear();sessionStorage.setItem('pane-test','${token}');}}catch{}`});
+  // Shells open in the main area unless a test asks for the side panel; the first script of a test wipes the previous test's saved layout once, before the app boots; later reloads keep it.
+  await addInitScript({content:`try{if(sessionStorage.getItem('pane-test')!=='${token}'){localStorage.clear();sessionStorage.clear();sessionStorage.setItem('pane-test','${token}');localStorage.setItem('ai-web.shell-mode','main');}}catch{}`});
   await goto(origin+'/');await page.locator('#terminal-new').waitFor({state:'attached'});
   try{await use(page);}finally{
    page.goto=goto;page.addInitScript=addInitScript;

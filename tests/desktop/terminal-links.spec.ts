@@ -12,7 +12,7 @@ test('Ctrl+clicking a terminal link, plain or OSC 8, asks first and never opens 
   application.process().stderr?.on('data',()=>{});const app=application;
   await app.evaluate(({shell})=>{const urls:string[]=[];Reflect.set(globalThis,'paneOpened',urls);shell.openExternal=async(url:string)=>{urls.push(url);};});
   const opened=()=>app.evaluate(()=>[...(Reflect.get(globalThis,'paneOpened') as string[])]);
-  const page=await app.firstWindow();await page.waitForLoadState('load');await page.evaluate(()=>localStorage.setItem('ai-web.terminal-renderer','dom'));await page.reload();await expect(page.locator('.project-button')).toBeVisible();
+  const page=await app.firstWindow();await page.waitForLoadState('load');await page.evaluate(()=>{localStorage.setItem('ai-web.terminal-renderer','dom');localStorage.setItem('ai-web.shell-mode','main');});await page.reload();await expect(page.locator('.project-button')).toBeVisible();
   let socket:WebSocketRoute|undefined;
   await page.routeWebSocket('**/api/terminal',connection=>connection.onMessage(raw=>{if(JSON.parse(raw.toString()).type==='start'){socket=connection;connection.send(JSON.stringify({type:'ready',shell:'Test shell'}));}}));
   await page.locator('#terminal-new').click();await page.locator('[data-launch=shell]').click();await expect.poll(()=>Boolean(socket)).toBe(true);

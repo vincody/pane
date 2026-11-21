@@ -10,7 +10,7 @@ test('Resources lists Pane and each terminal, measures only while open, and clos
  try{
   const executablePath=process.env.PANE_DESKTOP_EXECUTABLE;
   application=await electron.launch({args:executablePath?[]:[path.resolve('.')],...(executablePath?{executablePath}:{}),env:{...process.env,PANE_DESKTOP_DATA_DIR:data,PANE_DESKTOP_PORT:'17327'}});application.process().stderr?.on('data',()=>{});
-  const page=await application.firstWindow();
+  const page=await application.firstWindow();await page.evaluate(()=>localStorage.setItem('ai-web.shell-mode','main'));
   let requests=0;page.on('request',request=>{if(request.url().endsWith('/api/resources'))requests++;});
   for(let index=0;index<2;index++){await page.getByRole('button',{name:'New session',exact:true}).click();await page.locator('[data-launch=shell]').click();await page.locator('.terminal-tab-status[data-state=running]').nth(index).waitFor({state:'attached',timeout:20000});}
   await page.waitForTimeout(1500);expect(requests).toBe(0);

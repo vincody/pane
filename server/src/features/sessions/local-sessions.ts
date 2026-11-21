@@ -6,6 +6,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {parseSession} from './session-parser.ts';
 import {sessionId} from './session-id.ts';
+import {deriveTabTitle} from '../../../../shared/tab-title.ts';
 import {FileError,isWithin} from '../files/files.ts';
 import type { Provider, SessionRecord } from '../../../../shared/contracts.ts';
 import type { TranscriptMessage } from './session-parser.ts';
@@ -57,7 +58,7 @@ export async function createLocalSessions({home=os.homedir(),stateDir,codexHome=
     const cwd=candidate&&path.isAbsolute(candidate)?candidate:cache.get(real)?.record.cwd || meta.cwd;
     const lastTimestamp=[...tail].reverse().find(row=>Number.isFinite(Date.parse(row.timestamp || '')))?.timestamp;
     const conversation=parseSession(head.map(row=>JSON.stringify(row)).join('\n'),source.agent),first=conversation.messages.find((message): message is TranscriptMessage=>message.role==='user'&&message.kind!=='action');
-    const title=names.get(nativeId)||[...tail].reverse().find(row=>row.type==='custom-title')?.customTitle || first?.text || `${source.agent==='codex'?'Codex':'Claude'} session`;
+    const title=names.get(nativeId)||[...tail].reverse().find(row=>row.type==='custom-title')?.customTitle || (source.agent==='claude'&&first?.text?deriveTabTitle(first.text):'') || first?.text || `${source.agent==='codex'?'Codex':'Claude'} session`;
     const summary=[...parseSession(tailText,source.agent).messages].reverse().find((message): message is TranscriptMessage=>message.role==='assistant'&&message.kind!=='action');
     record={id:sessionId({agent:source.agent,agent_session:{value:nativeId}}),agent:source.agent,agent_session:{value:nativeId},cwd,name:String(title).replace(/\s+/g,' ').trim().slice(0,120),last_update:summary?.text?.replace(/\s+/g,' ').slice(0,200)||'',createdAt:meta.timestamp || new Date(stat.birthtimeMs).toISOString(),updatedAt:new Date(lastTimestamp || stat.mtimeMs).toISOString(),local:true,live:false,file:real,root:source.root};
    }

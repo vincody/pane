@@ -6,7 +6,7 @@ html[data-desktop=true] .desktop-titlebar-end{display:flex;align-items:center;ga
 html[data-desktop=true] #app.sidebar-hidden .desktop-titlebar-left{width:96px;gap:4px;padding:0 8px}
 html[data-desktop=true] #app.sidebar-hidden .desktop-app-menu{padding:0 3px;gap:4px}
 html[data-desktop=true] #app.sidebar-hidden .desktop-app-menu>span{display:none}
-html[data-desktop=true] .desktop-titlebar-right{display:flex;align-items:center;justify-content:flex-end;align-self:stretch;flex:none;width:max(180px,var(--desktop-right-edge,var(--right-panel-width,260px)))}
+html[data-desktop=true] .desktop-titlebar-right{display:flex;align-items:center;justify-content:flex-end;align-self:stretch;flex:none;min-width:max(180px,var(--desktop-right-edge,var(--right-panel-width,260px)))}
 html[data-desktop=true] #projects-sidebar>.brand{display:none}
 html[data-desktop=true] .topbar :is(button,input,select,[role=tab],[role=separator],a){-webkit-app-region:no-drag}
 html[data-desktop=true] #unified-tabs{min-width:60px;margin-left:8px}

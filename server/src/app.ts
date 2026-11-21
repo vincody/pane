@@ -1,9 +1,10 @@
 import {createAccountUsage} from './features/usage/account-usage.ts';
 import {localTools} from './features/integrations/local-tools.ts';
-import {createTokenUsage} from './features/usage/token-usage.ts';
 import {createLocalSessions} from './features/sessions/local-sessions.ts';
 import {createLocalRunner} from './features/sessions/local-runner.ts';
 import {attachTerminalPty} from './features/terminal/terminal-pty.ts';
+import {attachChatSockets} from './features/claude-chat/chat-socket.ts';
+import {createChatPrefs} from './features/claude-chat/chat-prefs.ts';
 import {createResourceMonitor} from './features/resources/resources.ts';
 import {selectSshKey} from './features/terminal/ssh-key-picker.ts';
 import {importSshKey} from './features/terminal/ssh-key-import.ts';
@@ -18,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { Files, FileError, isWithin, MAX_EDIT_BYTES } from './features/files/files.ts';
 import {createFileActions,type NativeFileActions} from './features/files/file-actions.ts';
 import { gitBranch } from './features/git/git.ts';
+import {listBranches,switchBranch} from './features/git/branches.ts';
 import {worktreeBranches,createWorktree,unregisterNewWorktree,existingWorktree,createComposerWorktree} from './features/git/worktrees.ts';
 import {changes,fileDiff} from './features/git/git-changes.ts';
 import {createChangeWatch} from './features/git/change-watch.ts';
@@ -64,7 +66,6 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
   const registeredSession=(record: SessionRecord)=>[...files.projects.values()].some(project=>record.cwd&&isWithin(path.resolve(project.root),path.resolve(record.cwd)));
   const localRunner=createLocalRunner({local,launch:localLaunch,allowRecord:registeredSession,codexEngineFactory});
   const usage=accountUsage || createAccountUsage({home:agentHome,requestCodex:(method,params)=>localRunner.accountRequest(method,params)});
-  const tokenUsage=createTokenUsage({home:agentHome});
   const token = crypto.randomBytes(32).toString('hex');
   await fs.mkdir(stateDir, { recursive: true });
   const projectFile = path.join(stateDir, 'projects.json');
@@ -124,6 +125,12 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
             files.projects=new Map(ids.map(id=>{const project=files.projects.get(id);if(!project)throw new FileError(409,'The project list changed. Refresh and try again.');return [id,project];}));
           });return json(200,{projects:await listProjects()});
         }
+        if(url.pathname==='/api/branches'){
+          const target=files.projects.get(url.searchParams.get('project')||'');
+          if(!target)throw new FileError(404,'Workspace not found.');
+          if(req.method==='GET')return json(200,await listBranches(target));
+          if(req.method==='POST'){const data=await body(req);return json(200,await switchBranch(target,data.branch));}
+        }
         if(url.pathname==='/api/sub-workspaces'){
           const parent=files.projects.get(url.searchParams.get('project')||'');
           if(!parent)throw new FileError(404,'Workspace not found.');
@@ -159,7 +166,6 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
         if(req.method==='POST'&&url.pathname==='/api/ssh/import-key'){const source=await (nativePickers?.key||selectSshKey)();return json(200,{path:source?await importSshKey(source):null});}
         if(req.method==='POST'&&url.pathname==='/api/ssh/select-key')return json(200,{path:await (nativePickers?.key||selectSshKey)()});
         if(req.method==='GET'&&url.pathname==='/api/account-usage')return json(200,await usage.read((url.searchParams.get('providers') || '').split(',').filter(Boolean)));
-        if(req.method==='GET'&&url.pathname==='/api/token-usage')return json(200,await tokenUsage.read(Number(url.searchParams.get('since')||0)));
         if(req.method==='GET'&&url.pathname==='/api/integrations/github')return json(200,await github.integrationStatus(appRoot));
         if(req.method==='GET'&&url.pathname==='/api/integrations/tools')return json(200,{tools:await localTools()});
         if(req.method==='POST'&&url.pathname==='/api/close-terminal'){const data=await body(req);if(typeof data.sessionId!=='string')throw new FileError(400,'Provide a terminal session ID.');return json(200,{closed:closeTerminalPty.stop(data.sessionId)});}
@@ -273,7 +279,8 @@ export async function createApp({ initialRoot = appRoot, stateDir = path.join(ap
     }
   });
   const closeTerminalPty=attachTerminalPty(server,{token,getProject:id=>files.projects.get(id),onStart:devServers.register,onStop:devServers.unregister,onOutput:devServers.output});
+  const closeChats=attachChatSockets(server,{token,getProject:id=>files.projects.get(id),prefs:await createChatPrefs(stateDir)});
   const resources=createResourceMonitor({listTerminals:closeTerminalPty.list});
-  let closing: Promise<unknown> | undefined;const closeSessions=()=>{devServers.dispose();changeWatch.dispose();return closing ||= Promise.all([localRunner.close(),closeTerminalPty()]);};server.on('close',()=>{void closeSessions().catch(()=>{});});
+  let closing: Promise<unknown> | undefined;const closeSessions=()=>{devServers.dispose();changeWatch.dispose();return closing ||= Promise.all([localRunner.close(),closeTerminalPty(),closeChats()]);};server.on('close',()=>{void closeSessions().catch(()=>{});});
   return { server, files, token, closeSessions };
 }
